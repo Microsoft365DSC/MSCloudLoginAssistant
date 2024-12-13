@@ -110,3 +110,23 @@ function Connect-MSCloudLoginAzure
         throw 'Specified authentication method is not supported.'
     }
 }
+
+function Disconnect-MSCloudLoginAzure
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginAzure'
+
+    if ($Script:MSCloudLoginConnectionProfile.Azure.Conntected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Azure' -Source $source
+        Disconnect-AzAccount | Out-Null
+        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Azure' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Azure were found' -Source $source
+    }
+}

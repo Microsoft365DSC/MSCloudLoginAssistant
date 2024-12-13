@@ -290,3 +290,23 @@ function Connect-MSCloudLoginMSGraphWithUser
         }
     }
 }
+
+function Disconnect-MSCloudLoginMicrosoftGraph
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginMicrosoftGraph'
+
+    if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Microsoft Graph' -Source $source
+        Disconnect-MgGraph | Out-Null
+        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Microsoft Graph' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Microsoft Graph were found' -Source $source
+    }
+}

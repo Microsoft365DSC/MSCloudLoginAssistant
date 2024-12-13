@@ -1,6 +1,5 @@
 $Script:WriteToEventLog = $env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true'
 
-Write-Verbose $PSScriptRoot -Verbose
 . "$PSScriptRoot\ConnectionProfile.ps1"
 $privateModules = Get-ChildItem -Path "$PSScriptRoot\Workloads" -Filter '*.ps1' -Recurse
 foreach ($module in $privateModules)
@@ -391,18 +390,42 @@ function Get-MSCloudLoginConnectionProfile
 #>
 function Reset-MSCloudLoginConnectionProfileContext
 {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', `
+                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
+                'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
+        [System.String[]]
+        $Workload
+    )
+
+    $fullReset = $false
+    if ($Workload.Count -eq 0)
+    {
+        $Workload = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'OrganizationName') }
+        $fullReset = $true
+    }
+
     $source = 'Reset-MSCloudLoginConnectionProfileContext'
     Add-MSCloudLoginAssistantEvent -Message 'Resetting connection profile' -Source $source
-    $workloads = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'OrganizationName') }
-    foreach ($workload in $workloads)
+    foreach ($workloadToReset in $Workload)
     {
-        $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workload | Get-Member -Name 'Disconnect' -MemberType Method)
+        $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method)
         if ($disconnectExists)
         {
-            $Script:MSCloudLoginConnectionProfile.$workload.Disconnect()
+            $Script:MSCloudLoginConnectionProfile.$workloadToReset.Disconnect()
+        }
+        else
+        {
+            Add-MSCloudLoginAssistantEvent -Message "No disconnect method found for workload {$workloadToReset}. Operation ignored." -Source $source
         }
     }
-    $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+
+    if ($fullReset)
+    {
+        $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+    }
 }
 
 <#

@@ -493,3 +493,23 @@ function Connect-MSCloudLoginPnP
     }
     return
 }
+
+function Disconnect-MSCloudLoginPnP
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginPnP'
+
+    if ($Script:MSCloudLoginConnectionProfile.PnP.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from PnP' -Source $source
+        Disconnect-PnPOnline | Out-Null
+        $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from PnP' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to PnP were found' -Source $source
+    }
+}

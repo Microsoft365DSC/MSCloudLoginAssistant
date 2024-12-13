@@ -301,6 +301,11 @@ class Azure:Workload
 
         Connect-MSCloudLoginAzure
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginAzure
+    }
 }
 
 class AzureDevOPS:Workload
@@ -586,6 +591,11 @@ class MicrosoftGraph:Workload
 
         Connect-MSCloudLoginMicrosoftGraph
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginMicrosoftGraph
+    }
 }
 
 class PnP:Workload
@@ -648,6 +658,11 @@ class PnP:Workload
 
 
         Connect-MSCloudLoginPnP -ForceRefreshConnection $ForceRefresh
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginPnP
     }
 }
 
@@ -882,5 +897,10 @@ class Teams:Workload
     {
         ([Workload]$this).Setup()
         Connect-MSCloudLoginTeams
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginTeams
     }
 }

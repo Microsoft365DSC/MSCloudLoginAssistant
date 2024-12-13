@@ -250,3 +250,23 @@ function Connect-MSCloudLoginTeamsMFA
         throw $_
     }
 }
+
+function Disconnect-MSCloudLoginTeams
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginTeams'
+
+    if ($Script:MSCloudLoginAssistant.Teams.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Microsoft Teams' -Source $source
+        Disconnect-MicrosoftTeams | Out-Null
+        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Microsoft Teams' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Microsoft Teams were found.' -Source $source
+    }
+}

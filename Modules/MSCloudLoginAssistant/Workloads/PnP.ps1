@@ -271,8 +271,7 @@ function Connect-MSCloudLoginPnP
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
                         -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
                         -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
-                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
-                        -SPOManagementShell
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
                 }
                 else
                 {
@@ -293,23 +292,23 @@ function Connect-MSCloudLoginPnP
             {
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
                 {
-                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell' -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
                         -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
-                        -SPOManagementShell
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId
                 }
                 else
                 {
-                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell' -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
                         -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
-                        -SPOManagementShell
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId
                 }
 
                 $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()

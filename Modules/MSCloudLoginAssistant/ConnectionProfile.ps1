@@ -604,7 +604,7 @@ class PnP:Workload
     $ConnectionUrl
 
     [string]
-    $ClientId = '9bc3ab49-b65d-410a-85ad-de819febfddc'
+    $ClientId = '9bc3ab49-b65d-410a-85ad-de819febfddc' # Microsoft Sharepoint Online Management Shell
 
     [string]
     $RedirectURI = 'https://oauth.spops.microsoft.com/'

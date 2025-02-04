@@ -188,7 +188,7 @@ function Connect-MSCloudLoginSecurityCompliance
             Connect-MSCloudLoginSecurityComplianceMFA -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId
         }
     }
-    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'AccessToken')
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'AccessTokens')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Access Token' -Source $source
         Connect-M365Tenant -Workload 'ExchangeOnline' `

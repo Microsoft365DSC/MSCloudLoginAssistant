@@ -423,7 +423,8 @@ function Reset-MSCloudLoginConnectionProfileContext
     Add-MSCloudLoginAssistantEvent -Message 'Resetting connection profile' -Source $source
     foreach ($workloadToReset in $Workload)
     {
-        if ($null -ne $Script:MSCloudLoginConnectionProfile.$workloadToReset)
+        $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method -ErrorAction SilentlyContinue)
+        if ($disconnectExists)
         {
             $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method)
             if ($disconnectExists)

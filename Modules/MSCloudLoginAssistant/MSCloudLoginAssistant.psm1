@@ -25,7 +25,7 @@ function Connect-M365Tenant
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', `
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
@@ -192,6 +192,18 @@ function Connect-M365Tenant
             $Script:MSCloudLoginConnectionProfile.Fabric.Identity = $Identity
             $Script:MSCloudLoginConnectionProfile.Fabric.Endpoints = $Endpoints
             $Script:MSCloudLoginConnectionProfile.Fabric.Connect()
+        }
+        'Licensing'
+        {
+            $Script:MSCloudLoginConnectionProfile.Licensing.Credentials = $Credential
+            $Script:MSCloudLoginConnectionProfile.Licensing.ApplicationId = $ApplicationId
+            $Script:MSCloudLoginConnectionProfile.Licensing.ApplicationSecret = $ApplicationSecret
+            $Script:MSCloudLoginConnectionProfile.Licensing.TenantId = $TenantId
+            $Script:MSCloudLoginConnectionProfile.Licensing.CertificateThumbprint = $CertificateThumbprint
+            $Script:MSCloudLoginConnectionProfile.Licensing.AccessTokens = $AccessTokens
+            $Script:MSCloudLoginConnectionProfile.Licensing.Endpoints = $Endpoints
+            $Script:MSCloudLoginConnectionProfile.Licensing.Connected = $false
+            $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
         }
         'MicrosoftGraph'
         {
@@ -367,7 +379,7 @@ function Get-MSCloudLoginConnectionProfile
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', `
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
@@ -393,7 +405,7 @@ function Reset-MSCloudLoginConnectionProfileContext
     [CmdletBinding()]
     param (
         [Parameter()]
-        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', `
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String[]]
@@ -411,14 +423,17 @@ function Reset-MSCloudLoginConnectionProfileContext
     Add-MSCloudLoginAssistantEvent -Message 'Resetting connection profile' -Source $source
     foreach ($workloadToReset in $Workload)
     {
-        $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method)
-        if ($disconnectExists)
+        if ($null -ne $Script:MSCloudLoginConnectionProfile.$workloadToReset)
         {
-            $Script:MSCloudLoginConnectionProfile.$workloadToReset.Disconnect()
-        }
-        else
-        {
-            Add-MSCloudLoginAssistantEvent -Message "No disconnect method found for workload {$workloadToReset}. Operation ignored." -Source $source
+            $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method)
+            if ($disconnectExists)
+            {
+                $Script:MSCloudLoginConnectionProfile.$workloadToReset.Disconnect()
+            }
+            else
+            {
+                Add-MSCloudLoginAssistantEvent -Message "No disconnect method found for workload {$workloadToReset}. Operation ignored." -Source $source
+            }
         }
     }
 

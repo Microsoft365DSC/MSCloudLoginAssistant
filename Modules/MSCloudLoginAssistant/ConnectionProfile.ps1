@@ -24,6 +24,9 @@ class MSCloudLoginConnectionProfile
     [Fabric]
     $Fabric
 
+    [Licensing]
+    $Licensing
+
     [MicrosoftGraph]
     $MicrosoftGraph
 
@@ -56,6 +59,7 @@ class MSCloudLoginConnectionProfile
         $this.DefenderForEndpoint      = New-Object DefenderForEndpoint
         $this.ExchangeOnline           = New-Object ExchangeOnline
         $this.Fabric                   = New-Object Fabric
+        $this.Licensing                = New-Object Licensing
         $this.MicrosoftGraph           = New-Object MicrosoftGraph
         $this.PnP                      = New-Object PnP
         $this.PowerPlatform            = New-Object PowerPlatform
@@ -512,6 +516,53 @@ class Fabric:Workload
         }
 
         Connect-MSCloudLoginFabric
+    }
+}
+
+class Licensing:Workload
+{
+    [string]
+    $HostUrl
+
+    [string]
+    $AuthorizationUrl
+
+    [string]
+    $Scope
+
+    [string]
+    $AccessToken
+
+    Licensing()
+    {
+    }
+
+    [void] Connect()
+    {
+        ([Workload]$this).Setup()
+        switch ($this.EnvironmentName)
+        {
+            'AzureDOD'
+            {
+                $this.HostUrl          = "https://licensing.m365.microsoft.com"
+                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
+            }
+            'AzureUSGovernment'
+            {
+                $this.HostUrl          = "https://licensing.m365.microsoft.com"
+                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
+            }
+            default
+            {
+                $this.HostUrl          = "https://licensing.m365.microsoft.com"
+                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
+            }
+        }
+
+        Connect-MSCloudLoginLicensing
     }
 }
 

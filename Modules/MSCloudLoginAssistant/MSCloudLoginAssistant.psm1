@@ -26,7 +26,7 @@ function Connect-M365Tenant
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
+                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload,
@@ -311,6 +311,17 @@ function Connect-M365Tenant
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.Endpoints = $Endpoints
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connect()
         }
+        'PowerPlatformREST'
+        {
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Credentials = $Credential
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationId = $ApplicationId
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.TenantId = $TenantId
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.CertificateThumbprint = $CertificateThumbprint
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationSecret = $ApplicationSecret
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessTokens = $AccessTokens
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Endpoints = $Endpoints
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Connect()
+        }
         'SecurityComplianceCenter'
         {
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials = $Credential
@@ -380,7 +391,7 @@ function Get-MSCloudLoginConnectionProfile
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
+                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload
@@ -406,7 +417,7 @@ function Reset-MSCloudLoginConnectionProfileContext
     param (
         [Parameter()]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', `
+                'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String[]]
         $Workload

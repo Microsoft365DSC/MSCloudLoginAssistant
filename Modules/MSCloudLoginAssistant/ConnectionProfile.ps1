@@ -36,6 +36,9 @@ class MSCloudLoginConnectionProfile
     [PowerPlatform]
     $PowerPlatform
 
+    [PowerPlatformREST]
+    $PowerPlatformREST
+
     [SecurityComplianceCenter]
     $SecurityComplianceCenter
 
@@ -63,6 +66,7 @@ class MSCloudLoginConnectionProfile
         $this.MicrosoftGraph           = New-Object MicrosoftGraph
         $this.PnP                      = New-Object PnP
         $this.PowerPlatform            = New-Object PowerPlatform
+        $this.PowerPlatformREST        = New-Object PowerPlatformREST
         $this.SecurityComplianceCenter = New-Object SecurityComplianceCenter
         $this.SharePointOnlineREST     = New-Object SharePointOnlineREST
         $this.Tasks                    = New-Object Tasks
@@ -730,6 +734,92 @@ class PowerPlatform:Workload
     {
         ([Workload]$this).Setup()
         Connect-MSCloudLoginPowerPlatform
+    }
+    [void] Disconnect()
+    {
+        $this.Connected = $false
+    }
+}
+
+class PowerPlatformREST:Workload
+{
+    [string]
+    $AuthorizationUrl
+
+    [string]
+    $Audience
+
+    [string]
+    $BapEndpoint
+
+    [string]
+    $ClientId
+
+    [string]
+    $Scope
+
+    [string]
+    $AccessToken
+
+    PowerPlatformREST()
+    {
+    }
+
+    [void] Connect()
+    {
+        ([Workload]$this).Setup()
+
+        switch ($this.EnvironmentName)
+        {
+            <# AUDIENCE
+            "prod" = "https://service.powerapps.com/";
+            "preview" = "https://service.powerapps.com/";
+            "tip1"= "https://service.powerapps.com/";
+            "tip2"= "https://service.powerapps.com/";
+            "usgov"= "https://gov.service.powerapps.us/";
+            "usgovhigh"= "https://high.service.powerapps.us/";
+            "dod" = "https://service.apps.appsplatform.us/";
+            "china" = "https://service.powerapps.cn/";
+            #>
+
+            <# BAP
+                        "prod"      { "api.bap.microsoft.com" }
+                        "usgov"     { "gov.api.bap.microsoft.us" }
+                        "usgovhigh" { "high.api.bap.microsoft.us" }
+                        "dod"       { "api.bap.appsplatform.us" }
+                        "china"     { "api.bap.partner.microsoftonline.cn" }
+                        "preview"   { "preview.api.bap.microsoft.com" }
+                        "tip1"      { "tip1.api.bap.microsoft.com"}
+                        "tip2"      { "tip2.api.bap.microsoft.com" }
+            #>
+            'AzureDOD'
+            {
+                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
+                $this.Audience         = "https://service.apps.appsplatform.us/"
+                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
+                $this.BapEndpoint      = "api.bap.appsplatform.us"
+
+            }
+            'AzureUSGovernment'
+            {
+                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
+                $this.Audience         = "https://gov.service.powerapps.us/"
+                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
+                $this.BapEndpoint      = "gov.api.bap.microsoft.us"
+            }
+            default
+            {
+                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
+                $this.Audience         = "https://service.powerapps.com/"
+                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
+                $this.BapEndpoint      = "api.bap.microsoft.com"
+            }
+        }
+
+        Connect-MSCloudLoginPowerPlatformREST
     }
 }
 

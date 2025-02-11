@@ -50,6 +50,8 @@ function Connect-MSCloudLoginPowerPlatform
                 -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PowerPlatform.CertificateThumbprint `
                 -Endpoint $Script:MSCloudLoginConnectionProfile.PowerPlatform.Endpoint `
                 -ErrorAction Stop | Out-Null
+            $tokenValue = "Bearer $(($Global:currentSession.resourceTokens.'https://service.powerapps.com/'.accessToken).ToString())"
+            $Script:MSCloudLoginConnectionProfile.PowerPlatform.AccessTokens = $tokenValue
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.MultiFactorAuthentication = $false
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $true

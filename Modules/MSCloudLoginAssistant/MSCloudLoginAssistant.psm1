@@ -26,7 +26,7 @@ function Connect-M365Tenant
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
+                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload,
@@ -251,7 +251,7 @@ function Connect-M365Tenant
             {
                 $ForceRefresh = $false
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
-                    -not [System.String]::IsNullOrEmpty($url))
+                        -not [System.String]::IsNullOrEmpty($url))
                 {
                     $ForceRefresh = $true
                 }
@@ -630,7 +630,7 @@ function Compare-InputParametersForChange
         }
     }
     if ($workloadInternalName -eq 'PNP' -and $currentParameters.ContainsKey('Url') -and `
-        -not [System.String]::IsNullOrEmpty($currentParameters.Url))
+            -not [System.String]::IsNullOrEmpty($currentParameters.Url))
     {
         $globalParameters.Add('Url', $workloadProfile.ConnectionUrl)
     }
@@ -1176,19 +1176,7 @@ function Get-CloudEnvironmentInfo
 
         [Parameter()]
         [System.String]
-        $ApplicationId,
-
-        [Parameter()]
-        [System.String]
         $TenantId,
-
-        [Parameter()]
-        [System.String]
-        $ApplicationSecret,
-
-        [Parameter()]
-        [System.String]
-        $CertificateThumbprint,
 
         [Parameter()]
         [switch]

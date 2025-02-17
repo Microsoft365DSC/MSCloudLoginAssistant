@@ -4,5 +4,6 @@
     ExcludeRules = @('PSMissingModuleManifestField',
         'PSUseShouldProcessForStateChangingFunctions',
         'PSAvoidGlobalVars',
-        'PSAvoidUsingWriteHost')
+        'PSAvoidUsingWriteHost',
+        'PSAvoidUsingConvertToSecureStringWithPlainText')
 }

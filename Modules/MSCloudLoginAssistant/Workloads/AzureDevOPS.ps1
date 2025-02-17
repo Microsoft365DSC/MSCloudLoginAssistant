@@ -28,7 +28,7 @@ function Connect-MSCloudLoginAzureDevOPS
         $Script:MSCloudLoginConnectionProfile.AzureDevOPS.AuthenticationType -eq 'Credentials' -or
         $Script:MSCloudLoginConnectionProfile.AzureDevOPS.AuthenticationType -eq 'CredentialsWithTenantId')
     {
-        Add-MSCloudLoginAssistantEvent -Message 'Attempting to connecto to Azure DevOPS using Credentials.' -Source $source
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Azure DevOPS using Credentials.' -Source $source
         Connect-MSCloudAzureDevOPSWithUser
         Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Azure DevOPS using Credentials' -Source $source
     }

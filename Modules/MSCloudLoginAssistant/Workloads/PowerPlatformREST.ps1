@@ -243,7 +243,7 @@ function Connect-MSCloudLoginPowerPlatformRESTWithCertificateThumbprint
             client_id             = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationId
             client_assertion      = $JWT
             client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
-            scope                 = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Audience + "/.default"
+            scope                 = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Audience + '/.default'
             grant_type            = 'client_credentials'
         }
 

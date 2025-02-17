@@ -120,8 +120,8 @@ function Connect-MSCloudLoginPnP
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
                 {
                     if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.ConnectionUri -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.AzureADAuthorizationEndpointUri)
+                            $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.ConnectionUri -and `
+                            $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.AzureADAuthorizationEndpointUri)
                     {
                         $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.ConnectionUri `
                             -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.AzureADAuthorizationEndpointUri `

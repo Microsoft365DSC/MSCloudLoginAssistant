@@ -145,22 +145,13 @@ class Workload : ICloneable
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -Credentials $this.Credentials
             }
-            elseif ($this.ApplicationID -and $this.CertificateThumbprint)
+            elseif ($this.AccessTokens -or ($this.ApplicationID -and (($this.CertificateThumbprint -or $this.ApplicationSecret))))
             {
-                Add-MSCloudLoginAssistantEvent -Message "Trying to retrieve the Cloud Environment using Certificate Thumbprint." -Source $source
-                $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -ApplicationId $this.ApplicationId -TenantId $this.TenantId -CertificateThumbprint $this.CertificateThumbprint
-            }
-            elseif ($this.ApplicationID -and $this.ApplicationSecret)
-            {
-                $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -ApplicationId $this.ApplicationId -TenantId $this.TenantId -ApplicationSecret $this.ApplicationSecret
+                $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -TenantId $this.TenantId
             }
             elseif ($this.Identity.IsPresent)
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -Identity -TenantId $this.TenantId
-            }
-            elseif ($this.AccessTokens)
-            {
-                $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -TenantId $this.TenantId
             }
 
             Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source

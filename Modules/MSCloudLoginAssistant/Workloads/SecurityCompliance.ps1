@@ -73,8 +73,8 @@ function Connect-MSCloudLoginSecurityCompliance
         {
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Service Principal and Certificate Thumbprint' -Source $source
             if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.ConnectionUri -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.AzureADAuthorizationEndpointUri)
+                    $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.ConnectionUri -and `
+                    $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.AzureADAuthorizationEndpointUri)
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
                 Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `

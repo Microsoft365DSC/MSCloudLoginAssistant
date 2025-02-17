@@ -60,8 +60,8 @@ function Connect-MSCloudLoginTeams
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
         if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.ConnectionUri -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.AzureADAuthorizationEndpointUri)
+                $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.ConnectionUri -and `
+                $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.AzureADAuthorizationEndpointUri)
         {
             $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.ConnectionUri `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.AzureADAuthorizationEndpointUri `

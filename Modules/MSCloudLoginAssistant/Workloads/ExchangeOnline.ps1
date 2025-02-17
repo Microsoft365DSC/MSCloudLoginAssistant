@@ -117,8 +117,8 @@ function Connect-MSCloudLoginExchangeOnline
             }
 
             if ($null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.ConnectionUri -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.AzureADAuthorizationEndpointUri)
+                    $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.ConnectionUri -and `
+                    $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.AzureADAuthorizationEndpointUri)
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
                 Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `

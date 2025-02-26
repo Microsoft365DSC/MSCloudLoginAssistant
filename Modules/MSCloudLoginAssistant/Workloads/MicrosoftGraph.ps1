@@ -100,11 +100,11 @@ function Connect-MSCloudLoginMicrosoftGraph
             if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
             {
                 if ($null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints -and `
-                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.ConnectionUri -and `
-                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.AzureADAuthorizationEndpointUri)
+                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.Scope -and `
+                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.TokenUrl)
                 {
-                    $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.ConnectionUri `
-                        -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.AzureADAuthorizationEndpointUri `
+                    $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.Scope `
+                        -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.TokenUrl `
                         -ApplicationId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                         -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
                         -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CertificateThumbprint

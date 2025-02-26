@@ -120,11 +120,11 @@ function Connect-MSCloudLoginPnP
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
                 {
                     if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.ConnectionUri -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.AzureADAuthorizationEndpointUri)
+                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.Scope -and `
+                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.TokenUrl)
                     {
-                        $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.ConnectionUri `
-                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.AzureADAuthorizationEndpointUri `
+                        $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.Scope `
+                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.TokenUrl `
                             -ApplicationId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
                             -TenantId $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
                             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint
@@ -134,7 +134,7 @@ function Connect-MSCloudLoginPnP
                         Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                         Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                         Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
-                            -AccessToken $accessToken | Out-Null
+                            -AccessToken $($accessToken) | Out-Null
                     }
                     else
                     {

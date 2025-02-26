@@ -90,7 +90,7 @@ class Workload : ICloneable
     $Credentials
 
     [string]
-    [ValidateSet('AzureCloud', 'AzureChinaCloud', 'AzureGermanyCloud', 'AzureUSGovernment', 'AzureDOD')]
+    [ValidateSet('AzureCloud', 'AzureChinaCloud', 'AzureGermanyCloud', 'AzureUSGovernment', 'AzureDOD', 'Custom')]
     $EnvironmentName
 
     [boolean]
@@ -165,40 +165,47 @@ class Workload : ICloneable
 
             Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
         }
-        switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
+        if ($null -eq $this.Endpoints)
         {
-            'AzureGermanyCloud'
+            switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
             {
-                $this.EnvironmentName = 'O365GermanyCloud'
-            }
-            'DOD'
-            {
-                $this.EnvironmentName = 'AzureDOD'
-            }
-            'DODCON'
-            {
-                $this.EnvironmentName = 'AzureUSGovernment'
-            }
-            'USGov'
-            {
-                $this.EnvironmentName = 'AzureUSGovernment'
-            }
-            default
-            {
-                if ($null -ne $Script:CloudEnvironmentInfo -and $Script:CloudEnvironmentInfo.token_endpoint.StartsWith('https://login.partner.microsoftonline.cn'))
+                'AzureGermanyCloud'
                 {
-                    $this.EnvironmentName = 'AzureChinaCloud'
+                    $this.EnvironmentName = 'O365GermanyCloud'
+                }
+                'DOD'
+                {
+                    $this.EnvironmentName = 'AzureDOD'
+                }
+                'DODCON'
+                {
+                    $this.EnvironmentName = 'AzureUSGovernment'
+                }
+                'USGov'
+                {
+                    $this.EnvironmentName = 'AzureUSGovernment'
+                }
+                default
+                {
+                    if ($null -ne $Script:CloudEnvironmentInfo -and $Script:CloudEnvironmentInfo.token_endpoint.StartsWith('https://login.partner.microsoftonline.cn'))
+                    {
+                        $this.EnvironmentName = 'AzureChinaCloud'
 
-                    # Converting tenant to GUID. This is a limitation of the PnP module which
-                    # can't recognize the tenant when FQDN is provided.
-                    $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
-                    $this.TenantGUID = $tenantGUIDValue
-                }
-                else
-                {
-                    $this.EnvironmentName = 'AzureCloud'
+                        # Converting tenant to GUID. This is a limitation of the PnP module which
+                        # can't recognize the tenant when FQDN is provided.
+                        $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
+                        $this.TenantGUID = $tenantGUIDValue
+                    }
+                    else
+                    {
+                        $this.EnvironmentName = 'AzureCloud'
+                    }
                 }
             }
+        }
+        else
+        {
+            $this.EnvironmentName = 'Custom'
         }
         Add-MSCloudLoginAssistantEvent -Message "`$this.EnvironmentName was detected to be {$($this.EnvironmentName)}" -Source $source
         if ([System.String]::IsNullOrEmpty($this.EnvironmentName))
@@ -285,6 +292,11 @@ class AdminAPI:Workload
                 $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
+            'Custom'
+            {
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
             default
             {
                 $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
@@ -292,6 +304,7 @@ class AdminAPI:Workload
             }
         }
 
+        $Script:MSCloudLoginConnectionProfile.AdminAPI = $this
         Connect-MSCloudLoginAdminAPI
     }
 }
@@ -307,6 +320,7 @@ class Azure:Workload
         $Script:MSCloudLoginTriedGetEnvironment = $false
         ([Workload]$this).Setup()
 
+        $Script:MSCloudLoginConnectionProfile.Azure = $this
         Connect-MSCloudLoginAzure
     }
 
@@ -351,6 +365,12 @@ class AzureDevOPS:Workload
                 $this.Scope            = "499b84ac-1321-427f-aa17-267ca6975798/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
             default
             {
                 $this.HostUrl          = "https://dev.azure.com"
@@ -359,6 +379,8 @@ class AzureDevOPS:Workload
             }
         }
 
+
+        $Script:MSCloudLoginConnectionProfile.AzureDevOPS = $this
         Connect-MSCloudLoginAzureDevOPS
     }
 }
@@ -389,23 +411,31 @@ class DefenderForEndpoint:Workload
         {
             'AzureDOD'
             {
-                $this.HostUrl = 'https://api-gov.securitycenter.microsoft.us'
-                $this.Scope = 'https://api.securitycenter.microsoft.com/.default'
+                $this.HostUrl          = 'https://api-gov.securitycenter.microsoft.us'
+                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.us'
             }
             'AzureUSGovernment'
             {
-                $this.HostUrl = 'https://api-gcc.securitycenter.microsoft.us'
-                $this.Scope = 'https://api.securitycenter.microsoft.com/.default'
+                $this.HostUrl          = 'https://api-gcc.securitycenter.microsoft.us'
+                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com'
+            }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
             }
             default
             {
-                $this.HostUrl = 'https://api.security.microsoft.com'
-                $this.Scope = 'https://api.securitycenter.microsoft.com/.default'
+                $this.HostUrl          = 'https://api.security.microsoft.com'
+                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com'
             }
         }
+
+        $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint = $this
         Connect-MSCloudLoginDefenderForEndpoint
     }
 
@@ -416,6 +446,12 @@ class ExchangeOnline:Workload
     [string]
     [ValidateSet('O365Default', 'O365GermanyCloud', 'O365China', 'O365USGovGCCHigh', 'O365USGovDod')]
     $ExchangeEnvironmentName = 'O365Default'
+
+    [string]
+    $ConnectionUri
+
+    [string]
+    $AzureADAuthorizationEndpointUri
 
     [boolean]
     $SkipModuleReload = $false
@@ -459,8 +495,13 @@ class ExchangeOnline:Workload
             {
                 $this.ExchangeEnvironmentName = 'O365China'
             }
+            'Custom'
+            {
+                $this.ConnectionUri                   = $this.Endpoints.ConnectionUri
+                $this.AzureADAuthorizationEndpointUri = $this.Endpoints.AzureADAuthorizationEndpointUri
+            }
         }
-
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline = $this
         Connect-MSCloudLoginExchangeOnline -Verbose
     }
 
@@ -511,6 +552,12 @@ class Fabric:Workload
                 $this.Scope            = "https://api.fabric.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
             default
             {
                 $this.HostUrl          = "https://api.fabric.microsoft.com"
@@ -519,6 +566,7 @@ class Fabric:Workload
             }
         }
 
+        $Script:MSCloudLoginConnectionProfile.Fabric = $this
         Connect-MSCloudLoginFabric
     }
 }
@@ -558,6 +606,12 @@ class Licensing:Workload
                 $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
                 $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
             }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
             default
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
@@ -566,6 +620,7 @@ class Licensing:Workload
             }
         }
 
+        $Script:MSCloudLoginConnectionProfile.Licensing = $this
         Connect-MSCloudLoginLicensing
     }
 }
@@ -573,7 +628,7 @@ class Licensing:Workload
 class MicrosoftGraph:Workload
 {
     [string]
-    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany')]
+    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany', 'Custom')]
     $GraphEnvironment = 'Global'
 
     [string]
@@ -589,9 +644,6 @@ class MicrosoftGraph:Workload
     [string]
     $TokenUrl
 
-    [string]
-    $UserTokenUrl
-
     MicrosoftGraph()
     {
     }
@@ -605,45 +657,45 @@ class MicrosoftGraph:Workload
             $this.TenantId = $this.Credentials.Username.Split('@')[1]
         }
 
-        if ($null -eq $this.Endpoints)
+        switch ($this.EnvironmentName)
         {
-            switch ($this.EnvironmentName)
+            'AzureCloud'
             {
-                'AzureCloud'
-                {
-                    $this.GraphEnvironment = 'Global'
-                    $this.ResourceUrl = 'https://graph.microsoft.com/'
-                    $this.Scope = 'https://graph.microsoft.com/.default'
-                    $this.TokenUrl = "https://login.microsoftonline.com/$($this.TenantId)/oauth2/v2.0/token"
-                    $this.UserTokenUrl = "https://login.microsoftonline.com/$($this.TenantId)/oauth2/v2.0/authorize"
-                }
-                'AzureUSGovernment'
-                {
-                    $this.GraphEnvironment = 'USGov'
-                    $this.ResourceUrl = 'https://graph.microsoft.us/'
-                    $this.Scope = 'https://graph.microsoft.us/.default'
-                    $this.TokenUrl = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
-                    $this.UserTokenUrl = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/authorize"
-                }
-                'AzureDOD'
-                {
-                    $this.GraphEnvironment = 'USGovDoD'
-                    $this.ResourceUrl = 'https://dod-graph.microsoft.us/'
-                    $this.Scope = 'https://dod-graph.microsoft.us/.default'
-                    $this.TokenUrl = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
-                    $this.UserTokenUrl = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/authorize"
-                }
-                'AzureChinaCloud'
-                {
-                    $this.GraphEnvironment = 'China'
-                    $this.ResourceUrl = 'https://microsoftgraph.chinacloudapi.cn/'
-                    $this.Scope = 'https://microsoftgraph.chinacloudapi.cn/.default'
-                    $this.TokenUrl = "https://login.chinacloudapi.cn/$($this.TenantId)/oauth2/v2.0/token"
-                    $this.UserTokenUrl = "https://login.chinacloudapi.cn/$($this.TenantId)/oauth2/v2.0/authorize"
-                }
+                $this.GraphEnvironment = 'Global'
+                $this.ResourceUrl      = 'https://graph.microsoft.com/'
+                $this.Scope            = 'https://graph.microsoft.com/.default'
+                $this.TokenUrl         = "https://login.microsoftonline.com/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'AzureUSGovernment'
+            {
+                $this.GraphEnvironment = 'USGov'
+                $this.ResourceUrl      = 'https://graph.microsoft.us/'
+                $this.Scope            = 'https://graph.microsoft.us/.default'
+                $this.TokenUrl         = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'AzureDOD'
+            {
+                $this.GraphEnvironment = 'USGovDoD'
+                $this.ResourceUrl      = 'https://dod-graph.microsoft.us/'
+                $this.Scope            = 'https://dod-graph.microsoft.us/.default'
+                $this.TokenUrl         = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'AzureChinaCloud'
+            {
+                $this.GraphEnvironment = 'China'
+                $this.ResourceUrl      = 'https://microsoftgraph.chinacloudapi.cn/'
+                $this.Scope            = 'https://microsoftgraph.chinacloudapi.cn/.default'
+                $this.TokenUrl         = "https://login.chinacloudapi.cn/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'Custom'
+            {
+                $this.GraphEnvironment = 'Custom'
+                $this.ResourceUrl      = $this.Endpoints.ResourceUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.TokenUrl         = $this.Endpoints.TokenUrl
             }
         }
-
+        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph = $this
         Connect-MSCloudLoginMicrosoftGraph
     }
 
@@ -655,6 +707,12 @@ class MicrosoftGraph:Workload
 
 class PnP:Workload
 {
+    [string]
+    $Scope
+
+    [string]
+    $TokenUrl
+
     [string]
     $ConnectionUrl
 
@@ -689,6 +747,8 @@ class PnP:Workload
         if ($null -ne $this.Endpoints)
         {
             $this.PnPAzureEnvironment = 'Custom'
+            $this.Scope               = $this.Endpoints.Scope
+            $this.TokenUrl            = $this.Endpoints.TokenUrl
         }
         elseif ($this.EnvironmentName -eq 'AzureCloud')
         {
@@ -710,8 +770,7 @@ class PnP:Workload
         {
             $this.PnPAzureEnvironment = 'China'
         }
-
-
+        $Script:MSCloudLoginConnectionProfile.PnP = $this
         Connect-MSCloudLoginPnP -ForceRefreshConnection $ForceRefresh
     }
 
@@ -809,6 +868,14 @@ class PowerPlatformREST:Workload
                 $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
                 $this.BapEndpoint      = "gov.api.bap.microsoft.us"
             }
+            'Custom'
+            {
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.Audience         = $this.Endpoints.Audience
+                $this.ClientId         = $this.Endpoints.ClientId
+                $this.BapEndpoint      = $this.Endpoints.BapEndpoint
+            }
             default
             {
                 $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
@@ -818,7 +885,7 @@ class PowerPlatformREST:Workload
                 $this.BapEndpoint      = "api.bap.microsoft.com"
             }
         }
-
+        $Script:MSCloudLoginConnectionProfile.PowerPlatformREST = $this
         Connect-MSCloudLoginPowerPlatformREST
     }
 }
@@ -849,32 +916,39 @@ class SecurityComplianceCenter:Workload
         {
             'AzureCloud'
             {
-                $this.ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com/organizations'
             }
             'AzureUSGovernment'
             {
-                $this.ConnectionUrl = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
+                $this.ConnectionUrl                   = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
                 $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
             }
             'AzureDOD'
             {
-                $this.ConnectionUrl = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
+                $this.ConnectionUrl                   = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
                 $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
             }
             'AzureGermany'
             {
-                $this.ConnectionUrl = 'https://ps.compliance.protection.outlook.de/powershell-liveid/'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.outlook.de/powershell-liveid/'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.de/organizations'
             }
             'AzureChinaCloud'
             {
-                $this.ConnectionUrl = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/'
                 $this.AuthorizationUrl = 'https://login.chinacloudapi.cn/organizations'
             }
+            'Custom'
+            {
+                $this.ConnectionUrl                   = $this.Endpoints.ConnectionUrl
+                $this.AuthorizationUrl                = $this.Endpoints.AuthorizationUrl
+                $this.AzureADAuthorizationEndpointUri = $this.Endpoints.AzureADAuthorizationEndpointUri
+            }
         }
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this
         Connect-MSCloudLoginSecurityCompliance
     }
 }
@@ -963,6 +1037,12 @@ class SharePointOnlineREST:Workload
                 $this.Scope            = "$($this.AdminUrl)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
             default
             {
                 $this.HostUrl          = $this.AdminUrl
@@ -970,7 +1050,7 @@ class SharePointOnlineREST:Workload
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
             }
         }
-
+        $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST = $this
         Connect-MSCloudLoginSharePointOnlineREST
     }
 }
@@ -1015,6 +1095,13 @@ class Tasks:Workload
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.ResourceUrl      = "https://tasks.office365.us"
             }
+            'Custom'
+            {
+                $this.HostUrl          = $this.Endpoints.HostUrl
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.ResourceUrl      = $this.Endpoints.ResourceUrl
+            }
             default
             {
                 $this.HostUrl          = "https://tasks.office.com"
@@ -1023,13 +1110,22 @@ class Tasks:Workload
                 $this.ResourceUrl      = "https://tasks.office.com"
             }
         }
-
+        $Script:MSCloudLoginConnectionProfile.Tasks = $this
         Connect-MSCloudLoginTasks
     }
 }
 
 class Teams:Workload
 {
+    [string]
+    $TeamsConfigApiEndPoint
+
+    [string]
+    $TokenUrl
+
+    [string]
+    $Scope
+
     Teams()
     {
     }
@@ -1037,6 +1133,16 @@ class Teams:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
+        switch ($this.EnvironmentName)
+        {
+            "Custom"
+            {
+                $this.TeamsConfigApiEndPoint = $this.Endpoints.TeamsConfigApiEndPoint
+                $this.TokenUrl               = $this.Endpoints.TokenUrl
+                $this.Scope                  = $this.Endpoints.Scope
+            }
+        }
+        $Script:MSCloudLoginConnectionProfile.Teams = $this
         Connect-MSCloudLoginTeams
     }
 

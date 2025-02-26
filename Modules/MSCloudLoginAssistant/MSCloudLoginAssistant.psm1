@@ -996,7 +996,7 @@ function Get-MSCloudLoginAccessToken
         # Create JWT payload
         $JWTPayLoad = @{
             # What endpoint is allowed to use this JWT
-            aud = "$($AzureADAuthorizationEndpointUri)/$($TenantId)/oauth2/token"
+            aud = $AzureADAuthorizationEndpointUri
 
             # Expiration timestamp
             exp = $JWTExpiration
@@ -1041,14 +1041,14 @@ function Get-MSCloudLoginAccessToken
 
         # Create a hash with body parameters
         $Body = @{
-            client_id             = $appId
+            client_id             = $ApplicationId
             client_assertion      = $JWT
             client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
             scope                 = $ConnectionUri
             grant_type            = 'client_credentials'
         }
 
-        $Url = "$($AzureADAuthorizationEndpointUri)/$($TenantId)/oauth2/v2.0/token"
+        $Url = $AzureADAuthorizationEndpointUri
 
         # Use the self-generated JWT as Authorization
         $Header = @{

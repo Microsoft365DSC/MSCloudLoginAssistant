@@ -18,6 +18,9 @@ class MSCloudLoginConnectionProfile
     [DefenderForEndpoint]
     $DefenderForEndpoint
 
+    [EngageHub]
+    $EngageHub
+
     [ExchangeOnline]
     $ExchangeOnline
 
@@ -60,6 +63,7 @@ class MSCloudLoginConnectionProfile
         $this.Azure                    = New-Object Azure
         $this.AzureDevOPS              = New-Object AzureDevOPS
         $this.DefenderForEndpoint      = New-Object DefenderForEndpoint
+        $this.EngageHub           = New-Object EngageHub
         $this.ExchangeOnline           = New-Object ExchangeOnline
         $this.Fabric                   = New-Object Fabric
         $this.Licensing                = New-Object Licensing
@@ -439,6 +443,54 @@ class DefenderForEndpoint:Workload
         Connect-MSCloudLoginDefenderForEndpoint
     }
 
+}
+
+class EngageHub:Workload
+{
+    [string]
+    $AuthorizationUrl
+
+    [string]
+    $Scope
+
+    [string]
+    $AccessToken
+
+    PowerPlatformREST()
+    {
+    }
+
+    [void] Connect()
+    {
+        ([Workload]$this).Setup()
+
+        switch ($this.EnvironmentName)
+        {
+            'AzureDOD'
+            {
+                $this.Scope            = "https://engagehub.microsoft.us/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
+
+            }
+            'AzureUSGovernment'
+            {
+                $this.Scope            = "https://engagehub.microsoft.us/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
+            }
+            'Custom'
+            {
+                $this.Scope            = $this.Endpoints.Scope
+                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+            }
+            default
+            {
+                $this.Scope            = "https://engagehub.microsoft.com/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
+            }
+        }
+        $Script:MSCloudLoginConnectionProfile.EngageHub = $this
+        Connect-MSCloudLoginEngageHub
+    }
 }
 
 class ExchangeOnline:Workload
@@ -1118,13 +1170,13 @@ class Tasks:Workload
 class Teams:Workload
 {
     [string]
-    $TeamsConfigApiEndPoint
-
-    [string]
     $TokenUrl
 
     [string]
-    $Scope
+    $GraphScope
+
+    [string]
+    $TeamsScope
 
     Teams()
     {
@@ -1137,9 +1189,9 @@ class Teams:Workload
         {
             "Custom"
             {
-                $this.TeamsConfigApiEndPoint = $this.Endpoints.TeamsConfigApiEndPoint
-                $this.TokenUrl               = $this.Endpoints.TokenUrl
-                $this.Scope                  = $this.Endpoints.Scope
+                $this.TokenUrl   = $this.Endpoints.TokenUrl
+                $this.GraphScope = $this.Endpoints.GraphScope
+                $this.TeamsScope = $this.Endpoints.TeamsScope
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

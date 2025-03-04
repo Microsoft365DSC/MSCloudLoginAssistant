@@ -60,18 +60,19 @@ function Connect-MSCloudLoginTeams
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
         if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.Scope -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.TokenUrl)
+            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
+            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope -and `
+            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl)
         {
-            $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.Scope `
-                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.TokenUrl `
+            $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.GraphScope `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
                 -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
             $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens += $graphAccessToken
 
-            $teamsAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri '48ac35b8-9aa8-4d74-927d-1f4a14a0b239/.default' `
-                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.Endpoints.TokenUrl `
+            $teamsAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
                 -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint

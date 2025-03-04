@@ -25,7 +25,7 @@ function Connect-M365Tenant
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
@@ -166,6 +166,17 @@ function Connect-M365Tenant
             $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Identity = $Identity
             $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Endpoints = $Endpoints
             $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Connect()
+        }
+        'EngageHub'
+        {
+            $Script:MSCloudLoginConnectionProfile.EngageHub.Credentials = $Credential
+            $Script:MSCloudLoginConnectionProfile.EngageHub.ApplicationId = $ApplicationId
+            $Script:MSCloudLoginConnectionProfile.EngageHub.TenantId = $TenantId
+            $Script:MSCloudLoginConnectionProfile.EngageHub.CertificateThumbprint = $CertificateThumbprint
+            $Script:MSCloudLoginConnectionProfile.EngageHub.ApplicationSecret = $ApplicationSecret
+            $Script:MSCloudLoginConnectionProfile.EngageHub.AccessTokens = $AccessTokens
+            $Script:MSCloudLoginConnectionProfile.EngageHub.Endpoints = $Endpoints
+            $Script:MSCloudLoginConnectionProfile.EngageHub.Connect()
         }
         'ExchangeOnline'
         {
@@ -390,7 +401,7 @@ function Get-MSCloudLoginConnectionProfile
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'ExchangeOnline', 'Fabric', 'Licensing', `
+        [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
@@ -429,11 +440,15 @@ function Reset-MSCloudLoginConnectionProfileContext
         $Workload = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'OrganizationName') }
         $fullReset = $true
     }
-
+    
     $source = 'Reset-MSCloudLoginConnectionProfileContext'
     Add-MSCloudLoginAssistantEvent -Message 'Resetting connection profile' -Source $source
     foreach ($workloadToReset in $Workload)
     {
+        if ($workloadToReset -eq 'MicrosoftTeams')
+        {
+            $workloadToReset = 'Teams'
+        }
         $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method -ErrorAction SilentlyContinue)
         if ($disconnectExists)
         {

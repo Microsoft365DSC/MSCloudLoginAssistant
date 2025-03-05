@@ -63,7 +63,7 @@ class MSCloudLoginConnectionProfile
         $this.Azure                    = New-Object Azure
         $this.AzureDevOPS              = New-Object AzureDevOPS
         $this.DefenderForEndpoint      = New-Object DefenderForEndpoint
-        $this.EngageHub           = New-Object EngageHub
+        $this.EngageHub                = New-Object EngageHub
         $this.ExchangeOnline           = New-Object ExchangeOnline
         $this.Fabric                   = New-Object Fabric
         $this.Licensing                = New-Object Licensing
@@ -456,7 +456,10 @@ class EngageHub:Workload
     [string]
     $AccessToken
 
-    PowerPlatformREST()
+    [string]
+    $APIUrl
+
+    EngageHub()
     {
     }
 
@@ -470,22 +473,26 @@ class EngageHub:Workload
             {
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
+                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.us"
 
             }
             'AzureUSGovernment'
             {
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
+                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.us"
             }
             'Custom'
             {
                 $this.Scope            = $this.Endpoints.Scope
                 $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.APIUrl           = $this.Endpoints.APIUrl
             }
             default
             {
                 $this.Scope            = "https://engagehub.microsoft.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
+                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.com"
             }
         }
         $Script:MSCloudLoginConnectionProfile.EngageHub = $this

@@ -1,6 +1,7 @@
 $Script:WriteToEventLog = $env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true'
 
 . "$PSScriptRoot\ConnectionProfile.ps1"
+. "$PSScriptRoot\CustomEnvironment.ps1"
 $privateModules = Get-ChildItem -Path "$PSScriptRoot\Workloads" -Filter '*.ps1' -Recurse
 foreach ($module in $privateModules)
 {
@@ -440,7 +441,7 @@ function Reset-MSCloudLoginConnectionProfileContext
         $Workload = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'OrganizationName') }
         $fullReset = $true
     }
-    
+
     $source = 'Reset-MSCloudLoginConnectionProfileContext'
     Add-MSCloudLoginAssistantEvent -Message 'Resetting connection profile' -Source $source
     foreach ($workloadToReset in $Workload)

@@ -169,8 +169,9 @@ class Workload : ICloneable
 
             Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
         }
-        if ($null -eq $this.Endpoints)
-        {
+        #if ($null -eq $this.Endpoints)
+        #{
+        ##DLW
             switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
             {
                 'AzureGermanyCloud'
@@ -200,17 +201,21 @@ class Workload : ICloneable
                         $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
                         $this.TenantGUID = $tenantGUIDValue
                     }
+                    elseif ($Global:CustomEnv)
+                    {
+                        $this.EnvironmentName = 'Custom'
+                    }
                     else
                     {
                         $this.EnvironmentName = 'AzureCloud'
                     }
                 }
             }
-        }
-        else
-        {
-            $this.EnvironmentName = 'Custom'
-        }
+        #}
+        #else
+        #{
+        #    $this.EnvironmentName = 'Custom'
+        #}
         Add-MSCloudLoginAssistantEvent -Message "`$this.EnvironmentName was detected to be {$($this.EnvironmentName)}" -Source $source
         if ([System.String]::IsNullOrEmpty($this.EnvironmentName))
         {

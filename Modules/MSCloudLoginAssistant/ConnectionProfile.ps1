@@ -756,7 +756,7 @@ class MicrosoftGraph:Workload
                 $this.GraphEnvironment = 'Custom'
                 $this.ResourceUrl      = $Global:CustomGraphResourceUrl
                 $this.Scope            = $Global:CustomGraphScope
-                $this.TokenUrl         = $Global:CustomGraphTokenUrl
+                $this.TokenUrl         = "$($Global:CustomGraphTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
             }
         }
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph = $this
@@ -812,7 +812,7 @@ class PnP:Workload
         {
             $this.PnPAzureEnvironment = 'Custom'
             $this.Scope               = $Global:CustomPnPScope
-            $this.TokenUrl            = $Global:CustomPnPTokenUrl
+            $this.TokenUrl            = "$($Global:CustomPnPTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
         }
         elseif ($this.EnvironmentName -eq 'AzureCloud')
         {
@@ -934,11 +934,11 @@ class PowerPlatformREST:Workload
             }
             'Custom'
             {
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
-                $this.Audience         = $this.Endpoints.Audience
-                $this.ClientId         = $this.Endpoints.ClientId
-                $this.BapEndpoint      = $this.Endpoints.BapEndpoint
+                $this.Scope            = $Global:CustomPowerPlatformRESTScope
+                $this.AuthorizationUrl = $Global:CustomPowerPlatformRESTAuthorizationUrl
+                $this.Audience         = $Global:CustomPowerPlatformRESTAudience
+                $this.ClientId         = $Global:CustomPowerPlatformRESTClientId
+                $this.BapEndpoint      = $Global:CustomPowerPlatformRESTBapEndpoint
             }
             default
             {

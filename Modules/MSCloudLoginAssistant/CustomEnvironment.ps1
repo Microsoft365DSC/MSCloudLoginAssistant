@@ -37,4 +37,8 @@ $Global:CustomLicensingAuthorizationUrl = "https://login.microsoftonline.com"
 $Global:CustomPnPScope = 'https://prod.sharepoint.microsoft.com/.default'
 $Global:CustomPnPTokenUrl = 'https://login.microsoftonline.com/'
 
-
+$Global:CustomPowerPlatformRESTScope = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+$Global:CustomPowerPlatformRESTAuthorizationUrl = "https://login.microsoftonline.com"
+$Global:CustomPowerPlatformRESTAudience = "https://service.powerapps.com/"
+$Global:CustomPowerPlatformRESTClientId = "1950a258-227b-4e31-a9cf-717495945fc2"
+$Global:CustomPowerPlatformRESTBapEndpoint = "api.bap.microsoft.com"

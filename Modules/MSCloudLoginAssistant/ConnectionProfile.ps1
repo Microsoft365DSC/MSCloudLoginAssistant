@@ -201,7 +201,7 @@ class Workload : ICloneable
                         $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
                         $this.TenantGUID = $tenantGUIDValue
                     }
-                    elseif ($Global:CustomEnv)
+                    elseif ($Global:CustomEnvironment)
                     {
                         $this.EnvironmentName = 'Custom'
                     }
@@ -303,8 +303,8 @@ class AdminAPI:Workload
             }
             'Custom'
             {
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.Scope            = $Global:CustomAdminApiScope
+                $this.AuthorizationUrl = $Global:CustomAdminApiAuthorizationUrl
             }
             default
             {
@@ -376,9 +376,9 @@ class AzureDevOPS:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.HostUrl          = $Global:CustomAzureDevopsHostUrl
+                $this.Scope            = $Global:CustomAzureDevopsScope
+                $this.AuthorizationUrl = $Global:CustomAzureDevopsAuthorizationUrl
             }
             default
             {
@@ -432,9 +432,9 @@ class DefenderForEndpoint:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.HostUrl          = $Global:CustomDefenderForEndpointHostUrl
+                $this.Scope            = $Global:CustomDefenderForEndpointScope
+                $this.AuthorizationUrl = $Global:CustomDefenderForEndpointAuthorizationUrl
             }
             default
             {
@@ -489,9 +489,9 @@ class EngageHub:Workload
             }
             'Custom'
             {
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
-                $this.APIUrl           = $this.Endpoints.APIUrl
+                $this.Scope            = $Global:CustomEngageHubScope
+                $this.AuthorizationUrl = $Global:CustomEngageHubAuthorizationUrl
+                $this.APIUrl           = $Global:CustomEngageHubAPIUrl
             }
             default
             {
@@ -561,8 +561,8 @@ class ExchangeOnline:Workload
             }
             'Custom'
             {
-                $this.ConnectionUri                   = $this.Endpoints.ConnectionUri
-                $this.AzureADAuthorizationEndpointUri = $this.Endpoints.AzureADAuthorizationEndpointUri
+                $this.ConnectionUri                   = $Global:CustomEXOConnectionUri
+                $this.AzureADAuthorizationEndpointUri = $Global:CustomEXOAzureADAuthorizationEndpointUri
             }
         }
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline = $this
@@ -618,9 +618,9 @@ class Fabric:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.HostUrl          = $Global:CustomFabricHostUrl
+                $this.Scope            = $Global:CustomFabricScope
+                $this.AuthorizationUrl = $Global:CustomFabricAuthorizationUrl
             }
             default
             {
@@ -672,9 +672,9 @@ class Licensing:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.HostUrl          = $Global:CustomLicensingHostUrl
+                $this.Scope            = $Global:CustomLicensingScope
+                $this.AuthorizationUrl = $Global:CustomLicensingAuthorizationUrl
             }
             default
             {
@@ -754,9 +754,9 @@ class MicrosoftGraph:Workload
             'Custom'
             {
                 $this.GraphEnvironment = 'Custom'
-                $this.ResourceUrl      = $this.Endpoints.ResourceUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.TokenUrl         = $this.Endpoints.TokenUrl
+                $this.ResourceUrl      = $Global:CustomGraphResourceUrl
+                $this.Scope            = $Global:CustomGraphScope
+                $this.TokenUrl         = $Global:CustomGraphTokenUrl
             }
         }
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph = $this
@@ -811,8 +811,8 @@ class PnP:Workload
         if ($null -ne $this.Endpoints)
         {
             $this.PnPAzureEnvironment = 'Custom'
-            $this.Scope               = $this.Endpoints.Scope
-            $this.TokenUrl            = $this.Endpoints.TokenUrl
+            $this.Scope               = $Global:CustomPnPScope
+            $this.TokenUrl            = $Global:CustomPnPTokenUrl
         }
         elseif ($this.EnvironmentName -eq 'AzureCloud')
         {

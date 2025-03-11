@@ -116,9 +116,8 @@ function Connect-MSCloudLoginExchangeOnline
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint
             }
 
-            if ($null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.ConnectionUri -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.AzureADAuthorizationEndpointUri)
+            if ($null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri -and `
+                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri)
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
                 Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
@@ -126,8 +125,8 @@ function Connect-MSCloudLoginExchangeOnline
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint `
                     -ShowBanner:$false `
                     -ShowProgress:$false `
-                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.ConnectionUri `
-                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Endpoints.AzureADAuthorizationEndpointUri `
+                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri `
+                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri `
                     -Verbose:$false `
                     -SkipLoadingCmdletHelp `
                     @CommandName | Out-Null

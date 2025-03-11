@@ -99,6 +99,15 @@ function Connect-MSCloudLoginPnP
                     }
                     $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
                 }
+                elseif ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('.onmschina.'))
+                {
+                    $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onms.', '-admin.spo.')
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+                    {
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = "https://$domain"
+                    }
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+                }
                 else
                 {
                     throw 'TenantId must be in format contoso.onmicrosoft.com'
@@ -119,12 +128,11 @@ function Connect-MSCloudLoginPnP
             {
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
                 {
-                    if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.Scope -and `
-                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.TokenUrl)
+                    if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.Scope -and `
+                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl)
                     {
-                        $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.Scope `
-                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.Endpoints.TokenUrl `
+                        $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Scope `
+                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl `
                             -ApplicationId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
                             -TenantId $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
                             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint

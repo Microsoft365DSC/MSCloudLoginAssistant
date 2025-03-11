@@ -72,17 +72,16 @@ function Connect-MSCloudLoginSecurityCompliance
         try
         {
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Service Principal and Certificate Thumbprint' -Source $source
-            if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.ConnectionUri -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.AzureADAuthorizationEndpointUri)
+            if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUri -and `
+                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri)
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
                 Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
                     -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
                     -ShowBanner:$false `
-                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.ConnectionUri `
-                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Endpoints.AzureADAuthorizationEndpointUri `
+                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUri `
+                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
                     -Verbose:$false
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false

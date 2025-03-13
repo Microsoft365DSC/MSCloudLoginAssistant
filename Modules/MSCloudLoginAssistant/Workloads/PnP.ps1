@@ -99,7 +99,7 @@ function Connect-MSCloudLoginPnP
                     }
                     $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
                 }
-                elseif ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('.onmschina.'))
+                elseif ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('.onms.'))
                 {
                     $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onms.', '-admin.spo.')
                     if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)

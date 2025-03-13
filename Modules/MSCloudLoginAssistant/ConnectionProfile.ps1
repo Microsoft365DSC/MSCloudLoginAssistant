@@ -1081,6 +1081,15 @@ class SharePointOnlineREST:Workload
                 }
                 $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = ("https://$domain").Replace('-admin', '')
             }
+            elseif ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('.onms.'))
+            {
+                $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.onms.', '-admin.sharepoint.')
+                if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
+                {
+                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"
+                }
+                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+            }
             else
             {
                 throw 'TenantId must be in format contoso.onmicrosoft.com'
@@ -1201,9 +1210,9 @@ class Teams:Workload
         {
             "Custom"
             {
-                $this.TokenUrl   = $this.Endpoints.TokenUrl
-                $this.GraphScope = $this.Endpoints.GraphScope
-                $this.TeamsScope = $this.Endpoints.TeamsScope
+                $this.TokenUrl   = "$($Global:CustomGraphTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
+                $this.GraphScope = $Global:CustomGraphScope
+                $this.TeamsScope = $Global:CustomTeamsScope
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

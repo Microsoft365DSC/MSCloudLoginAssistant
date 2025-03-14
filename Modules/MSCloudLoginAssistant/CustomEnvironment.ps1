@@ -42,3 +42,7 @@ $Global:CustomPowerPlatformRESTAuthorizationUrl = "https://login.microsoftonline
 $Global:CustomPowerPlatformRESTAudience = "https://service.powerapps.com/"
 $Global:CustomPowerPlatformRESTClientId = "1950a258-227b-4e31-a9cf-717495945fc2"
 $Global:CustomPowerPlatformRESTBapEndpoint = "api.bap.microsoft.com"
+
+$Global:CustomSCCConnectionUrl = "https://ps.compliance.microsoft.com/powershell-liveid/"
+$Global:CustomSCCAuthorizationUrl = "https://login.microsoftonline.com/organiations"
+$Global:CustomSCCAzureADAuthorizationEndpointUri = "https://login.microsoftonline.com/common"

@@ -1007,9 +1007,9 @@ class SecurityComplianceCenter:Workload
             }
             'Custom'
             {
-                $this.ConnectionUrl                   = $this.Endpoints.ConnectionUrl
-                $this.AuthorizationUrl                = $this.Endpoints.AuthorizationUrl
-                $this.AzureADAuthorizationEndpointUri = $this.Endpoints.AzureADAuthorizationEndpointUri
+                $this.ConnectionUrl                   = $Global:CustomSCCConnectionUrl
+                $this.AuthorizationUrl                = $Global:CustomSCCAuthorizationUrl
+                $this.AzureADAuthorizationEndpointUri = $Global:CustomSCCAzureADAuthorizationEndpointUri
             }
         }
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this

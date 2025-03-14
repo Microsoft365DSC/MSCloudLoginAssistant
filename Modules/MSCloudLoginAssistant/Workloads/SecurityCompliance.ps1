@@ -72,15 +72,15 @@ function Connect-MSCloudLoginSecurityCompliance
         try
         {
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Service Principal and Certificate Thumbprint' -Source $source
-            if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUri -and `
+            if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl -and `
                 $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri)
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
                 Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                    -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
+                    -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
                     -ShowBanner:$false `
-                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUri `
+                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                     -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
                     -Verbose:$false
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
@@ -138,7 +138,7 @@ function Connect-MSCloudLoginSecurityCompliance
                         -CertificateFilePath $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePath `
                         -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
                         -CertificatePassword $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePassword `
-                        -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUri `
+                        -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                         -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri  `
                         -ShowBanner:$false | Out-Null
                     $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()

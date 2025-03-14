@@ -59,8 +59,7 @@ function Connect-MSCloudLoginTeams
     if ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
-        if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
+        if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
             $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope -and `
             $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl)
         {

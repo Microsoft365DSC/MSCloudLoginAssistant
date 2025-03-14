@@ -1210,7 +1210,7 @@ class Teams:Workload
         {
             "Custom"
             {
-                $this.TokenUrl   = "$($Global:CustomGraphTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
+                $this.TokenUrl   = "$($Global:CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
                 $this.GraphScope = $Global:CustomGraphScope
                 $this.TeamsScope = $Global:CustomTeamsScope
             }

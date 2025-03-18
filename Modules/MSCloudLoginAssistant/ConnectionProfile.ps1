@@ -1112,9 +1112,9 @@ class SharePointOnlineREST:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
+                $this.HostUrl          = $Global:CustomSharePointOnlineREST.HostUrl
+                $this.Scope            = "$($Global:CustomSharePointOnlineREST.HostUrl)/.default"
+                $this.AuthorizationUrl = $Global:CustomSharePointOnlineREST.AuthorizationUrl
             }
             default
             {
@@ -1170,10 +1170,10 @@ class Tasks:Workload
             }
             'Custom'
             {
-                $this.HostUrl          = $this.Endpoints.HostUrl
-                $this.Scope            = $this.Endpoints.Scope
-                $this.AuthorizationUrl = $this.Endpoints.AuthorizationUrl
-                $this.ResourceUrl      = $this.Endpoints.ResourceUrl
+                $this.HostUrl          = $Global:CustomTasks.HostUrl
+                $this.Scope            = $Global:CustomTasks.Scope
+                $this.AuthorizationUrl = $Global:CustomTasks.AuthorizationUrl
+                $this.ResourceUrl      = $Global:CustomTasks.ResourceUrl
             }
             default
             {
@@ -1213,6 +1213,7 @@ class Teams:Workload
                 $this.TokenUrl   = "$($Global:CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
                 $this.GraphScope = $Global:CustomGraphScope
                 $this.TeamsScope = $Global:CustomTeamsScope
+                $this.Endpoints = $Global:CustomTeamsEndpoints
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

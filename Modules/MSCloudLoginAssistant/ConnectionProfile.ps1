@@ -473,14 +473,14 @@ class EngageHub:Workload
             {
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.us"
+                $this.APIUrl           = "https://api.engagecenter.microsoft.us"
 
             }
             'AzureUSGovernment'
             {
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.us"
+                $this.APIUrl           = "https://api.engagecenter.microsoft.us"
             }
             'Custom'
             {
@@ -492,7 +492,7 @@ class EngageHub:Workload
             {
                 $this.Scope            = "https://engagehub.microsoft.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
-                $this.APIUrl           = "https://api.dev.engagecenter.microsoft.com"
+                $this.APIUrl           = "https://api.engagecenter.microsoft.com"
             }
         }
         $Script:MSCloudLoginConnectionProfile.EngageHub = $this

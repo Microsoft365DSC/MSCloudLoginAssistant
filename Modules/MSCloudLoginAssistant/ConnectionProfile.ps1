@@ -169,53 +169,47 @@ class Workload : ICloneable
 
             Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
         }
-        #if ($null -eq $this.Endpoints)
-        #{
-        ##DLW
-            switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
-            {
-                'AzureGermanyCloud'
-                {
-                    $this.EnvironmentName = 'O365GermanyCloud'
-                }
-                'DOD'
-                {
-                    $this.EnvironmentName = 'AzureDOD'
-                }
-                'DODCON'
-                {
-                    $this.EnvironmentName = 'AzureUSGovernment'
-                }
-                'USGov'
-                {
-                    $this.EnvironmentName = 'AzureUSGovernment'
-                }
-                default
-                {
-                    if ($null -ne $Script:CloudEnvironmentInfo -and $Script:CloudEnvironmentInfo.token_endpoint.StartsWith('https://login.partner.microsoftonline.cn'))
-                    {
-                        $this.EnvironmentName = 'AzureChinaCloud'
 
-                        # Converting tenant to GUID. This is a limitation of the PnP module which
-                        # can't recognize the tenant when FQDN is provided.
-                        $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
-                        $this.TenantGUID = $tenantGUIDValue
-                    }
-                    elseif ($Global:CustomEnvironment)
-                    {
-                        $this.EnvironmentName = 'Custom'
-                    }
-                    else
-                    {
-                        $this.EnvironmentName = 'AzureCloud'
-                    }
+        switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
+        {
+            'AzureGermanyCloud'
+            {
+                $this.EnvironmentName = 'O365GermanyCloud'
+            }
+            'DOD'
+            {
+                $this.EnvironmentName = 'AzureDOD'
+            }
+            'DODCON'
+            {
+                $this.EnvironmentName = 'AzureUSGovernment'
+            }
+            'USGov'
+            {
+                $this.EnvironmentName = 'AzureUSGovernment'
+            }
+            default
+            {
+                if ($null -ne $Script:CloudEnvironmentInfo -and $Script:CloudEnvironmentInfo.token_endpoint.StartsWith('https://login.partner.microsoftonline.cn'))
+                {
+                    $this.EnvironmentName = 'AzureChinaCloud'
+
+                    # Converting tenant to GUID. This is a limitation of the PnP module which
+                    # can't recognize the tenant when FQDN is provided.
+                    $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
+                    $this.TenantGUID = $tenantGUIDValue
+                }
+                elseif ($Global:CustomEnvironment)
+                {
+                    $this.EnvironmentName = 'Custom'
+                }
+                else
+                {
+                    $this.EnvironmentName = 'AzureCloud'
                 }
             }
-        #}
-        #else
-        #{
-        #    $this.EnvironmentName = 'Custom'
-        #}
+        }
+
         Add-MSCloudLoginAssistantEvent -Message "`$this.EnvironmentName was detected to be {$($this.EnvironmentName)}" -Source $source
         if ([System.String]::IsNullOrEmpty($this.EnvironmentName))
         {

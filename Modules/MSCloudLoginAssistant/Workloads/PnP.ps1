@@ -29,9 +29,12 @@ function Connect-MSCloudLoginPnP
         try
         {
             Get-PnPAlert -ErrorAction 'Stop' | Out-Null
-            Add-MSCloudLoginAssistantEvent -Message 'Retrieved results from the command. Not re-connecting to PnP.' -Source $source
-            $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
-            return
+            if (-not $ForceRefreshConnection)
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Retrieved results from the command. Not re-connecting to PnP.' -Source $source
+                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                return
+            }
         }
         catch
         {
@@ -76,7 +79,7 @@ function Connect-MSCloudLoginPnP
                 }
                 else
                 {
-                    throw 'Unable to retrieve SharePoint Admin Url. Check if the Graph can be contacted successfully.'
+                    throw 'Unable to retrieve SharePoint Admin Url. Check if Microsoft Graph can be contacted successfully.'
                 }
             }
             else
@@ -261,7 +264,36 @@ function Connect-MSCloudLoginPnP
             {
                 throw 'You cannot specify TenantId with Credentials when connecting to PnP.'
             }
-            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'CredentialsWithApplicationId')
+            elseif ($Script:MSCloudLoginConnectionProfile.Pnp.AuthenticationType -eq 'CredentialsWithApplicationId')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and Application Id' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ApplicationId: $($Script:MSCloudLoginConnectionProfile.PnP.ApplicationId)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and Application Id' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ApplicationId: $($Script:MSCloudLoginConnectionProfile.PnP.ApplicationId)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
+                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Credentials')
             {
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
                 {

@@ -29,9 +29,12 @@ function Connect-MSCloudLoginPnP
         try
         {
             Get-PnPAlert -ErrorAction 'Stop' | Out-Null
-            Add-MSCloudLoginAssistantEvent -Message 'Retrieved results from the command. Not re-connecting to PnP.' -Source $source
-            $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
-            return
+            if (-not $ForceRefreshConnection)
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Retrieved results from the command. Not re-connecting to PnP.' -Source $source
+                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                return
+            }
         }
         catch
         {

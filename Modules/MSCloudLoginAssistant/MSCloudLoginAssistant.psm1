@@ -784,7 +784,8 @@ function Get-SPOAdminUrl
             }
             else
             {
-                if ($_.Exception.Message -eq 'Insufficient privileges to complete the operation.')
+                if ($_.Exception.Message -eq 'Insufficient privileges to complete the operation.' -or `
+                    $_.Exception.Message -like "*Forbidden*")
                 {
                     throw "The Graph application does not have the correct permissions to access Domains. Make sure you run 'Connect-MgGraph -Scopes Sites.Read.All' first!"
                 }

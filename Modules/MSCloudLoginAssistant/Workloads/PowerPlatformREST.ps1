@@ -7,6 +7,26 @@ function Connect-MSCloudLoginPowerPlatformREST
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginPowerPlatformREST'
 
+    # Test authentication to make sure the token hasn't expired
+    try
+    {
+        $uri = "https://" + $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.BapEndpoint + `
+               "/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments"
+        $headers = @{
+            Authorization = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessToken
+        }
+        $response = Invoke-WebRequest -Method 'GET' `
+                                      -Uri $Uri `
+                                      -Headers $headers `
+                                      -ContentType 'application/json; charset=utf-8' `
+                                      -UseBasicParsing `
+                                      -ErrorAction Stop
+    }
+    catch
+    {
+        $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessToken = $null
+    }
+
     if (-not $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessToken)
     {
         try

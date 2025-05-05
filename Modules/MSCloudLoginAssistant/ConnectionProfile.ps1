@@ -829,6 +829,10 @@ class PnP:Workload
         {
             $this.PnPAzureEnvironment = 'China'
         }
+        if ([System.String]::IsNullOrEmpty($this.ApplicationId))
+        {
+            $this.ApplicationId = $this.ClientId
+        }
         $Script:MSCloudLoginConnectionProfile.PnP = $this
         Connect-MSCloudLoginPnP -ForceRefreshConnection $ForceRefresh
     }

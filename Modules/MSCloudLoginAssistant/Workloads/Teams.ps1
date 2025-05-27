@@ -95,7 +95,8 @@ function Connect-MSCloudLoginTeams
                 {
                     $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
                 }
-                elseif ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD')
+                elseif ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
+                        $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
                 {
                     $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
                 }
@@ -138,7 +139,8 @@ function Connect-MSCloudLoginTeams
                 $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
             }
 
-            if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD')
+            if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
             {
                 $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
             }
@@ -227,7 +229,8 @@ function Connect-MSCloudLoginTeamsMFA
         {
             $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
         }
-        if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD')
+        if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
         {
             $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
         }

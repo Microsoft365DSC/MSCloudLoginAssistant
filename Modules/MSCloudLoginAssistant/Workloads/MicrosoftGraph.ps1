@@ -27,6 +27,15 @@ function Connect-MSCloudLoginMicrosoftGraph
         }
     }
 
+    if ($Global:CustomEnvironment)
+    {
+        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        if ($null -eq $customEnv)
+        {
+            Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl
+        }
+    }
+
     if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'CredentialsWithApplicationId' -or
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'Credentials')
     {
@@ -99,12 +108,12 @@ function Connect-MSCloudLoginMicrosoftGraph
         {
             if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
             {
-                if ($null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints -and `
-                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.Scope -and `
-                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.TokenUrl)
+                if (($null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints -or $Global:CustomEnvironment) -and `
+                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope -and `
+                    $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl)
                 {
-                    $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.Scope `
-                        -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Endpoints.TokenUrl `
+                    $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
+                        -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl `
                         -ApplicationId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                         -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
                         -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CertificateThumbprint
@@ -178,6 +187,15 @@ function Connect-MSCloudLoginMSGraphWithUser
         [System.String]
         $TenantId
     )
+
+    if ($Global:CustomEnvironment)
+    {
+        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        if ($null -eq $customEnv)
+        {
+            Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl
+        }
+    }
 
     $source = 'Connect-MSCloudLoginMSGraphWithUser'
 

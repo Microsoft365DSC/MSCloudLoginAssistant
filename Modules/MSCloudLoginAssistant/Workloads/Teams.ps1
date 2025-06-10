@@ -59,10 +59,10 @@ function Connect-MSCloudLoginTeams
     if ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
-        if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.Endpoints -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
+        if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
             $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope -and `
-            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl)
+            $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl -and `
+            $null -eq $Global:CustomTeamsEndpoints)
         {
             $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.GraphScope `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
@@ -80,6 +80,13 @@ function Connect-MSCloudLoginTeams
 
             Connect-MicrosoftTeams -AccessTokens @($graphAccessToken, $teamsAccessToken)
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
+        }
+        elseif ($null -ne $Global:CustomTeamsEndpoints -and $Global:CustomEnvironment)
+        {
+            Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
+                -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
+                -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint `
+                -EndpointUris $Global:CustomTeamsEndpoints
         }
         else
         {

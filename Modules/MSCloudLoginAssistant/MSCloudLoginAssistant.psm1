@@ -1,4 +1,5 @@
-$Script:WriteToEventLog = $env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true'
+$Script:WriteToEventLog = ([Environment]::GetEnvironmentVariable('MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG', 'Machine') -eq 'true') -or `
+                          ($env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true')
 
 . "$PSScriptRoot\ConnectionProfile.ps1"
 . "$PSScriptRoot\CustomEnvironment.ps1"

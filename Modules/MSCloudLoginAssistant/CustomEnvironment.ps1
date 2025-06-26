@@ -1,4 +1,5 @@
-#IMPORTANT!  If you are using this module for a custom environment, ensure you keep a copy in a secure location.  Installation of a newer version of MSCLoudLoginAssistant will overwrite this file.  After installation of the newest version, restire your backup file to this location.
+# IMPORTANT!  If you are using this module for a custom environment, ensure you keep a copy in a secure location. Installation of a newer version of MSCLoudLoginAssistant will overwrite this file.
+# After installation of the newest version, restore your backup file to this location.
 
 # If you are running DSC in a custom environment without access to WW resources, set this value to $true, otherwise leave it set to $false.
 $Global:CustomEnvironment = $false
@@ -8,7 +9,6 @@ $Global:CustomEnvironment = $false
 $Global:CustomGraphResourceUrl = "https://graph.microsoft.com/"
 $Global:CustomGraphScope = "https://graph.microsoft.com/.default"
 $Global:CustomGraphTokenUrl = "https://login.microsoftonline.com/"
-
 
 $Global:CustomEXOConnectionUri = "https://outlook.prod.microsoft.com/powersehll-liveid/"
 $Global:CustomEXOAzureADAuthorizationEndpointUri = "https://login.microsoftonline.us/common"
@@ -57,11 +57,14 @@ $Global:CustomTeamsEndpoints = @{
     TeamsConfigApiEndpoint = "https://api.interfaces.records.teams.microsoft.com"
 }
 
+$Global:CustomSharePointOnlineREST = @{
+    HostUrl = "https://customdomain.sharepoint.com"
+    AuthorizationUrl = "https://login.microsoftonline.com"
+}
 
-$Global:CustomSharePointOnlineREST.HostUrl = "https://customdomain-admin.sharepoint.com"
-$Global:CustomSharePointOnlineREST.AuthorizationUrl = "https://login.microsoftonline.com"
-
-$Global:CustomTasks.HostUrl          = "https://tasks.office.com"
-$Global:CustomTask.Scope            = "https://tasks.office.com/.default"
-$Global:CustomTask.AuthorizationUrl = "https://login.microsoftonline.com"
-$Global:CustomTask.ResourceUrl      = "https://tasks.office.com"
+$Global:CustomTasks = @{
+    HostUrl          = "https://tasks.office.com"
+    Scope            = "https://tasks.office.com/.default"
+    AuthorizationUrl = "https://login.microsoftonline.com"
+    ResourceUrl      = "https://tasks.office.com"
+}

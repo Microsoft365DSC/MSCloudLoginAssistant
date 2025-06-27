@@ -58,7 +58,7 @@ function Connect-MSCloudLoginAzure
             try
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Azure using Credentials (MFA)' -Source $source
-                Connect-AzAccount
+                Connect-AzAccount -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName
                 $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
                 $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
                 $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $true

@@ -142,7 +142,6 @@ function Connect-M365Tenant
             $Script:MSCloudLoginConnectionProfile.Azure.CertificateThumbprint = $CertificateThumbprint
             $Script:MSCloudLoginConnectionProfile.Azure.AccessTokens = $AccessTokens
             $Script:MSCloudLoginConnectionProfile.Azure.Endpoints = $Endpoints
-            $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
             $Script:MSCloudLoginConnectionProfile.Azure.Connect()
         }
         'AzureDevOPS'

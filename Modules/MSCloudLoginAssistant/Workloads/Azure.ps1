@@ -6,6 +6,27 @@ function Connect-MSCloudLoginAzure
     $InformationPreference = 'SilentlyContinue'
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginAzure'
+    # If the current profile is not the same we expect, make the switch.
+    if ($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+        {
+        write-host "azure connected"
+        if (($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithSecret' `
+                    -or $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'Identity') `
+                -and (Get-Date -Date $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-50))
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
+
+                $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
+            }
+            elseif ($null -eq (Get-azContext))
+            {
+                $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
+            }
+            else
+            {
+                return
+            }
+    }
 
     if ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
     {

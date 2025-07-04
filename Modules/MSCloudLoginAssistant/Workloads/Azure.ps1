@@ -116,9 +116,9 @@ function Connect-MSCloudLoginAzure
                 -Identity `
                 -EnvironmentName $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
 
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
+            $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Azure using Managed Identity' -Source $source
         }
         catch

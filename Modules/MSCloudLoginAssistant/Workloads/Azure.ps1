@@ -130,6 +130,14 @@ function Connect-MSCloudLoginAzure
     {
         throw 'Specified authentication method is not supported.'
     }
+
+    #if the connection to azure was successful update the management URL
+    if ($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+    {
+        $managementUrl = (Get-AzContext).Environment.ResourceManagerUrl
+        Add-MSCloudLoginAssistantEvent -Message "Setting Azure management URL to $managementUrl" -Source $source
+        $Script:MSCloudLoginConnectionprofile.Azure.ManagementUrl = $managementUrl
+    }
 }
 
 function Disconnect-MSCloudLoginAzure

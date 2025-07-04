@@ -314,6 +314,9 @@ class AdminAPI:Workload
 
 class Azure:Workload
 {
+    [string]
+    $ManagementUrl
+
     Azure()
     {
     }

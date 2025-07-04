@@ -560,7 +560,7 @@ class ExchangeOnline:Workload
             }
         }
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline = $this
-        Connect-MSCloudLoginExchangeOnline -Verbose
+        Connect-MSCloudLoginExchangeOnline
     }
 
     [void] Disconnect()

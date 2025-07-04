@@ -108,7 +108,8 @@ function Connect-MSCloudLoginExchangeOnline
         Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)}" -Source $source
         try
         {
-            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName)
+            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
+                $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
             {
                 $Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName `
                     -ApplicationId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `

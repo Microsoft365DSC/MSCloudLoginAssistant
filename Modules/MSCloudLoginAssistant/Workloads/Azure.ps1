@@ -96,7 +96,8 @@ function Connect-MSCloudLoginAzure
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Azure using Access Token' -Source $source
         Connect-AzAccount -Tenant $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
-            -AccessToken $Script:MSCloudLoginConnectionProfile.Azure.AccessTokens | Out-Null
+            -AccessToken $Script:MSCloudLoginConnectionProfile.Azure.AccessTokens[0] `
+            -AccountId "MSCloudLoginAssistant" | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
         $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
         $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false

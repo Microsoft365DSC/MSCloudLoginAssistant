@@ -86,7 +86,14 @@ function Connect-MSCloudLoginPnP
             {
                 if ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('onmicrosoft'))
                 {
-                    $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                    if ($Script:MSCloudLoginConnectionProfile.Pnp.EnvironmentName -eq 'AzureDOD')
+                    {
+                        $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint-mil.')
+                    }
+                    else
+                    {
+                        $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                    }
                     if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
                     {
                         $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = "https://$domain"

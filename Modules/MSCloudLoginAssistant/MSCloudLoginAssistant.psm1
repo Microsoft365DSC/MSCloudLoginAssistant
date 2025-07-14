@@ -759,12 +759,12 @@ function Get-SPOAdminUrl
 
     try
     {
-        $result = Invoke-MgGraphRequest -Uri /v1.0/sites/root -ErrorAction SilentlyContinue
+        $result = Invoke-MgGraphRequest -Uri '/v1.0/sites/root' -ErrorAction SilentlyContinue
         $weburl = $result.webUrl
         if (-not $weburl)
         {
             Connect-M365Tenant -Workload 'MicrosoftGraph' -Credential $Credential
-            $weburl = (Invoke-MgGraphRequest -Uri /v1.0/sites/root).webUrl
+            $weburl = (Invoke-MgGraphRequest -Uri '/v1.0/sites/root').webUrl
         }
     }
     catch
@@ -841,7 +841,7 @@ function Get-TenantLoginEndPoint
     $TenantInfo = @{ }
     if ($LoginSource -eq 'EvoSTS')
     {
-        $webrequest = Invoke-WebRequest -Uri https://login.windows.net/$($TenantName)/.well-known/openid-configuration -UseBasicParsing
+        $webrequest = Invoke-WebRequest -Uri 'https://login.windows.net/$($TenantName)/.well-known/openid-configuration' -UseBasicParsing
     }
     else
     {

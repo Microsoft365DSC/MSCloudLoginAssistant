@@ -79,8 +79,9 @@ function Connect-MSCloudLoginPowerPlatformRESTWithUser
     $password = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Credentials.GetNetworkCredential().password
 
     $clientId = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ClientId
+    $scope = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Scope
     $uri = "$($Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AuthorizationUrl)/{0}/oauth2/v2.0/token" -f $tenantid
-    $body = "client_id=$clientId&scope=https://service.powerapps.com//.default&grant_type=password&username={1}&password={0}" -f [System.Web.HttpUtility]::UrlEncode($password), $username
+    $body = "client_id=$clientId&scope=$scope&grant_type=password&username={1}&password={0}" -f [System.Web.HttpUtility]::UrlEncode($password), $username
 
     # Request token through ROPC
     try
@@ -263,7 +264,7 @@ function Connect-MSCloudLoginPowerPlatformRESTWithCertificateThumbprint
             client_id             = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationId
             client_assertion      = $JWT
             client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
-            scope                 = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Audience + "/.default"
+            scope                 = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Scope
             grant_type            = 'client_credentials'
         }
 

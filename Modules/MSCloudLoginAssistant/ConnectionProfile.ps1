@@ -149,12 +149,12 @@ class Workload : ICloneable
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -Credentials $this.Credentials
             }
-            elseif ($this.ApplicationID -and $this.CertificateThumbprint)
+            elseif ($this.ApplicationId -and $this.CertificateThumbprint)
             {
                 Add-MSCloudLoginAssistantEvent -Message "Trying to retrieve the Cloud Environment using Certificate Thumbprint." -Source $source
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -ApplicationId $this.ApplicationId -TenantId $this.TenantId -CertificateThumbprint $this.CertificateThumbprint
             }
-            elseif ($this.ApplicationID -and $this.ApplicationSecret)
+            elseif ($this.ApplicationId -and $this.ApplicationSecret)
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -ApplicationId $this.ApplicationId -TenantId $this.TenantId -ApplicationSecret $this.ApplicationSecret
             }
@@ -456,6 +456,9 @@ class EngageHub:Workload
     $Scope
 
     [string]
+    $ClientId
+
+    [string]
     $AccessToken
 
     [string]
@@ -473,6 +476,7 @@ class EngageHub:Workload
         {
             'AzureDOD'
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.us"
@@ -480,18 +484,21 @@ class EngageHub:Workload
             }
             'AzureUSGovernment'
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.us"
             }
             'Custom'
             {
+                $this.ClientId         = $Global:CustomEngageHubClientId
                 $this.Scope            = $Global:CustomEngageHubScope
                 $this.AuthorizationUrl = $Global:CustomEngageHubAuthorizationUrl
                 $this.APIUrl           = $Global:CustomEngageHubAPIUrl
             }
             default
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.com"
@@ -918,7 +925,7 @@ class PowerPlatformREST:Workload
             #>
             'AzureDOD'
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "https://service.apps.appsplatform.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.Audience         = "https://service.apps.appsplatform.us/"
                 $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
@@ -927,7 +934,7 @@ class PowerPlatformREST:Workload
             }
             'AzureUSGovernment'
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "https://gov.service.powerapps.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.Audience         = "https://gov.service.powerapps.us/"
                 $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
@@ -943,7 +950,7 @@ class PowerPlatformREST:Workload
             }
             default
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "https://service.powerapps.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.Audience         = "https://service.powerapps.com/"
                 $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"

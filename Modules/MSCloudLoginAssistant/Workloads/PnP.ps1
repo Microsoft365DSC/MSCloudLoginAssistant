@@ -489,14 +489,6 @@ function Connect-MSCloudLoginPnP
             # This error means that the account was trying to connect using MFA.
             try
             {
-                Add-MSCloudLoginAssistantEvent 'Trying to acquire AccessToken' -Source $source
-                $AuthHeader = Get-AuthHeader -UserPrincipalName $Script:MSCloudLoginConnectionProfile.PnP.Credentials.UserName `
-                    -ResourceURI $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
-                    -clientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId `
-                    -RedirectURI $Script:MSCloudLoginConnectionProfile.PnP.RedirectURI
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl.AccessToken = $AuthHeader.split(' ')[1]
-
-                Add-MSCloudLoginAssistantEvent "Access Token = $($Script:MSCloudLoginConnectionProfile.PnP.AccessToken)" -Source $source
                 if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl.AccessToken)
                 {
                     if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)

@@ -14,7 +14,6 @@ function Connect-MSCloudLoginMicrosoftGraph
                 -and (Get-Date -Date $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-50))
         {
             Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
-
             $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $false
         }
         elseif ($null -eq (Get-MgContext))
@@ -29,7 +28,7 @@ function Connect-MSCloudLoginMicrosoftGraph
 
     if ($Global:CustomEnvironment)
     {
-        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        $customEnv = Get-MgEnvironment | Where-Object { $_.Name -eq 'Custom' }
         if ($null -eq $customEnv)
         {
             Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl
@@ -64,7 +63,7 @@ function Connect-MSCloudLoginMicrosoftGraph
         }
         elseif ('http://localhost:40342' -eq $env:IMDS_ENDPOINT)
         {
-            #Get endpoint for Azure Arc Connected Device
+            # Get endpoint for Azure Arc Connected Device
             $apiVersion = '2020-06-01'
             $resource = "https://$resourceEndpoint"
             $endpoint = '{0}?resource={1}&api-version={2}' -f $env:IDENTITY_ENDPOINT, $resource, $apiVersion
@@ -190,7 +189,7 @@ function Connect-MSCloudLoginMSGraphWithUser
 
     if ($Global:CustomEnvironment)
     {
-        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        $customEnv = Get-MgEnvironment | Where-Object { $_.Name -eq 'Custom' }
         if ($null -eq $customEnv)
         {
             Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl

@@ -49,7 +49,7 @@ function Connect-MSCloudLoginAdminAPIWithUser
 
     if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId))
     {
-        $tenantid = $Script:MSCloudLoginConnectionProfile.AdminAPI.Credentials.UserName.Split('@')[1]
+        $tenantId = $Script:MSCloudLoginConnectionProfile.AdminAPI.Credentials.UserName.Split('@')[1]
     }
     else
     {

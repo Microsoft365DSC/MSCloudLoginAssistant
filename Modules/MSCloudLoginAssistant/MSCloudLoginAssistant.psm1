@@ -481,6 +481,7 @@ function Compare-InputParametersForChange
     $currentParameters.Remove('UseModernAuth') | Out-Null
     $currentParameters.Remove('ProfileName') | Out-Null
     $currentParameters.Remove('Verbose') | Out-Null
+    $currentParameters.Remove('ErrorAction') | Out-Null
 
     $globalParameters = @{}
 
@@ -522,10 +523,12 @@ function Compare-InputParametersForChange
         $globalParameters.Add('UserName', $workloadProfile.Credentials.UserName)
 
         # If the tenant id is part of the username, we need to remove it from the global parameters
+        # and the current parameters, otherwise it would report as a drift
         if ($workloadInternalName -eq 'MicrosoftGraph' `
                 -and $globalParameters.ContainsKey('TenantId') `
                 -and $globalParameters.TenantId -eq $workloadProfile.Credentials.UserName.Split('@')[1])
         {
+            $currentParameters.Remove('TenantId') | Out-Null
             $globalParameters.Remove('TenantId') | Out-Null
         }
     }
@@ -623,7 +626,7 @@ function Compare-InputParametersForChange
     }
 
     # We found differences, so we need to connect
-    Add-MSCloudLoginAssistantEvent -Message "Found differences in parameters: $diffKeys, with values: $diffValues" -Source $source
+    Add-MSCloudLoginAssistantEvent -Message "Found differences in parameters: $diffKeys, with values: $($diffValues | ConvertTo-Json)" -Source $source
     return $true
 }
 
@@ -1139,7 +1142,7 @@ function Get-AuthToken {
         return Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body $body -ContentType 'application/x-www-form-urlencoded'
     }
 
-    if ($Credentials) {
+    if ($Credentials -and -not $DeviceCode) {
         if ($useResource) {
             $body = @{
                 client_id  = $ClientId
@@ -1169,7 +1172,7 @@ function Get-AuthToken {
         }
         $deviceCodeResponse = Invoke-RestMethod -Method Post -Uri $deviceEndpoint -Body $deviceBody -ContentType 'application/x-www-form-urlencoded'
 
-        Write-Host -Object "`n$($deviceCodeResponse.message)" -ForegroundColor Yellow
+        Write-Verbose -Message "`n$($deviceCodeResponse.message)" -Verbose
         $pollBody = @{
             grant_type = 'urn:ietf:params:oauth:grant-type:device_code'
             client_id = $ClientId
@@ -1188,7 +1191,7 @@ function Get-AuthToken {
             } catch {
                 $result = $null
             }
-        } until ($result)
+        } while ($null -eq $result)
         return $result
     }
 

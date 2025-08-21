@@ -6,6 +6,7 @@ $Global:CustomEnvironment = $false
 
 # If you are running DSC in a custom environment without access to WW resources, edit the endpoints below to match your environment's values.
 
+$Global:CustomGraphAuthorizationUrl = "https://login.microsoftonline.com/"
 $Global:CustomGraphResourceUrl = "https://graph.microsoft.com/"
 $Global:CustomGraphScope = "https://graph.microsoft.com/.default"
 $Global:CustomGraphTokenUrl = "https://login.microsoftonline.com/"

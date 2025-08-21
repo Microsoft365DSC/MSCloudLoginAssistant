@@ -712,6 +712,9 @@ class MicrosoftGraph:Workload
     $ProfileName = 'v1.0'
 
     [string]
+    $AuthorizationUrl
+
+    [string]
     $ResourceUrl
 
     [string]
@@ -719,6 +722,9 @@ class MicrosoftGraph:Workload
 
     [string]
     $TokenUrl
+
+    [System.Security.SecureString]
+    $AccessToken
 
     MicrosoftGraph()
     {
@@ -737,6 +743,7 @@ class MicrosoftGraph:Workload
         {
             'AzureCloud'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.GraphEnvironment = 'Global'
                 $this.ResourceUrl      = 'https://graph.microsoft.com/'
                 $this.Scope            = 'https://graph.microsoft.com/.default'
@@ -744,6 +751,7 @@ class MicrosoftGraph:Workload
             }
             'AzureUSGovernment'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.GraphEnvironment = 'USGov'
                 $this.ResourceUrl      = 'https://graph.microsoft.us/'
                 $this.Scope            = 'https://graph.microsoft.us/.default'
@@ -751,6 +759,7 @@ class MicrosoftGraph:Workload
             }
             'AzureDOD'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.GraphEnvironment = 'USGovDoD'
                 $this.ResourceUrl      = 'https://dod-graph.microsoft.us/'
                 $this.Scope            = 'https://dod-graph.microsoft.us/.default'
@@ -758,6 +767,7 @@ class MicrosoftGraph:Workload
             }
             'AzureChinaCloud'
             {
+                $this.AuthorizationUrl = "https://login.chinacloudapi.cn"
                 $this.GraphEnvironment = 'China'
                 $this.ResourceUrl      = 'https://microsoftgraph.chinacloudapi.cn/'
                 $this.Scope            = 'https://microsoftgraph.chinacloudapi.cn/.default'
@@ -765,6 +775,7 @@ class MicrosoftGraph:Workload
             }
             'Custom'
             {
+                $this.AuthorizationUrl = $Global:CustomGraphAuthorizationUrl
                 $this.GraphEnvironment = 'Custom'
                 $this.ResourceUrl      = $Global:CustomGraphResourceUrl
                 $this.Scope            = $Global:CustomGraphScope

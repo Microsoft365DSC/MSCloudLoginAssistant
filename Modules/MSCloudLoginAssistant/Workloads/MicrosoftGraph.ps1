@@ -154,7 +154,9 @@ function Connect-MSCloudLoginMicrosoftGraph
                 $userName = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId
                 [pscredential]$credObject = New-Object System.Management.Automation.PSCredential ($userName, $secStringPassword)
                 Connect-MgGraph -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
-                    -ClientSecretCredential $credObject | Out-Null
+                    -ClientSecretCredential $credObject `
+                    -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
+                    -NoWelcome
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true

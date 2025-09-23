@@ -24,6 +24,7 @@ $Global:CustomDefenderForEndpointHostUrl = "https://api.security.microsoft.com"
 $Global:CustomDefenderForEndpointScope = "https://api.securitycenter.microsoft.com/.default"
 $Global:CustomDefenderForEndpointAuthorizationUrl = "https://login.microsoftonline.com"
 
+$Global:CustomEngageHubClientId = ""
 $Global:CustomEngageHubScope = "https://engagehub.microsoft.com/.default"
 $Global:CustomEngageHubAuthorizationUrl = "https://login.microsoftonline.com"
 $Global:CustomEngageHubAPIUrl = "https://api.dev.engagecenter.microsoft.com"

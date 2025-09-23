@@ -463,6 +463,9 @@ class EngageHub:Workload
     $Scope
 
     [string]
+    $ClientId
+
+    [string]
     $AccessToken
 
     [string]
@@ -480,24 +483,28 @@ class EngageHub:Workload
         {
             'AzureDOD'
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.us"
             }
             'AzureUSGovernment'
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.us"
             }
             'Custom'
             {
+                $this.ClientId         = $Global:CustomEngageHubClientId
                 $this.Scope            = $Global:CustomEngageHubScope
                 $this.AuthorizationUrl = $Global:CustomEngageHubAuthorizationUrl
                 $this.APIUrl           = $Global:CustomEngageHubAPIUrl
             }
             default
             {
+                $this.ClientId         = ""
                 $this.Scope            = "https://engagehub.microsoft.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.com"

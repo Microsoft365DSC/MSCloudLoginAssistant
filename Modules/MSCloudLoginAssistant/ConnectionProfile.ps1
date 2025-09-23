@@ -275,8 +275,12 @@ class AdminAPI:Workload
     [string]
     $AccessToken
 
+    [string]
+    $Resource = "6a8b4b39-c021-437c-b060-5a14a3fd65f3"
+
     AdminAPI()
     {
+        $this.ApplicationId = "1950a258-227b-4e31-a9cf-717495945fc2"
     }
 
     [void] Connect()
@@ -287,12 +291,12 @@ class AdminAPI:Workload
         {
             'AzureDOD'
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'AzureUSGovernment'
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'Custom'
@@ -302,7 +306,7 @@ class AdminAPI:Workload
             }
             default
             {
-                $this.Scope            = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
             }
         }
@@ -350,8 +354,12 @@ class AzureDevOPS:Workload
     [string]
     $AccessToken
 
+    [string]
+    $Resource = "499b84ac-1321-427f-aa17-267ca6975798"
+
     AzureDevOPS()
     {
+        $this.ApplicationId = "1950a258-227b-4e31-a9cf-717495945fc2"
     }
 
     [void] Connect()
@@ -362,13 +370,13 @@ class AzureDevOPS:Workload
             'AzureDOD'
             {
                 $this.HostUrl          = "https://dev.azure.us"
-                $this.Scope            = "499b84ac-1321-427f-aa17-267ca6975798/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'AzureUSGovernment'
             {
                 $this.HostUrl          = "https://dev.azure.com"
-                $this.Scope            = "499b84ac-1321-427f-aa17-267ca6975798/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'Custom'
@@ -380,11 +388,10 @@ class AzureDevOPS:Workload
             default
             {
                 $this.HostUrl          = "https://dev.azure.com"
-                $this.Scope            = "499b84ac-1321-427f-aa17-267ca6975798/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
             }
         }
-
 
         $Script:MSCloudLoginConnectionProfile.AzureDevOPS = $this
         Connect-MSCloudLoginAzureDevOPS
@@ -436,7 +443,7 @@ class DefenderForEndpoint:Workload
             default
             {
                 $this.HostUrl          = 'https://api.security.microsoft.com'
-                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
+                $this.Scope            = 'https://api.security.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com'
             }
         }
@@ -480,7 +487,6 @@ class EngageHub:Workload
                 $this.Scope            = "https://engagehub.microsoft.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.APIUrl           = "https://api.engagecenter.microsoft.us"
-
             }
             'AzureUSGovernment'
             {
@@ -653,8 +659,12 @@ class Licensing:Workload
     [string]
     $AccessToken
 
+    [string]
+    $Resource = "aeb86249-8ea3-49e2-900b-54cc8e308f85"
+
     Licensing()
     {
+        $this.ApplicationId = "1950a258-227b-4e31-a9cf-717495945fc2"
     }
 
     [void] Connect()
@@ -665,13 +675,13 @@ class Licensing:Workload
             'AzureDOD'
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
             }
             'AzureUSGovernment'
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
             }
             'Custom'
@@ -683,13 +693,18 @@ class Licensing:Workload
             default
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
+                $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
             }
         }
 
         $Script:MSCloudLoginConnectionProfile.Licensing = $this
         Connect-MSCloudLoginLicensing
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginLicensing
     }
 }
 
@@ -704,6 +719,9 @@ class MicrosoftGraph:Workload
     $ProfileName = 'v1.0'
 
     [string]
+    $AuthorizationUrl
+
+    [string]
     $ResourceUrl
 
     [string]
@@ -711,6 +729,9 @@ class MicrosoftGraph:Workload
 
     [string]
     $TokenUrl
+
+    [System.Security.SecureString]
+    $AccessToken
 
     MicrosoftGraph()
     {
@@ -729,6 +750,7 @@ class MicrosoftGraph:Workload
         {
             'AzureCloud'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.GraphEnvironment = 'Global'
                 $this.ResourceUrl      = 'https://graph.microsoft.com/'
                 $this.Scope            = 'https://graph.microsoft.com/.default'
@@ -736,6 +758,7 @@ class MicrosoftGraph:Workload
             }
             'AzureUSGovernment'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.GraphEnvironment = 'USGov'
                 $this.ResourceUrl      = 'https://graph.microsoft.us/'
                 $this.Scope            = 'https://graph.microsoft.us/.default'
@@ -743,6 +766,7 @@ class MicrosoftGraph:Workload
             }
             'AzureDOD'
             {
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.GraphEnvironment = 'USGovDoD'
                 $this.ResourceUrl      = 'https://dod-graph.microsoft.us/'
                 $this.Scope            = 'https://dod-graph.microsoft.us/.default'
@@ -750,6 +774,7 @@ class MicrosoftGraph:Workload
             }
             'AzureChinaCloud'
             {
+                $this.AuthorizationUrl = "https://login.chinacloudapi.cn"
                 $this.GraphEnvironment = 'China'
                 $this.ResourceUrl      = 'https://microsoftgraph.chinacloudapi.cn/'
                 $this.Scope            = 'https://microsoftgraph.chinacloudapi.cn/.default'
@@ -757,6 +782,7 @@ class MicrosoftGraph:Workload
             }
             'Custom'
             {
+                $this.AuthorizationUrl = $Global:CustomGraphAuthorizationUrl
                 $this.GraphEnvironment = 'Custom'
                 $this.ResourceUrl      = $Global:CustomGraphResourceUrl
                 $this.Scope            = $Global:CustomGraphScope
@@ -894,6 +920,7 @@ class PowerPlatformREST:Workload
 
     PowerPlatformREST()
     {
+        $this.ClientId = "1950a258-227b-4e31-a9cf-717495945fc2"
     }
 
     [void] Connect()
@@ -928,7 +955,6 @@ class PowerPlatformREST:Workload
                 $this.Scope            = "https://service.apps.appsplatform.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.Audience         = "https://service.apps.appsplatform.us/"
-                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
                 $this.BapEndpoint      = "api.bap.appsplatform.us"
 
             }
@@ -937,7 +963,6 @@ class PowerPlatformREST:Workload
                 $this.Scope            = "https://gov.service.powerapps.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.Audience         = "https://gov.service.powerapps.us/"
-                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
                 $this.BapEndpoint      = "gov.api.bap.microsoft.us"
             }
             'Custom'
@@ -953,12 +978,16 @@ class PowerPlatformREST:Workload
                 $this.Scope            = "https://service.powerapps.com/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.com"
                 $this.Audience         = "https://service.powerapps.com/"
-                $this.ClientId         = "1950a258-227b-4e31-a9cf-717495945fc2"
                 $this.BapEndpoint      = "api.bap.microsoft.com"
             }
         }
         $Script:MSCloudLoginConnectionProfile.PowerPlatformREST = $this
         Connect-MSCloudLoginPowerPlatformREST
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginPowerPlatformREST
     }
 }
 
@@ -1047,6 +1076,7 @@ class SharePointOnlineREST:Workload
 
     SharePointOnlineREST()
     {
+        $this.ApplicationId = "31359c7f-bd7e-475c-86db-fdb8c937548e"
     }
 
     [void] Connect()
@@ -1155,6 +1185,7 @@ class Tasks:Workload
 
     Tasks()
     {
+        $this.ApplicationId = "9ac8c0b3-2c30-497c-b4bc-cadfe9bd6eed"
     }
 
     [void] Connect()
@@ -1164,14 +1195,14 @@ class Tasks:Workload
         {
             'AzureDOD'
             {
-                $this.HostUrl          = "https://tasks.office.us"
-                $this.Scope            = "https://tasks.office.us/.default"
+                $this.HostUrl          = "https://tasks.osi.apps.mil"
+                $this.Scope            = "https://tasks.osi.apps.mil/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.ResourceUrl      = "https://tasks.osi.apps.mil"
             }
             'AzureUSGovernment'
             {
-                $this.HostUrl          = "https://tasks.office.us"
+                $this.HostUrl          = "https://tasks.office365.us"
                 $this.Scope            = "https://tasks.office365.us/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
                 $this.ResourceUrl      = "https://tasks.office365.us"

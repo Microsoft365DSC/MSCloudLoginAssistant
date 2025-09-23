@@ -139,7 +139,7 @@ function Connect-MSCloudLoginPowerPlatformMFA
     param()
     try
     {
-        #Test-PowerAppsAccount This is failing in PowerApps admin module for GCCH MFA
+        # Test-PowerAppsAccount This is failing in PowerApps admin module for GCCH MFA
         Add-PowerAppsAccount -Endpoint $Script:MSCloudLoginConnectionProfile.PowerPlatform.Endpoint
         $Script:MSCloudLoginConnectionProfile.PowerPlatform.ConnectedDateTime = [System.DateTime]::Now.ToString()
         $Script:MSCloudLoginConnectionProfile.PowerPlatform.MultiFactorAuthentication = $true

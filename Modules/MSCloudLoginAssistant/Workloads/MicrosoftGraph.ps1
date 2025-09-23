@@ -14,7 +14,6 @@ function Connect-MSCloudLoginMicrosoftGraph
                 -and (Get-Date -Date $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-50))
         {
             Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
-
             $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $false
         }
         elseif ($null -eq (Get-MgContext))
@@ -29,7 +28,7 @@ function Connect-MSCloudLoginMicrosoftGraph
 
     if ($Global:CustomEnvironment)
     {
-        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        $customEnv = Get-MgEnvironment | Where-Object { $_.Name -eq 'Custom' }
         if ($null -eq $customEnv)
         {
             Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl
@@ -64,7 +63,7 @@ function Connect-MSCloudLoginMicrosoftGraph
         }
         elseif ('http://localhost:40342' -eq $env:IMDS_ENDPOINT)
         {
-            #Get endpoint for Azure Arc Connected Device
+            # Get endpoint for Azure Arc Connected Device
             $apiVersion = '2020-06-01'
             $resource = "https://$resourceEndpoint"
             $endpoint = '{0}?resource={1}&api-version={2}' -f $env:IDENTITY_ENDPOINT, $resource, $apiVersion
@@ -192,7 +191,7 @@ function Connect-MSCloudLoginMSGraphWithUser
 
     if ($Global:CustomEnvironment)
     {
-        $customEnv = Get-MgEnvironment | where { $_.Name -eq 'Custom' }
+        $customEnv = Get-MgEnvironment | Where-Object { $_.Name -eq 'Custom' }
         if ($null -eq $customEnv)
         {
             Add-MgEnvironment -Name 'Custom' -GraphEndpoint $Global:CustomGraphResourceUrl -AzureADEndPoint $Global:CustomGraphTokenUrl
@@ -203,7 +202,7 @@ function Connect-MSCloudLoginMSGraphWithUser
 
     if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.UserName -ne (Get-MgContext).Account)
     {
-        Add-MSCloudLoginAssistantEvent -Message "The current account that is connect doesn't match the one we're trying to authenticate with. Disconnecting from Graph." -Source $source
+        Add-MSCloudLoginAssistantEvent -Message "The currently connected account doesn't match the one we're trying to authenticate with. Disconnecting from Graph." -Source $source
         try
         {
             Disconnect-MgGraph -ErrorAction Stop | Out-Null
@@ -219,40 +218,47 @@ function Connect-MSCloudLoginMSGraphWithUser
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
     }
 
-    $TenantId = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.Username.Split('@')[1]
-    $url = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl
-    $body = @{
-        scope      = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope
-        grant_type = 'password'
-        username   = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.Username
-        password   = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.GetNetworkCredential().Password
-        client_id  = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId
-    }
-    Add-MSCloudLoginAssistantEvent -Message 'Requesting Access Token for Microsoft Graph' -Source $source
+    Add-MSCloudLoginAssistantEvent -Message 'Requesting Access Token for Microsoft Graph' -Source $source -Verbose
 
     try
     {
-        $OAuthReq = Invoke-RestMethod -Uri $url -Method Post -Body $body
-        $AccessToken = ConvertTo-SecureString $OAuthReq.access_token -AsPlainText -Force
-
-        Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Graph - Environment {$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment)}" -Source $source
-
-        # Domain.Read.All permission Scope is required to get the domain name for the SPO Admin Center.
-        if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId))
+        try
         {
-            Connect-MgGraph -AccessToken $AccessToken `
-                -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment | Out-Null
+            $request = Get-AuthToken -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthorizationUrl `
+                -Credential $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials `
+                -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
+                -Scope $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
+                -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.Username.Split('@')[1]
+
+            $AccessToken = ConvertTo-SecureString $request.access_token -AsPlainText -Force
+
+            Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Graph - Environment {$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment)}" -Source $source
+
+            # Domain.Read.All permission Scope is required to get the domain name for the SPO Admin Center.
+            if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId))
+            {
+                Connect-MgGraph -AccessToken $AccessToken `
+                    -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment | Out-Null
+            }
+            else
+            {
+                Connect-MgGraph -AccessToken $AccessToken `
+                    -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
+                    -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment | Out-Null
+            }
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens = $AccessToken
         }
-        else
+        catch
         {
-            Connect-MgGraph -AccessToken $AccessToken `
-                -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
-                -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment | Out-Null
+            if ($_.ErrorDetails.Message -like '*AADSTS50076*')
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
+                Connect-MSCloudLoginMSGraphWithUserMFA
+            }
         }
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens = $AccessToken
     }
     catch
     {
@@ -309,6 +315,44 @@ function Connect-MSCloudLoginMSGraphWithUser
             }
         }
     }
+}
+
+function Connect-MSCloudLoginMSGraphWithUserMFA
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Connect-MSCloudLoginMSGraphWithUserMFA'
+    if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId))
+    {
+        $tenantId = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.UserName.Split('@')[1]
+    }
+    else
+    {
+        $tenantId = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId
+    }
+
+    Add-MSCloudLoginAssistantEvent -Message 'Getting access token from Microsoft Graph using device code' -Source $source
+
+    $request = Get-AuthToken -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthorizationUrl `
+        -Credentials $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials `
+        -TenantId $tenantId `
+        -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
+        -Scope $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
+        -DeviceCode
+
+    $AccessToken = ConvertTo-SecureString $request.access_token -AsPlainText -Force
+
+    Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Graph with MFA - Environment {$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment)}" -Source $source
+    Connect-MgGraph -AccessToken $AccessToken `
+        -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment | Out-Null
+
+    Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Microsoft Graph with MFA' -Source $source
+
+    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessToken = $AccessToken
+    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $true
+    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
 }
 
 function Disconnect-MSCloudLoginMicrosoftGraph

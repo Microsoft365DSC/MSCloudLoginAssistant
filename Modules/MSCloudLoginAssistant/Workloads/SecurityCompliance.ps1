@@ -8,7 +8,6 @@ function Connect-MSCloudLoginSecurityCompliance
     $source = 'Connect-MSCloudLoginSecurityCompliance'
 
     Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-ComplianceSearch command from within MSCloudLoginAssistant' -Source $source
-
     if ($Script:MSCloudLoginCurrentLoadedModule -eq 'SC')
     {
         try

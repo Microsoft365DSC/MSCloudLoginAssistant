@@ -17,7 +17,14 @@ function Connect-MSCloudLoginTeams
             Import-Module MicrosoftTeams -UseWindowsPowerShell -Global | Out-Null
         }
 
-        $results = Get-CsTeamsCallingPolicy
+        try
+        {
+            $results = Get-CsTeamsCallingPolicy -ErrorAction Stop
+        }
+        catch
+        {
+            $results = $null
+        }
 
         if ($null -ne $results)
         {

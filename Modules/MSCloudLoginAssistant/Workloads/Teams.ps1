@@ -11,12 +11,6 @@ function Connect-MSCloudLoginTeams
     $Script:ErrorActionPreference = 'SilentlyContinue'
     try
     {
-        if ($PSVersionTable.PSVersion.Major -ge 7)
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell 7 or above. Loading the MicrosoftTeams module using Windows PowerShell.' -Source $source
-            Import-Module MicrosoftTeams -UseWindowsPowerShell -Global | Out-Null
-        }
-
         try
         {
             $results = Get-CsTeamsCallingPolicy -ErrorAction Stop

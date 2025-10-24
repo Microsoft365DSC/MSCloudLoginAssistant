@@ -20,7 +20,7 @@ function Connect-MSCloudLoginLicensing
             }
             elseif ($Script:MSCloudLoginConnectionProfile.Licensing.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
             {
-                Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Admin API using AAD App {$ApplicationID}" -Source $source
+                Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Licensing API using AAD App {$ApplicationID}" -Source $source
                 Connect-MSCloudLoginLicensingWithCertificateThumbprint
             }
             else
@@ -31,7 +31,7 @@ function Connect-MSCloudLoginLicensing
             $Script:MSCloudLoginConnectionProfile.Licensing.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.Licensing.Connected = $true
             $Script:MSCloudLoginConnectionProfile.Licensing.MultiFactorAuthentication = $false
-            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Admin API using AAD App {$ApplicationID}" -Source $source
+            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Licensing API using AAD App {$ApplicationID}" -Source $source
         }
         catch
         {
@@ -125,7 +125,7 @@ function Connect-MSCloudLoginLicensingWithCertificateThumbprint
             -Resource $Script:MSCloudLoginConnectionProfile.Licensing.Resource
 
         $Script:MSCloudLoginConnectionProfile.Licensing.AccessToken = 'Bearer ' + $Request.access_token
-        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Admin API API using Certificate Thumbprint' -Source $source
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Licensing API using Certificate Thumbprint' -Source $source
 
         $Script:MSCloudLoginConnectionProfile.Licensing.Connected = $true
         $Script:MSCloudLoginConnectionProfile.Licensing.ConnectedDateTime = [System.DateTime]::Now.ToString()

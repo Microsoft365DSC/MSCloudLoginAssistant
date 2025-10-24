@@ -7,36 +7,63 @@ function Connect-MSCloudLoginAdminAPI
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginAdminAPI'
 
-    if (-not $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken)
+    if ($Script:MSCloudLoginConnectionProfile.AdminAPI.Connected)
     {
-        try
+        if (($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'ServicePrincipalWithSecret' `
+                    -or $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'Identity') `
+                -and (Get-Date -Date $Script:MSCloudLoginConnectionProfile.AdminAPI.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-50))
         {
-            if ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'CredentialsWithApplicationId' -or
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'Credentials' -or
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'CredentialsWithTenantId')
+            Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $false
+        }
+    }
+
+    try
+    {
+        if ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'CredentialsWithApplicationId' -or
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'Credentials' -or
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'CredentialsWithTenantId')
+        {
+            Add-MSCloudLoginAssistantEvent -Message 'Will try connecting with user credentials' -Source $source
+            Connect-MSCloudLoginAdminAPIWithUser
+        }
+        elseif ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Admin API using AAD App {$ApplicationID}" -Source $source
+            Connect-MSCloudLoginAdminAPIWithCertificateThumbprint
+        }
+        elseif ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'AccessTokens')
+        {
+            Add-MSCloudLoginAssistantEvent -Message 'Using provided access token to connect to Admin API' -Source $source
+            $accessToken = if ($Script:MSCloudLoginConnectionProfile.AdminAPI.AccessTokens[0] -like 'Bearer *')
             {
-                Add-MSCloudLoginAssistantEvent -Message 'Will try connecting with user credentials' -Source $source
-                Connect-MSCloudLoginAdminAPIWithUser
-            }
-            elseif ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
-            {
-                Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Admin API using AAD App {$ApplicationID}" -Source $source
-                Connect-MSCloudLoginAdminAPIWithCertificateThumbprint
+                $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessTokens[0]
             }
             else
             {
-                throw 'Specified authentication method is not supported.'
+                'Bearer ' + $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessTokens[0]
             }
-
-            $Script:MSCloudLoginConnectionProfile.AdminAPI.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.AdminAPI.MultiFactorAuthentication = $false
-            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Admin API using AAD App {$ApplicationID}" -Source $source
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken = $accessToken
         }
-        catch
+        elseif ($Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType -eq 'Identity')
         {
-            throw $_
+            Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Admin API using Managed Identity' -Source $source
+            $accessToken = Get-AuthToken -Resource $Script:MSCloudLoginConnectionProfile.AdminAPI.Resource -Identity
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken = 'Bearer ' + $accessToken
         }
+        else
+        {
+            throw 'Specified authentication method is not supported.'
+        }
+
+        $Script:MSCloudLoginConnectionProfile.AdminAPI.ConnectedDateTime = [System.DateTime]::Now.ToString()
+        $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.AdminAPI.MultiFactorAuthentication = $false
+        Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Admin API using AAD App {$ApplicationID}" -Source $source
+    }
+    catch
+    {
+        throw $_
     }
 }
 
@@ -63,7 +90,7 @@ function Connect-MSCloudLoginAdminAPIWithUser
             -TenantId $tenantId `
             -ClientId $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId `
             -Credential $Script:MSCloudLoginConnectionProfile.AdminAPI.Credentials `
-            -Resource $Script:MSCloudLoginConnectionProfile.AdminAPI.Resource `
+            -Resource $Script:MSCloudLoginConnectionProfile.AdminAPI.Resource
 
         $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken = $managementToken.token_type.ToString() + ' ' + $managementToken.access_token.ToString()
         $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $true
@@ -125,7 +152,7 @@ function Connect-MSCloudLoginAdminAPIWithCertificateThumbprint
             -TenantId $tenantId
 
         $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken = 'Bearer ' + $Request.access_token
-        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Admin API API using Certificate Thumbprint' -Source $source
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Admin API using Certificate Thumbprint' -Source $source
 
         $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $true
         $Script:MSCloudLoginConnectionProfile.AdminAPI.ConnectedDateTime = [System.DateTime]::Now.ToString()

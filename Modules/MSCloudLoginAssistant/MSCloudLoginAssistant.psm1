@@ -984,7 +984,12 @@ function ConvertTo-Base64Url {
 function Get-AuthToken {
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true,  ParameterSetName = "ClientSecret")]
+        [Parameter(Mandatory = $true,  ParameterSetName = "CertificateThumbprint")]
+        [Parameter(Mandatory = $true,  ParameterSetName = "CertificatePath")]
+        [Parameter(Mandatory = $true,  ParameterSetName = "Default")]
+        [Parameter(Mandatory = $true,  ParameterSetName = "Device")]
+        [Parameter(Mandatory = $false, ParameterSetName = "Identity")]
         [System.String]
         $AuthorizationUrl,
 
@@ -1020,11 +1025,20 @@ function Get-AuthToken {
         [switch]
         $DeviceCode,
 
+        [Parameter(ParameterSetName = "Identity")]
+        [switch]
+        $Identity,
+
         [Parameter()]
         [System.String]
         $RefreshToken,
 
-        [Parameter()]
+        [Parameter(Mandatory = $false, ParameterSetName = "ClientSecret")]
+        [Parameter(Mandatory = $false, ParameterSetName = "CertificateThumbprint")]
+        [Parameter(Mandatory = $false, ParameterSetName = "CertificatePath")]
+        [Parameter(Mandatory = $false, ParameterSetName = "Default")]
+        [Parameter(Mandatory = $false, ParameterSetName = "Device")]
+        [Parameter(Mandatory = $true,  ParameterSetName = "Identity")]
         [ValidateNotNullOrEmpty()]
         [System.String]
         $Resource,
@@ -1033,6 +1047,64 @@ function Get-AuthToken {
         [System.String]
         $Scope
     )
+
+    if ($Identity.IsPresent) {
+        $accessToken = ""
+        if ($env:AZUREPS_HOST_ENVIRONMENT -like 'AzureAutomation*')
+        {
+            $url = $env:IDENTITY_ENDPOINT
+            $headers = @{
+                'Metadata' = $true
+                'X-IDENTITY-HEADER' = $env:IDENTITY_HEADER
+            }
+            $body = @{
+                resource = $Resource
+            }
+            $oauth2 = Invoke-RestMethod $url -Method 'POST' -Headers $headers -ContentType 'application/x-www-form-urlencoded' -Body $body
+            $accessToken = $oauth2.access_token
+        }
+        elseif ('http://localhost:40342' -eq $env:IMDS_ENDPOINT)
+        {
+            # Get endpoint for Azure Arc Connected Device
+            $apiVersion = '2020-06-01'
+            $endpoint = '{0}?resource={1}&api-version={2}' -f $env:IDENTITY_ENDPOINT, $Resource, $apiVersion
+            $secretFile = ''
+            try
+            {
+                Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{
+                    Metadata = $true
+                } -UseBasicParsing
+            }
+            catch
+            {
+                $wwwAuthHeader = $_.Exception.Response.Headers['WWW-Authenticate']
+                if ($wwwAuthHeader -match 'Basic realm=.+')
+                {
+                    $secretFile = ($wwwAuthHeader -split 'Basic realm=')[1]
+                }
+            }
+
+            $secret = Get-Content -Raw $secretFile
+            $response = Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{
+                Metadata = $true
+                Authorization = "Basic $secret"
+            } -UseBasicParsing
+
+            if ($response)
+            {
+                $accessToken = (ConvertFrom-Json -InputObject $response.Content).access_token
+            }
+        }
+        else
+        {
+            # Get correct endpoint for AzureVM
+            $oauth2 = Invoke-RestMethod -Uri "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=$Resource" -Headers @{
+                Metadata = $true
+            }
+            $accessToken = $oauth2.access_token
+        }
+        return $accessToken
+    }
 
     $useResource = $PSBoundParameters.ContainsKey('Resource') -and $Resource
     if ($useResource) {

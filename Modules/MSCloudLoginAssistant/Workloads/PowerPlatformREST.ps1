@@ -140,7 +140,7 @@ function Connect-MSCloudLoginPowerPlatformRESTWithCertificateThumbprint
         $request = Get-AuthToken -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AuthorizationUrl `
             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.CertificateThumbprint `
             -TenantId $tenantId `
-            -ClientId $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationId
+            -ClientId $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.ApplicationId `
             -Scope $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Scope
 
         $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessToken = 'Bearer ' + $Request.access_token

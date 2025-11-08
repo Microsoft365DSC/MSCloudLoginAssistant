@@ -50,49 +50,8 @@ function Connect-MSCloudLoginMicrosoftGraph
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting with managed identity' -Source $source
 
-        $resourceEndpoint = ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ResourceUrl -split '/')[2]
-        if ($env:AZUREPS_HOST_ENVIRONMENT -like 'AzureAutomation*')
-        {
-            $url = $env:IDENTITY_ENDPOINT
-            $headers = New-Object 'System.Collections.Generic.Dictionary[[String],[String]]'
-            $headers.Add('X-IDENTITY-HEADER', $env:IDENTITY_HEADER)
-            $headers.Add('Metadata', 'True')
-            $body = @{resource = "https://$resourceEndPoint/" }
-            $oauth2 = Invoke-RestMethod $url -Method 'POST' -Headers $headers -ContentType 'application/x-www-form-urlencoded' -Body $body
-            $accessToken = $oauth2.access_token
-        }
-        elseif ('http://localhost:40342' -eq $env:IMDS_ENDPOINT)
-        {
-            # Get endpoint for Azure Arc Connected Device
-            $apiVersion = '2020-06-01'
-            $resource = "https://$resourceEndpoint"
-            $endpoint = '{0}?resource={1}&api-version={2}' -f $env:IDENTITY_ENDPOINT, $resource, $apiVersion
-            $secretFile = ''
-            try
-            {
-                Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{Metadata = 'True' } -UseBasicParsing
-            }
-            catch
-            {
-                $wwwAuthHeader = $_.Exception.Response.Headers['WWW-Authenticate']
-                if ($wwwAuthHeader -match 'Basic realm=.+')
-                {
-                    $secretFile = ($wwwAuthHeader -split 'Basic realm=')[1]
-                }
-            }
-            $secret = Get-Content -Raw $secretFile
-            $response = Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{Metadata = 'True'; Authorization = "Basic $secret" } -UseBasicParsing
-            if ($response)
-            {
-                $accessToken = (ConvertFrom-Json -InputObject $response.Content).access_token
-            }
-        }
-        else
-        {
-            # Get correct endopint for AzureVM
-            $oauth2 = Invoke-RestMethod -Uri "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2F$($resourceEndpoint)%2F" -Headers @{Metadata = 'true' }
-            $accessToken = $oauth2.access_token
-        }
+        $resourceEndpoint = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ResourceUrl.TrimEnd('/')
+        $accessToken = Get-AuthToken -Resource $resourceEndpoint -Identity
 
         $accessToken = $accessToken | ConvertTo-SecureString -AsPlainText -Force
         Connect-MgGraph -AccessToken $accessToken -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment -NoWelcome

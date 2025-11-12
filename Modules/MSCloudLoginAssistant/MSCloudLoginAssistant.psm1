@@ -722,19 +722,18 @@ function Get-MSCloudLoginAccessToken
     try
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-        $Certificate = Get-Item "Cert:\CurrentUser\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-        if ($null -eq $Certificate)
+        $certificate = Get-Item "Cert:\CurrentUser\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
+        if ($null -eq $certificate)
         {
             Add-MSCloudLoginAssistantEvent 'Certificate not found in CurrentUser\My' -Source $source
-            $Certificate = Get-ChildItem "Cert:\LocalMachine\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-
-            if ($null -eq $Certificate)
+            $certificate = Get-ChildItem "Cert:\LocalMachine\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
+            if ($null -eq $certificate)
             {
                 throw 'Certificate not found in LocalMachine\My'
             }
         }
         # Create base64 hash of certificate
-        $CertificateBase64Hash = [System.Convert]::ToBase64String($Certificate.GetCertHash())
+        $CertificateBase64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
 
         # Create JWT timestamp for expiration
         $StartDate = (Get-Date '1970-01-01T00:00:00Z' ).ToUniversalTime()
@@ -1159,8 +1158,8 @@ function Get-AuthToken {
                 typ = 'JWT'
             }
 
-            if ($CertificateThumbprint) {
-                $base64Hash = [System.Convert]::ToBase64String($Certificate.GetCertHash())
+            if ($CertificateThumbprint -or $CertificatePath) {
+                $base64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
                 $header.Add('x5t', $base64Hash)
             }
             $payload = @{

@@ -108,6 +108,10 @@ function Connect-MSCloudLoginExchangeOnline
         Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)}" -Source $source
         try
         {
+            if ($PSVersionTable.Platform -ne 'Win32NT')
+            {
+                throw 'Certificate Thumbprint authentication is only supported on the Windows platform.'
+            }
             if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
                 $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
             {
@@ -151,6 +155,48 @@ function Connect-MSCloudLoginExchangeOnline
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
             Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$ApplicationID}" -Source $source
+        }
+        catch
+        {
+            throw $_
+        }
+    }
+    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'ServicePrincipalWithPath')
+    {
+        Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)} with Certificate Path" -Source $source
+        try
+        {
+            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
+                $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
+            {
+                # Because we are using Certificate Path, an authentication to Graph is not possible here
+                if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId -notlike '*.onmicrosoft.com')
+                {
+                    throw 'TenantId must be specified as the primary domain in the format <domain>.onmicrosoft.com when using Certificate Path authentication.'
+                }
+                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
+            }
+
+            if ($PSVersionTable.Platform -eq 'Win32NT' -and -not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+            {
+                throw 'Certificate Path authentication on Windows requires the command to be run as Administrator.'
+            }
+
+            Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
+                -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
+                -CertificateFilePath $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificatePath `
+                -CertificatePassword $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificatePassword `
+                -ShowBanner:$false `
+                -ShowProgress:$false `
+                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
+                -Verbose:$false `
+                -SkipLoadingCmdletHelp `
+                @CommandName | Out-Null
+
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$ApplicationID} with Certificate Path" -Source $source
         }
         catch
         {

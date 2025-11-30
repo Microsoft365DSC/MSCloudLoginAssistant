@@ -189,6 +189,7 @@ function Connect-M365Tenant
                     -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -and `
                     $Url -or (-not $Url -and -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
             {
+                Add-MSCloudLoginAssistantEvent -Message "Connecting to a different connection URL. Old URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl), New URL: $Url" -Source $source
                 $ForceRefresh = $false
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
                     -not [System.String]::IsNullOrEmpty($url))
@@ -215,6 +216,7 @@ function Connect-M365Tenant
                     if ($contextUrl -ne $Url)
                     {
                         $ForceRefresh = $true
+                        Add-MSCloudLoginAssistantEvent -Message "Connecting to a different context URL. Old URL: $contextUrl, New URL: $Url" -Source $source
                         $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
                         if ($url)
                         {

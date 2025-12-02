@@ -121,6 +121,19 @@ function Connect-MSCloudLoginMicrosoftGraph
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
             }
+            elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithPath')
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with Certificate Path' -Source $source
+                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $CertificatePath), $CertificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
+                Connect-MgGraph -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
+                    -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
+                    -Certificate $certificate `
+                    -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
+                    -NoWelcome
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+            }
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'AccessTokens')
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with AccessToken' -Source $source

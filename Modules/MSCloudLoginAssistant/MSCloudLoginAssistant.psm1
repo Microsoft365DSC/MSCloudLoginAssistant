@@ -28,7 +28,7 @@ function Connect-M365Tenant
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload,
@@ -170,6 +170,10 @@ function Connect-M365Tenant
         {
             $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
         }
+        'O365Portal'
+        {
+            $Script:MSCloudLoginConnectionProfile.O365Portal.Connect()
+        }
         'MicrosoftGraph'
         {
             $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connect()
@@ -185,6 +189,7 @@ function Connect-M365Tenant
                     -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -and `
                     $Url -or (-not $Url -and -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
             {
+                Add-MSCloudLoginAssistantEvent -Message "Connecting to a different connection URL. Old URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl), New URL: $Url" -Source $source
                 $ForceRefresh = $false
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
                     -not [System.String]::IsNullOrEmpty($url))
@@ -211,6 +216,7 @@ function Connect-M365Tenant
                     if ($contextUrl -ne $Url)
                     {
                         $ForceRefresh = $true
+                        Add-MSCloudLoginAssistantEvent -Message "Connecting to a different context URL. Old URL: $contextUrl, New URL: $Url" -Source $source
                         $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
                         if ($url)
                         {
@@ -285,7 +291,7 @@ function Get-MSCloudLoginConnectionProfile
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload
@@ -311,7 +317,7 @@ function Reset-MSCloudLoginConnectionProfileContext
     param (
         [Parameter()]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatformREST', `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String[]]
         $Workload
@@ -1237,7 +1243,7 @@ function Get-AuthToken {
     }
 
     if ($DeviceCode) {
-        $deviceEndpoint = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/devicecode"
+        $deviceEndpoint = "$AuthorizationUrl/$TenantId/oauth2/v2.0/devicecode"
         $deviceBody = @{
             client_id = $ClientId
             scope = $Scope

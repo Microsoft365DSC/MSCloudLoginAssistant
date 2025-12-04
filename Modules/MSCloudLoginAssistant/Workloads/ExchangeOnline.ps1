@@ -108,7 +108,7 @@ function Connect-MSCloudLoginExchangeOnline
         Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)}" -Source $source
         try
         {
-            if ($PSVersionTable.Platform -ne 'Win32NT')
+            if ($PSVersionTable.PSVersion -gt [Version]'6.0' -and $PSVersionTable.Platform -ne 'Win32NT')
             {
                 throw 'Certificate Thumbprint authentication is only supported on the Windows platform.'
             }
@@ -177,7 +177,7 @@ function Connect-MSCloudLoginExchangeOnline
                 $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
             }
 
-            if ($PSVersionTable.Platform -eq 'Win32NT' -and -not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+            if (($IsWindows -or $PSVersionTable.PSVersion.Major -eq 5) -and -not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
             {
                 throw 'Certificate Path authentication on Windows requires the command to be run as Administrator.'
             }

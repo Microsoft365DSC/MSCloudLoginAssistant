@@ -71,10 +71,6 @@ function Connect-M365Tenant
         $CertificatePath,
 
         [Parameter()]
-        [System.Boolean]
-        $SkipModuleReload = $false,
-
-        [Parameter()]
         [Switch]
         $Identity,
 
@@ -158,7 +154,6 @@ function Connect-M365Tenant
         }
         'ExchangeOnline'
         {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
         }
@@ -252,7 +247,6 @@ function Connect-M365Tenant
         }
         'SecurityComplianceCenter'
         {
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
         }
         'SharePointOnlineREST'
@@ -482,7 +476,6 @@ function Compare-InputParametersForChange
         $currentParameters.Add('UserName', $currentParameters['Credential'].UserName)
     }
     $currentParameters.Remove('Credential') | Out-Null
-    $currentParameters.Remove('SkipModuleReload') | Out-Null
     $currentParameters.Remove('CmdletsToLoad') | Out-Null
     $currentParameters.Remove('UseModernAuth') | Out-Null
     $currentParameters.Remove('ProfileName') | Out-Null

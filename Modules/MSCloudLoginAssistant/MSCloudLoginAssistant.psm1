@@ -420,14 +420,13 @@ function Add-MSCloudLoginAssistantEvent
         }
         else
         {
-            if ([System.Diagnostics.EventLog]::Exists($logName) -eq $false)
-            {
-                # Create event log
-                $null = New-EventLog -LogName $logName -Source $Source
-            }
-            else
+            try
             {
                 [System.Diagnostics.EventLog]::CreateEventSource($Source, $logName)
+            }
+            catch [System.Security.SecurityException]
+            {
+                Write-Verbose -Message "[WARNING] Not all event logs could be searched. Source might exist in another event log."
             }
         }
 
@@ -440,8 +439,7 @@ function Add-MSCloudLoginAssistantEvent
 
         try
         {
-            Write-EventLog -LogName $logName -Source $Source `
-                -EventId $EventID -Message $outputMessage -EntryType $EntryType -ErrorAction Stop
+            [System.Diagnostics.EventLog]::WriteEntry($Source, $outputMessage, $EntryType, $EventID)
         }
         catch
         {

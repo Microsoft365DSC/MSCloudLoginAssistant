@@ -7,22 +7,6 @@ function Connect-MSCloudLoginSecurityCompliance
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginSecurityCompliance'
 
-    Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-ComplianceSearch command from within MSCloudLoginAssistant' -Source $source
-    if ($Script:MSCloudLoginCurrentLoadedModule -eq 'SC')
-    {
-        try
-        {
-            Get-ComplianceSearch -ErrorAction Stop
-            Add-MSCloudLoginAssistantEvent -Message 'Succeeded' -Source $source
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-            return
-        }
-        catch
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Failed' -Source $source
-        }
-    }
-
     Add-MSCloudLoginAssistantEvent -Message "Connection Profile: $($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter | Out-String)" -Source $source
     if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected -and `
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload)
@@ -33,8 +17,8 @@ function Connect-MSCloudLoginSecurityCompliance
     $loadedModules = Get-Module
     Add-MSCloudLoginAssistantEvent -Message "The following modules are already loaded: $loadedModules" -Source $source
 
-    $AlreadyLoadedSCProxyModules = $loadedModules | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-ComplianceSearch') }
-    foreach ($loadedModule in $AlreadyLoadedSCProxyModules)
+    $alreadyLoadedSCProxyModules = $loadedModules | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-ComplianceSearch') }
+    foreach ($loadedModule in $alreadyLoadedSCProxyModules)
     {
         Add-MSCloudLoginAssistantEvent -Message "Removing module {$($loadedModule.Name)} from current S+C session" -Source $source
         # Temporarily set ErrorAction to SilentlyContinue to make sure the Remove-Module doesn't throw an error if some files are still in use.
@@ -104,7 +88,7 @@ function Connect-MSCloudLoginSecurityCompliance
                         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
                         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
                     }
-                    Default
+                    default
                     {
                         Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
                             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
@@ -175,6 +159,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl `
                 -Verbose:$false -ErrorAction Stop  `
                 -DelegatedOrganization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
+                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                 -ShowBanner:$false | Out-Null
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
@@ -205,6 +190,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl `
                 -Verbose:$false -ErrorAction Stop  `
+                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                 -ShowBanner:$false | Out-Null
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
@@ -241,12 +227,14 @@ function Connect-MSCloudLoginSecurityComplianceMFA
             if ([System.String]::IsNullOrEmpty($TenantId))
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
+                    -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                     -Verbose:$false  `
                     -ShowBanner:$false | Out-Null
             }
             else
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
+                    -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                     -Verbose:$false  `
                     -DelegatedOrganization $TenantId `
                     -ShowBanner:$false | Out-Null
@@ -258,6 +246,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+                    -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                     -Verbose:$false  `
                     -ShowBanner:$false | Out-Null
             }
@@ -265,6 +254,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+                    -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                     -Verbose:$false `
                     -DelegatedOrganization $TenantId `
                     -ShowBanner:$false | Out-Null

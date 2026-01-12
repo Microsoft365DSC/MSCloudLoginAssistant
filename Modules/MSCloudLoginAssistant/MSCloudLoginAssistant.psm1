@@ -75,6 +75,10 @@ function Connect-M365Tenant
         $SkipModuleReload = $false,
 
         [Parameter()]
+        [switch]
+        $EnableSearchOnlySession,
+
+        [Parameter()]
         [Switch]
         $Identity,
 
@@ -252,6 +256,7 @@ function Connect-M365Tenant
         }
         'SecurityComplianceCenter'
         {
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
         }

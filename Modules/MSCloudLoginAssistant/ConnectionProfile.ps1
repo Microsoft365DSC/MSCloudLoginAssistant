@@ -1058,6 +1058,9 @@ class PowerPlatformREST:Workload
 class SecurityComplianceCenter:Workload
 {
     [boolean]
+    $EnableSearchOnlySession = $false
+
+    [boolean]
     $SkipModuleReload = $false
 
     [string]

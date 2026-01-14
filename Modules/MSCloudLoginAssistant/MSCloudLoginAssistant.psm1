@@ -115,7 +115,7 @@ function Connect-M365Tenant
         $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
     }
     # Only validate the parameters if we are not already connected
-    elseif ( $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
+    elseif ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
             -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
     {
         Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
@@ -583,6 +583,14 @@ function Compare-InputParametersForChange
     if ($workloadProfile.AccessTokens)
     {
         $globalParameters.Add('AccessTokens', $workloadProfile.AccessTokens)
+    }
+    if ($null -ne $workloadProfile.EnableSearchOnlySession)
+    {
+        $globalParameters.Add('EnableSearchOnlySession', $workloadProfile.EnableSearchOnlySession)
+        if (-not $currentParameters.ContainsKey('EnableSearchOnlySession'))
+        {
+            $currentParameters.Add('EnableSearchOnlySession', $false)
+        }
     }
 
     # Clean the current parameters

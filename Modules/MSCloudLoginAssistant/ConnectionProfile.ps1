@@ -1089,15 +1089,13 @@ class SecurityComplianceCenter:Workload
             }
             'AzureUSGovernment'
             {
-                $this.ConnectionUrl                   = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureDOD'
             {
-                $this.ConnectionUrl                   = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureGermany'
             {
@@ -1111,11 +1109,11 @@ class SecurityComplianceCenter:Workload
             }
             'Custom'
             {
-                $this.ConnectionUrl                   = $Global:CustomSCCConnectionUrl
-                $this.AuthorizationUrl                = $Global:CustomSCCAuthorizationUrl
-                $this.AzureADAuthorizationEndpointUri = $Global:CustomSCCAzureADAuthorizationEndpointUri
+                $this.ConnectionUrl    = $Global:CustomSCCConnectionUrl
+                $this.AuthorizationUrl = $Global:CustomSCCAzureADAuthorizationEndpointUri
             }
         }
+        $this.AzureADAuthorizationEndpointUri = $this.AuthorizationUrl
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this
         Connect-MSCloudLoginSecurityCompliance
     }

@@ -54,52 +54,17 @@ function Connect-MSCloudLoginSecurityCompliance
         try
         {
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Service Principal and Certificate Thumbprint' -Source $source
-            if ($null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri)
-            {
-                Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-                Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                    -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-                    -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
-                    -ShowBanner:$false `
-                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
-                    -Verbose:$false
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-            }
-            else
-            {
-                Add-MSCloudLoginAssistantEvent -Message 'Connecting by environment name' -Source $source
-                switch ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnvironmentName)
-                {
-                    { $_ -eq 'AzureUSGovernment' -or $_ -eq 'AzureDOD' }
-                    {
-                        Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                            -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
-                            -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-                            -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
-                            -ErrorAction Stop  `
-                            -ShowBanner:$false | Out-Null
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-                    }
-                    default
-                    {
-                        Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                            -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
-                            -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-                            -ErrorAction Stop  `
-                            -ShowBanner:$false | Out-Null
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-                        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-                    }
-                }
-            }
+            Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
+                -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
+                -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificateThumbprint `
+                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                -ShowBanner:$false `
+                -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
+                -ErrorAction Stop | Out-Null
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
         }
         catch
         {
@@ -112,33 +77,18 @@ function Connect-MSCloudLoginSecurityCompliance
         try
         {
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Service Principal and Certificate Path' -Source $source
-            switch ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnvironmentName)
-            {
-                { $_ -eq 'AzureUSGovernment' -or $_ -eq 'AzureDOD' }
-                {
-                    Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                        -CertificateFilePath $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePath `
-                        -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-                        -CertificatePassword $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePassword `
-                        -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                        -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri  `
-                        -ShowBanner:$false | Out-Null
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-                }
-                Default
-                {
-                    Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
-                        -CertificateFilePath $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePath `
-                        -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-                        -CertificatePassword $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePassword `
-                        -ShowBanner:$false | Out-Null
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-                }
-            }
+            Connect-IPPSSession -AppId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ApplicationId `
+                -CertificateFilePath $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePath `
+                -Organization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
+                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                -CertificatePassword $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CertificatePassword `
+                -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri  `
+                -ShowBanner:$false `
+                -ErrorAction Stop | Out-Null
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
         }
         catch
         {
@@ -150,16 +100,16 @@ function Connect-MSCloudLoginSecurityCompliance
     {
         try
         {
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl = `
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl.Replace('/organizations', "/$($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId)")
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri = `
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri.Replace('/organizations', "/$($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId)")
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Credentials & TenantId' -Source $source
             Connect-IPPSSession -Credential $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials `
                 -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl `
-                -Verbose:$false -ErrorAction Stop  `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
                 -DelegatedOrganization $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
                 -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
-                -ShowBanner:$false | Out-Null
+                -ShowBanner:$false `
+                -ErrorAction Stop | Out-Null
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
@@ -175,7 +125,8 @@ function Connect-MSCloudLoginSecurityCompliance
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Access Token' -Source $source
         Connect-M365Tenant -Workload 'ExchangeOnline' `
             -AccessTokens $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AccessTokens `
-            -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId
+            -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
+            -ErrorAction Stop
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
@@ -187,10 +138,10 @@ function Connect-MSCloudLoginSecurityCompliance
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Credentials' -Source $source
             Connect-IPPSSession -Credential $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials `
                 -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthorizationUrl `
-                -Verbose:$false -ErrorAction Stop  `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
                 -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
-                -ShowBanner:$false | Out-Null
+                -ShowBanner:$false `
+                -ErrorAction Stop | Out-Null
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
@@ -227,6 +178,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                    -ErrorAction Stop `
                     -Verbose:$false  `
                     -ShowBanner:$false | Out-Null
             }
@@ -234,6 +186,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
             {
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                    -ErrorAction Stop `
                     -Verbose:$false  `
                     -DelegatedOrganization $TenantId `
                     -ShowBanner:$false | Out-Null
@@ -246,6 +199,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                     -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                    -ErrorAction Stop `
                     -Verbose:$false  `
                     -ShowBanner:$false | Out-Null
             }
@@ -254,6 +208,7 @@ function Connect-MSCloudLoginSecurityComplianceMFA
                 Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
                     -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                     -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                    -ErrorAction Stop `
                     -Verbose:$false `
                     -DelegatedOrganization $TenantId `
                     -ShowBanner:$false | Out-Null

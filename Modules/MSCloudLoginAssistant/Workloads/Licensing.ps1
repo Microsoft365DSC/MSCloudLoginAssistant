@@ -75,6 +75,11 @@ function Connect-MSCloudLoginLicensingWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginLicensingWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.Licensing.Connected = $false
+            throw $_
+        }
     }
 }
 

@@ -174,7 +174,7 @@ function Connect-MSCloudLoginTeams
         catch
         {
             Add-MSCloudLoginAssistantEvent -Message "Error from Non-MFA Logic Path: $_" -Source $source -EntryType 'Error'
-            if ($_.Exception -like '*AADSTS50076*' -or $_.Exception -eq 'One or more errors occurred.')
+            if ($_.Exception.Message -like '*AADSTS50076*' -or $_.Exception.Message -eq 'One or more errors occurred.')
             {
                 Connect-MSCloudLoginTeamsMFA
             }

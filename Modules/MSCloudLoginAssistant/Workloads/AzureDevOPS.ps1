@@ -71,6 +71,11 @@ function Connect-MSCloudAzureDevOPSWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginAzureDevOPSWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.AzureDevOPS.Connected = $false
+            throw $_
+        }
     }
 }
 

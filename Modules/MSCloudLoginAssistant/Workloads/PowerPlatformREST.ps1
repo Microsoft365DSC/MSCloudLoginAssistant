@@ -95,6 +95,11 @@ function Connect-MSCloudLoginPowerPlatformRESTWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginPowerPlatformRESTWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Connected = $false
+            throw $_
+        }
     }
 }
 function Connect-MSCloudLoginPowerPlatformRESTWithUserMFA

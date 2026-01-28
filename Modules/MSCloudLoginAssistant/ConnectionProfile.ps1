@@ -1054,6 +1054,9 @@ class PowerPlatformREST:Workload
 
 class SecurityComplianceCenter:Workload
 {
+    [boolean]
+    $EnableSearchOnlySession = $false
+
     [string]
     $ConnectionUrl
 
@@ -1080,15 +1083,13 @@ class SecurityComplianceCenter:Workload
             }
             'AzureUSGovernment'
             {
-                $this.ConnectionUrl                   = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureDOD'
             {
-                $this.ConnectionUrl                   = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureGermany'
             {
@@ -1102,11 +1103,20 @@ class SecurityComplianceCenter:Workload
             }
             'Custom'
             {
-                $this.ConnectionUrl                   = $Global:CustomSCCConnectionUrl
-                $this.AuthorizationUrl                = $Global:CustomSCCAuthorizationUrl
-                $this.AzureADAuthorizationEndpointUri = $Global:CustomSCCAzureADAuthorizationEndpointUri
+                $this.ConnectionUrl    = $Global:CustomSCCConnectionUrl
+                $this.AuthorizationUrl = $Global:CustomSCCAzureADAuthorizationEndpointUri
             }
         }
+
+        $connectionRegex = "ps.compliance.protection.(partner.)?(outlook|office365).(com|us|de|cn)"
+        $connectionInformation = Get-ConnectionInformation
+        if ($null -ne $connectionInformation -and $connectionInformation.ConnectionUri -notmatch $connectionRegex)
+        {
+            $this.ConnectionUrl = $connectionInformation.ConnectionUri
+            Add-MSCloudLoginAssistantEvent -Message "Using existing Security & Compliance Center ConnectionUrl: $($this.ConnectionUrl)" -Source 'SecurityComplianceCenter.Connect()'
+        }
+
+        $this.AzureADAuthorizationEndpointUri = $this.AuthorizationUrl
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this
         Connect-MSCloudLoginSecurityCompliance
     }

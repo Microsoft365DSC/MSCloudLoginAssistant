@@ -74,6 +74,11 @@ function Connect-MSCloudLoginSharePointOnlineRESTWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginSharePointOnlineRESTWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.Connected = $false
+            throw $_
+        }
     }
 }
 

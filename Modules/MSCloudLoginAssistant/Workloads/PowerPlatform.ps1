@@ -84,7 +84,7 @@ function Connect-MSCloudLoginPowerPlatform
     }
     catch
     {
-        if ($_.Exception -like '*unknown_user_type: Unknown User Type*')
+        if ($_.Exception.Message -like '*unknown_user_type: Unknown User Type*')
         {
             try
             {
@@ -116,11 +116,11 @@ function Connect-MSCloudLoginPowerPlatform
                 Connect-MSCloudLoginPowerPlatformMFA
             }
         }
-        elseif ($_.Exception -like '*AADSTS50076: Due to a configuration change made by your administrator*')
+        elseif ($_.Exception.Message -like '*AADSTS50076: Due to a configuration change made by your administrator*')
         {
             Connect-MSCloudLoginPowerPlatformMFA
         }
-        elseif ($_.Exception -like '*Cannot find an overload for "UserCredential"*')
+        elseif ($_.Exception.Message -like '*Cannot find an overload for "UserCredential"*')
         {
             Connect-MSCloudLoginPowerPlatformMFA
         }

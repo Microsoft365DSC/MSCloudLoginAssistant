@@ -71,10 +71,6 @@ function Connect-M365Tenant
         $CertificatePath,
 
         [Parameter()]
-        [System.Boolean]
-        $SkipModuleReload = $false,
-
-        [Parameter()]
         [switch]
         $EnableSearchOnlySession,
 
@@ -162,7 +158,6 @@ function Connect-M365Tenant
         }
         'ExchangeOnline'
         {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
         }
@@ -257,7 +252,6 @@ function Connect-M365Tenant
         'SecurityComplianceCenter'
         {
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
         }
         'SharePointOnlineREST'
@@ -425,14 +419,13 @@ function Add-MSCloudLoginAssistantEvent
         }
         else
         {
-            if ([System.Diagnostics.EventLog]::Exists($logName) -eq $false)
-            {
-                # Create event log
-                $null = New-EventLog -LogName $logName -Source $Source
-            }
-            else
+            try
             {
                 [System.Diagnostics.EventLog]::CreateEventSource($Source, $logName)
+            }
+            catch [System.Security.SecurityException]
+            {
+                Write-Verbose -Message "[WARNING] Not all event logs could be searched. Source might exist in another event log."
             }
         }
 
@@ -445,8 +438,7 @@ function Add-MSCloudLoginAssistantEvent
 
         try
         {
-            Write-EventLog -LogName $logName -Source $Source `
-                -EventId $EventID -Message $outputMessage -EntryType $EntryType -ErrorAction Stop
+            [System.Diagnostics.EventLog]::WriteEntry($Source, $outputMessage, $EntryType, $EventID)
         }
         catch
         {
@@ -487,7 +479,6 @@ function Compare-InputParametersForChange
         $currentParameters.Add('UserName', $currentParameters['Credential'].UserName)
     }
     $currentParameters.Remove('Credential') | Out-Null
-    $currentParameters.Remove('SkipModuleReload') | Out-Null
     $currentParameters.Remove('CmdletsToLoad') | Out-Null
     $currentParameters.Remove('UseModernAuth') | Out-Null
     $currentParameters.Remove('ProfileName') | Out-Null

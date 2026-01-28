@@ -91,6 +91,11 @@ function Connect-MSCloudLoginO365PortalWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginO365PortalWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.O365Portal.Connected = $false
+            throw $_
+        }
     }
 }
 function Connect-MSCloudLoginO365PortalWithUserMFA

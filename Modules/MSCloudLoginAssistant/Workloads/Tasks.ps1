@@ -71,6 +71,11 @@ function Connect-MSCloudLoginTasksWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginTasksWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.Tasks.Connected = $false
+            throw $_
+        }
     }
 }
 

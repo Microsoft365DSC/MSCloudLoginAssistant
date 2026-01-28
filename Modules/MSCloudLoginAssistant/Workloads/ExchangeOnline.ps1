@@ -51,10 +51,8 @@ function Connect-MSCloudLoginExchangeOnline
         }
     }
 
-    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected -and `
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.SkipModuleReload)
+    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
         return
     }
 
@@ -224,7 +222,7 @@ function Connect-MSCloudLoginExchangeOnline
         }
         catch
         {
-            if ($_.Exception -like '*you must use multi-factor authentication to access*' -or $_.Exception -like '*WAM Error*')
+            if ($_.Exception.Message -like '*you must use multi-factor authentication to access*' -or $_.Exception.Message -like '*WAM Error*')
             {
                 Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials
             }
@@ -257,7 +255,7 @@ function Connect-MSCloudLoginExchangeOnline
         }
         catch
         {
-            if ($_.Exception -like '*you must use multi-factor authentication to access*' -or $_.Exception -like '*WAM Error*')
+            if ($_.Exception.Message -like '*you must use multi-factor authentication to access*' -or $_.Exception.Message -like '*WAM Error*')
             {
                 Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials `
                     -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId

@@ -102,6 +102,11 @@ function Connect-MSCloudLoginAdminAPIWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginAdminAPIWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $false
+            throw $_
+        }
     }
 }
 function Connect-MSCloudLoginAdminAPIWithUserMFA

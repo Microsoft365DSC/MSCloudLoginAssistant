@@ -51,10 +51,8 @@ function Connect-MSCloudLoginExchangeOnline
         }
     }
 
-    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected -and `
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.SkipModuleReload)
+    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
         return
     }
 

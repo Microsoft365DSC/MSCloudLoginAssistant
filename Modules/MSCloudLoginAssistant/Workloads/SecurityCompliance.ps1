@@ -24,8 +24,7 @@ function Connect-MSCloudLoginSecurityCompliance
     }
 
     Add-MSCloudLoginAssistantEvent -Message "Connection Profile: $($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter | Out-String)" -Source $source
-    if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected -and `
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload)
+    if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
     {
         return
     }

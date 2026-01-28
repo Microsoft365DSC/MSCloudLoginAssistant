@@ -531,9 +531,6 @@ class ExchangeOnline:Workload
     [string]
     $AzureADAuthorizationEndpointUri
 
-    [boolean]
-    $SkipModuleReload = $false
-
     [System.String[]]
     $CmdletsToLoad = @()
 
@@ -1057,9 +1054,6 @@ class PowerPlatformREST:Workload
 
 class SecurityComplianceCenter:Workload
 {
-    [boolean]
-    $SkipModuleReload = $false
-
     [string]
     $ConnectionUrl
 

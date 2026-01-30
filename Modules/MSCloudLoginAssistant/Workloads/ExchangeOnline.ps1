@@ -288,7 +288,7 @@ function Connect-MSCloudLoginExchangeOnline
                 @CommandName | Out-Null
 
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $true
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Managed Identity' -Source $source
         }
@@ -319,7 +319,7 @@ function Connect-MSCloudLoginExchangeOnline
                 @CommandName | Out-Null
 
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Access Token' -Source $source
         }

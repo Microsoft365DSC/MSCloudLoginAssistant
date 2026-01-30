@@ -197,7 +197,7 @@ function Connect-MSCloudLoginTeams
         $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $false
         $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
     }
-    elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'AccessToken')
+    elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'AccessTokens')
     {
         $tokenValues = @()
         foreach ($tokenInfo in $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens)

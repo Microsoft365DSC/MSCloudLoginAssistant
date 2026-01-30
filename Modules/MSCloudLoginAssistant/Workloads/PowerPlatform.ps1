@@ -91,7 +91,7 @@ function Connect-MSCloudLoginPowerPlatform
                 if ($Script:MSCloudLoginConnectionProfile.PowerPlatform.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
                 {
                     Add-PowerAppsAccount -ApplicationId $Script:MSCloudLoginConnectionProfile.PowerPlatform.ApplicationId `
-                        -TenantID Global:MSCloudLoginConnectionProfile.PowerPlatform.$TenantId `
+                        -TenantID $Script:MSCloudLoginConnectionProfile.PowerPlatform.TenantId `
                         -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PowerPlatform.CertificateThumbprint `
                         -Endpoint 'preview' `
                         -ErrorAction Stop | Out-Null

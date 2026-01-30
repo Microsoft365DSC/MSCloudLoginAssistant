@@ -131,6 +131,19 @@ function Connect-MSCloudLoginSecurityCompliance
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
     }
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Identity')
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Managed Identity' -Source $source
+        Connect-IPPSSession -ManagedIdentity `
+            -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+            -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
+            -ShowBanner:$false `
+            -ErrorAction Stop | Out-Null
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+    }
     else
     {
         try

@@ -88,6 +88,10 @@ class Workload : ICloneable
     [ValidateSet('Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint', 'ServicePrincipalWithPath', 'Interactive', 'Identity', 'AccessTokens')]
     $AuthenticationType
 
+    [string]
+    [ValidateSet('Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint', 'ServicePrincipalWithPath', 'Interactive', 'Identity', 'AccessTokens')]
+    $RequestedAuthenticationType
+
     [boolean]
     $Connected = $false
 
@@ -227,43 +231,8 @@ class Workload : ICloneable
             }
         }
 
-        # Determine the Authentication Type
-        if ($this.ApplicationId -and $this.TenantId -and $this.CertificateThumbprint)
-        {
-            $this.AuthenticationType = 'ServicePrincipalWithThumbprint'
-        }
-        elseif ($this.ApplicationId -and $this.TenantId -and $this.ApplicationSecret)
-        {
-            $this.AuthenticationType = 'ServicePrincipalWithSecret'
-        }
-        elseif ($this.ApplicationId -and $this.TenantId -and $this.CertificatePath -and $this.CertificatePassword)
-        {
-            $this.AuthenticationType = 'ServicePrincipalWithPath'
-        }
-        elseif ($this.Credentials -and $this.ApplicationId)
-        {
-            $this.AuthenticationType = 'CredentialsWithApplicationId'
-        }
-        elseif ($this.Credentials -and $this.TenantId)
-        {
-            $this.AuthenticationType = 'CredentialsWithTenantId'
-        }
-        elseif ($this.Credentials)
-        {
-            $this.AuthenticationType = 'Credentials'
-        }
-        elseif ($this.Identity)
-        {
-            $this.AuthenticationType = 'Identity'
-        }
-        elseif ($this.AccessTokens -and -not [System.String]::IsNullOrEmpty($this.TenantId))
-        {
-            $this.AuthenticationType = 'AccessTokens'
-        }
-        else
-        {
-            $this.AuthenticationType = 'Interactive'
-        }
+        # Update the AuthenticationType based on RequestedAuthenticationType
+        $this.AuthenticationType = $this.RequestedAuthenticationType
         Add-MSCloudLoginAssistantEvent -Message "`$this.AuthenticationType determined to be {$($this.AuthenticationType)}" -Source $source
     }
 }
@@ -418,6 +387,7 @@ class DefenderForEndpoint:Workload
 
     DefenderForEndpoint()
     {
+        $this.ApplicationId = "1950a258-227b-4e31-a9cf-717495945fc2"
     }
 
     [void] Connect()
@@ -608,6 +578,7 @@ class Fabric:Workload
 
     Fabric()
     {
+        $this.ApplicationId = "23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd" # Power BI PowerShell
     }
 
     [void] Connect()

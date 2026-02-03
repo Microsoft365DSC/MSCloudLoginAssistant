@@ -442,8 +442,8 @@ class DefenderForEndpoint:Workload
             }
             default
             {
-                $this.HostUrl          = 'https://api.security.microsoft.com'
-                $this.Scope            = 'https://api.security.microsoft.com/.default'
+                $this.HostUrl          = 'https://api.securitycenter.microsoft.com/'
+                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com'
             }
         }

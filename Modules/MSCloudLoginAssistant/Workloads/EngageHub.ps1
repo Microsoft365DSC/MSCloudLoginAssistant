@@ -76,6 +76,11 @@ function Connect-MSCloudLoginEngageHubWithUser
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginEngageHubWithUserMFA
         }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.EngageHub.Connected = $false
+            throw $_
+        }
     }
 }
 function Connect-MSCloudLoginEngageHubWithUserMFA

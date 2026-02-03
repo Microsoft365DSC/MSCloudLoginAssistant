@@ -89,7 +89,6 @@ function Connect-MSCloudLoginAdminAPIWithUser
             -Credentials $Script:MSCloudLoginConnectionProfile.AdminAPI.Credentials `
             -TenantId $tenantId `
             -ClientId $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId `
-            -Credential $Script:MSCloudLoginConnectionProfile.AdminAPI.Credentials `
             -Resource $Script:MSCloudLoginConnectionProfile.AdminAPI.Resource
 
         $Script:MSCloudLoginConnectionProfile.AdminAPI.AccessToken = $managementToken.token_type.ToString() + ' ' + $managementToken.access_token.ToString()
@@ -102,6 +101,11 @@ function Connect-MSCloudLoginAdminAPIWithUser
         {
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginAdminAPIWithUserMFA
+        }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $false
+            throw $_
         }
     }
 }

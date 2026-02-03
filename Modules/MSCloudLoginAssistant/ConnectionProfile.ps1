@@ -30,6 +30,9 @@ class MSCloudLoginConnectionProfile
     [Licensing]
     $Licensing
 
+    [O365Portal]
+    $O365Portal
+
     [MicrosoftGraph]
     $MicrosoftGraph
 
@@ -67,6 +70,7 @@ class MSCloudLoginConnectionProfile
         $this.ExchangeOnline           = New-Object ExchangeOnline
         $this.Fabric                   = New-Object Fabric
         $this.Licensing                = New-Object Licensing
+        $this.O365Portal               = New-Object O365Portal
         $this.MicrosoftGraph           = New-Object MicrosoftGraph
         $this.PnP                      = New-Object PnP
         $this.PowerPlatform            = New-Object PowerPlatform
@@ -527,9 +531,6 @@ class ExchangeOnline:Workload
     [string]
     $AzureADAuthorizationEndpointUri
 
-    [boolean]
-    $SkipModuleReload = $false
-
     [System.String[]]
     $CmdletsToLoad = @()
 
@@ -676,13 +677,13 @@ class Licensing:Workload
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
                 $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'AzureUSGovernment'
             {
                 $this.HostUrl          = "https://licensing.m365.microsoft.com"
                 $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "hhttps://login.microsoftonline.com"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
             'Custom'
             {
@@ -796,6 +797,66 @@ class MicrosoftGraph:Workload
     [void] Disconnect()
     {
         Disconnect-MSCloudLoginMicrosoftGraph
+    }
+}
+
+class O365Portal:Workload
+{
+    [string]
+    $HostUrl
+
+    [string]
+    $AuthorizationUrl
+
+    [string]
+    $Scope
+
+    [string]
+    $AccessToken
+
+    O365Portal()
+    {
+        $this.ApplicationId = "1950a258-227b-4e31-a9cf-717495945fc2"
+    }
+
+    [void] Connect()
+    {
+        ([Workload]$this).Setup()
+        switch ($this.EnvironmentName)
+        {
+            'AzureDOD'
+            {
+                $this.HostUrl          = "https://portal.apps.mil"
+                $this.Scope            = "https://portal.apps.mil/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us/"
+            }
+            'AzureUSGovernment'
+            {
+                $this.HostUrl          = "https://portal.office365.us"
+                $this.Scope            = "https://portal.office365.us/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.us"
+            }
+            'Custom'
+            {
+                $this.HostUrl          = $Global:CustomO365HostUrl
+                $this.Scope            = $Global:CustomO365Scope
+                $this.AuthorizationUrl = $Global:CustomO365AuthorizationUrl
+            }
+            default
+            {
+                $this.HostUrl          = "https://admin.microsoft.com"
+                $this.Scope            = "https://admin.microsoft.com/.default"
+                $this.AuthorizationUrl = "https://login.microsoftonline.com"
+            }
+        }
+
+        $Script:MSCloudLoginConnectionProfile.O365Portal = $this
+        Connect-MSCloudLoginO365Portal
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginLicensing
     }
 }
 
@@ -994,7 +1055,7 @@ class PowerPlatformREST:Workload
 class SecurityComplianceCenter:Workload
 {
     [boolean]
-    $SkipModuleReload = $false
+    $EnableSearchOnlySession = $false
 
     [string]
     $ConnectionUrl
@@ -1022,15 +1083,13 @@ class SecurityComplianceCenter:Workload
             }
             'AzureUSGovernment'
             {
-                $this.ConnectionUrl                   = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureDOD'
             {
-                $this.ConnectionUrl                   = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl                = 'https://login.microsoftonline.us/organizations'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.us/common'
+                $this.ConnectionUrl    = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
+                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
             }
             'AzureGermany'
             {
@@ -1044,11 +1103,20 @@ class SecurityComplianceCenter:Workload
             }
             'Custom'
             {
-                $this.ConnectionUrl                   = $Global:CustomSCCConnectionUrl
-                $this.AuthorizationUrl                = $Global:CustomSCCAuthorizationUrl
-                $this.AzureADAuthorizationEndpointUri = $Global:CustomSCCAzureADAuthorizationEndpointUri
+                $this.ConnectionUrl    = $Global:CustomSCCConnectionUrl
+                $this.AuthorizationUrl = $Global:CustomSCCAzureADAuthorizationEndpointUri
             }
         }
+
+        $connectionRegex = "ps.compliance.protection.(partner.)?(outlook|office365).(com|us|de|cn)"
+        $connectionInformation = Get-ConnectionInformation
+        if ($null -ne $connectionInformation -and $connectionInformation.ConnectionUri -notmatch $connectionRegex)
+        {
+            $this.ConnectionUrl = $connectionInformation.ConnectionUri
+            Add-MSCloudLoginAssistantEvent -Message "Using existing Security & Compliance Center ConnectionUrl: $($this.ConnectionUrl)" -Source 'SecurityComplianceCenter.Connect()'
+        }
+
+        $this.AzureADAuthorizationEndpointUri = $this.AuthorizationUrl
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this
         Connect-MSCloudLoginSecurityCompliance
     }

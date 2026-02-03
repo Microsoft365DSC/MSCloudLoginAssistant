@@ -38,6 +38,10 @@ $Global:CustomLicensingHostUrl = "https://licensing.m365.microsoft.com"
 $Global:CustomLicensingScope = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
 $Global:CustomLicensingAuthorizationUrl = "https://login.microsoftonline.com"
 
+$Global:CustomO365PortalHostUrl = "https://admin.microsoft.com"
+$Global:CustomO365PortalScope = "https://admin.microsoft.com/.default"
+$Global:CustomO365PortalAuthorizationUrl = "https://login.microsoftonline.com"
+
 $Global:CustomPnPScope = "https://prod.sharepoint.microsoft.com/.default"
 $Global:CustomPnPTokenUrl = "https://login.microsoftonline.com/"
 

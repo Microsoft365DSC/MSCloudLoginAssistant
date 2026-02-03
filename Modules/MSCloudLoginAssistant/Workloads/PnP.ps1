@@ -24,7 +24,7 @@ function Connect-MSCloudLoginPnP
     }
 
     $requiresWindowsPowerShell = $false
-    if ($psversiontable.PSVersion.Major -ge 7)
+    if ($PSVersionTable.PSVersion.Major -ge 7)
     {
         try
         {
@@ -415,12 +415,13 @@ function Connect-MSCloudLoginPnP
     }
     catch
     {
-        if ($_.Exception -like '*AADSTS50076*')
+        if ($_.Exception.Message -like '*AADSTS50076*')
         {
             try
             {
                 Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
-                    -Interactive
+                    -Interactive `
+                    -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId
                 $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
                 $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $true
                 $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
@@ -441,7 +442,7 @@ function Connect-MSCloudLoginPnP
                 }
             }
         }
-        elseif ($_.Exception -like '*The sign-in name or password does not match one in the Microsoft account system*')
+        elseif ($_.Exception.Message -like '*The sign-in name or password does not match one in the Microsoft account system*')
         {
             # This error means that the account was trying to connect using MFA.
             try
@@ -494,7 +495,7 @@ function Connect-MSCloudLoginPnP
                 }
             }
         }
-        elseif ($_.Exception -like '*AADSTS65001: The user or administrator has not consented to use the application with ID*')
+        elseif ($_.Exception.Message -like '*AADSTS65001: The user or administrator has not consented to use the application with ID*')
         {
             try
             {

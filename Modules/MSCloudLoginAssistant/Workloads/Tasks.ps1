@@ -23,6 +23,11 @@ function Connect-MSCloudLoginTasks
         Add-MSCloudLoginAssistantEvent -Message 'Will try connecting with Application Secret' -Source $source
         Connect-MSCloudLoginTasksWithCertificateThumbprint
     }
+    elseif ($Script:MSCloudLoginConnectionProfile.Tasks.AuthenticationType -eq 'ServicePrincipalWithPath')
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Will try connecting with Application Certificate Path' -Source $source
+        Connect-MSCloudLoginTasksWithCertificatePath
+    }
     elseif ($Script:MSCloudLoginConnectionProfile.Tasks.AuthenticationType -eq 'AccessToken')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Will try connecting with Access Token' -Source $source
@@ -65,6 +70,11 @@ function Connect-MSCloudLoginTasksWithUser
         {
             Add-MSCloudLoginAssistantEvent -Message 'Account used required MFA' -Source $source
             Connect-MSCloudLoginTasksWithUserMFA
+        }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.Tasks.Connected = $false
+            throw $_
         }
     }
 }
@@ -127,6 +137,35 @@ function Connect-MSCloudLoginTasksWithCertificateThumbprint
 
         $Script:MSCloudLoginConnectionProfile.Tasks.AccessToken = 'Bearer ' + $Request.access_token
         Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Tasks API using Certificate Thumbprint' -Source $source
+    }
+    catch
+    {
+        throw $_
+    }
+}
+
+function Connect-MSCloudLoginTasksWithCertificatePath
+{
+    [CmdletBinding()]
+    param()
+
+    $ProgressPreference = 'SilentlyContinue'
+    $source = 'Connect-MSCloudLoginTasksWithCertificatePath'
+
+    Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Tasks using CertificatePath' -Source $source
+    $tenantId = $Script:MSCloudLoginConnectionProfile.Tasks.TenantId
+
+    try
+    {
+        $request = Get-AuthToken -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.Tasks.AuthorizationUrl `
+            -CertificatePath $Script:MSCloudLoginConnectionProfile.Tasks.CertificatePath `
+            -CertificatePassword $Script:MSCloudLoginConnectionProfile.Tasks.CertificatePassword `
+            -TenantId $tenantId `
+            -ClientId $Script:MSCloudLoginConnectionProfile.Tasks.ApplicationId `
+            -Scope $Script:MSCloudLoginConnectionProfile.Tasks.Scope
+
+        $Script:MSCloudLoginConnectionProfile.Tasks.AccessToken = 'Bearer ' + $Request.access_token
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Tasks API using Certificate Path' -Source $source
     }
     catch
     {

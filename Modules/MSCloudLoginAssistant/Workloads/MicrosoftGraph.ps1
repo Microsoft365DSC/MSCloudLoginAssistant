@@ -121,6 +121,19 @@ function Connect-MSCloudLoginMicrosoftGraph
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
             }
+            elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithPath')
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with Certificate Path' -Source $source
+                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $CertificatePath), $CertificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
+                Connect-MgGraph -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
+                    -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
+                    -Certificate $certificate `
+                    -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
+                    -NoWelcome
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+            }
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'AccessTokens')
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with AccessToken' -Source $source
@@ -216,7 +229,7 @@ function Connect-MSCloudLoginMSGraphWithUser
     }
     catch
     {
-        if ($_.Exception -like 'System.Net.WebException: The remote server returned an error: (400) Bad Request.*' -and `
+        if ($_.Exception.Message -like 'System.Net.WebException: The remote server returned an error: (400) Bad Request.*' -and `
             (Assert-IsNonInteractiveShell) -eq $true)
         {
             Write-Warning -Message "Unable to retrieve AccessToken. Have you registered the 'Microsoft Graph PowerShell' application already? Please run 'Connect-MgGraph -Scopes Domain.Read.All' and logon using '$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials.Username)'"
@@ -249,7 +262,7 @@ function Connect-MSCloudLoginMSGraphWithUser
             catch
             {
                 $err = $_
-                if ($err -like '*\.graph\GraphContext.json*')
+                if ($err.ToString() -like '*\.graph\GraphContext.json*')
                 {
                     $pathStart = $err.ToString().IndexOf("to file at '", 0) + 12
                     $pathEnd = $err.ToString().IndexOf("'", $pathStart)

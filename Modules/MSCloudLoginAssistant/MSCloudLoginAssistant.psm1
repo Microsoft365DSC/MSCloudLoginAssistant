@@ -28,7 +28,7 @@ function Connect-M365Tenant
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', "PowerPlatformREST", `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload,
@@ -71,8 +71,8 @@ function Connect-M365Tenant
         $CertificatePath,
 
         [Parameter()]
-        [System.Boolean]
-        $SkipModuleReload = $false,
+        [switch]
+        $EnableSearchOnlySession,
 
         [Parameter()]
         [Switch]
@@ -111,7 +111,7 @@ function Connect-M365Tenant
         $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
     }
     # Only validate the parameters if we are not already connected
-    elseif ( $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
+    elseif ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
             -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
     {
         Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
@@ -158,7 +158,6 @@ function Connect-M365Tenant
         }
         'ExchangeOnline'
         {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.SkipModuleReload = $SkipModuleReload
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
         }
@@ -169,6 +168,10 @@ function Connect-M365Tenant
         'Licensing'
         {
             $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
+        }
+        'O365Portal'
+        {
+            $Script:MSCloudLoginConnectionProfile.O365Portal.Connect()
         }
         'MicrosoftGraph'
         {
@@ -185,6 +188,7 @@ function Connect-M365Tenant
                     -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -and `
                     $Url -or (-not $Url -and -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
             {
+                Add-MSCloudLoginAssistantEvent -Message "Connecting to a different connection URL. Old URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl), New URL: $Url" -Source $source
                 $ForceRefresh = $false
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
                     -not [System.String]::IsNullOrEmpty($url))
@@ -211,6 +215,7 @@ function Connect-M365Tenant
                     if ($contextUrl -ne $Url)
                     {
                         $ForceRefresh = $true
+                        Add-MSCloudLoginAssistantEvent -Message "Connecting to a different context URL. Old URL: $contextUrl, New URL: $Url" -Source $source
                         $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
                         if ($url)
                         {
@@ -246,7 +251,7 @@ function Connect-M365Tenant
         }
         'SecurityComplianceCenter'
         {
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.SkipModuleReload = $SkipModuleReload
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
         }
         'SharePointOnlineREST'
@@ -285,7 +290,7 @@ function Get-MSCloudLoginConnectionProfile
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload
@@ -311,7 +316,7 @@ function Reset-MSCloudLoginConnectionProfileContext
     param (
         [Parameter()]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatformREST', `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String[]]
         $Workload
@@ -414,14 +419,13 @@ function Add-MSCloudLoginAssistantEvent
         }
         else
         {
-            if ([System.Diagnostics.EventLog]::Exists($logName) -eq $false)
-            {
-                # Create event log
-                $null = New-EventLog -LogName $logName -Source $Source
-            }
-            else
+            try
             {
                 [System.Diagnostics.EventLog]::CreateEventSource($Source, $logName)
+            }
+            catch [System.Security.SecurityException]
+            {
+                Write-Verbose -Message "[WARNING] Not all event logs could be searched. Source might exist in another event log."
             }
         }
 
@@ -434,8 +438,7 @@ function Add-MSCloudLoginAssistantEvent
 
         try
         {
-            Write-EventLog -LogName $logName -Source $Source `
-                -EventId $EventID -Message $outputMessage -EntryType $EntryType -ErrorAction Stop
+            [System.Diagnostics.EventLog]::WriteEntry($Source, $outputMessage, $EntryType, $EventID)
         }
         catch
         {
@@ -476,7 +479,6 @@ function Compare-InputParametersForChange
         $currentParameters.Add('UserName', $currentParameters['Credential'].UserName)
     }
     $currentParameters.Remove('Credential') | Out-Null
-    $currentParameters.Remove('SkipModuleReload') | Out-Null
     $currentParameters.Remove('CmdletsToLoad') | Out-Null
     $currentParameters.Remove('UseModernAuth') | Out-Null
     $currentParameters.Remove('ProfileName') | Out-Null
@@ -572,6 +574,14 @@ function Compare-InputParametersForChange
     if ($workloadProfile.AccessTokens)
     {
         $globalParameters.Add('AccessTokens', $workloadProfile.AccessTokens)
+    }
+    if ($null -ne $workloadProfile.EnableSearchOnlySession)
+    {
+        $globalParameters.Add('EnableSearchOnlySession', $workloadProfile.EnableSearchOnlySession)
+        if (-not $currentParameters.ContainsKey('EnableSearchOnlySession'))
+        {
+            $currentParameters.Add('EnableSearchOnlySession', $false)
+        }
     }
 
     # Clean the current parameters
@@ -722,19 +732,18 @@ function Get-MSCloudLoginAccessToken
     try
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-        $Certificate = Get-Item "Cert:\CurrentUser\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-        if ($null -eq $Certificate)
+        $certificate = Get-Item "Cert:\CurrentUser\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
+        if ($null -eq $certificate)
         {
             Add-MSCloudLoginAssistantEvent 'Certificate not found in CurrentUser\My' -Source $source
-            $Certificate = Get-ChildItem "Cert:\LocalMachine\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-
-            if ($null -eq $Certificate)
+            $certificate = Get-ChildItem "Cert:\LocalMachine\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
+            if ($null -eq $certificate)
             {
                 throw 'Certificate not found in LocalMachine\My'
             }
         }
         # Create base64 hash of certificate
-        $CertificateBase64Hash = [System.Convert]::ToBase64String($Certificate.GetCertHash())
+        $CertificateBase64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
 
         # Create JWT timestamp for expiration
         $StartDate = (Get-Date '1970-01-01T00:00:00Z' ).ToUniversalTime()
@@ -1159,8 +1168,8 @@ function Get-AuthToken {
                 typ = 'JWT'
             }
 
-            if ($CertificateThumbprint) {
-                $base64Hash = [System.Convert]::ToBase64String($Certificate.GetCertHash())
+            if ($CertificateThumbprint -or $CertificatePath) {
+                $base64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
                 $header.Add('x5t', $base64Hash)
             }
             $payload = @{
@@ -1237,7 +1246,7 @@ function Get-AuthToken {
     }
 
     if ($DeviceCode) {
-        $deviceEndpoint = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/devicecode"
+        $deviceEndpoint = "$AuthorizationUrl/$TenantId/oauth2/v2.0/devicecode"
         $deviceBody = @{
             client_id = $ClientId
             scope = $Scope

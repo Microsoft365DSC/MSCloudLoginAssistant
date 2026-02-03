@@ -42,9 +42,9 @@ function Connect-MSCloudLoginTeams
 
     [array]$activeSessions = Get-PSSession | Where-Object -FilterScript { $_.Name -like '*SfBPowerShellSessionViaTeamsModule*' -and $_.State -eq 'Opened' }
 
-    if ($activeSessions.Length -ge 1)
+    if ($activeSessions.Count -ge 1)
     {
-        Add-MSCloudLoginAssistantEvent -Message "Found {$($activeSessions.Length)} existing Microsoft Teams Session" -Source $source
+        Add-MSCloudLoginAssistantEvent -Message "Found {$($activeSessions.Count)} existing Microsoft Teams Session" -Source $source
         Add-MSCloudLoginAssistantEvent -Message ($activeSessions | Out-String) -Source $source
         $ProxyModule = Import-PSSession $activeSessions[0] `
             -DisableNameChecking `
@@ -174,7 +174,7 @@ function Connect-MSCloudLoginTeams
         catch
         {
             Add-MSCloudLoginAssistantEvent -Message "Error from Non-MFA Logic Path: $_" -Source $source -EntryType 'Error'
-            if ($_.Exception -like '*AADSTS50076*' -or $_.Exception -eq 'One or more errors occurred.')
+            if ($_.Exception.Message -like '*AADSTS50076*' -or $_.Exception.Message -eq 'One or more errors occurred.')
             {
                 Connect-MSCloudLoginTeamsMFA
             }

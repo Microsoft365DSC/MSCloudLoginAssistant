@@ -1,8 +1,9 @@
 $Script:WriteToEventLog = ([Environment]::GetEnvironmentVariable('MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG', 'Machine') -eq 'true') -or `
                           ($env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true')
 
-. "$PSScriptRoot\ConnectionProfile.ps1"
-. "$PSScriptRoot\CustomEnvironment.ps1"
+$Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\CustomEnvironment.psd1"
+. "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
+
 $privateModules = Get-ChildItem -Path "$PSScriptRoot\Workloads" -Filter '*.ps1' -Recurse
 foreach ($module in $privateModules)
 {

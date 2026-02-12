@@ -63,7 +63,7 @@ function Connect-MSCloudLoginTeams
         if ($null -ne $Script:MSCloudLoginConnectionProfile.Teams.GraphScope -and `
             $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope -and `
             $null -ne $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl -and `
-            $null -eq $Global:CustomTeamsEndpoints)
+            $null -eq $Script:CustomEnvConfig.CustomTeamsEndpoints)
         {
             $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.GraphScope `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
@@ -82,12 +82,16 @@ function Connect-MSCloudLoginTeams
             Connect-MicrosoftTeams -AccessTokens @($graphAccessToken, $teamsAccessToken)
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
         }
-        elseif ($null -ne $Global:CustomTeamsEndpoints -and $Global:CustomEnvironment)
+        elseif ($null -ne $Script:CustomEnvConfig.CustomTeamsEndpoints -and $Script:CustomEnvConfig.CustomEnvironment)
         {
+            if ($PSVersionTable.PSVersion.Major -gt 5)
+            {
+                throw 'Custom Environment connections to Microsoft Teams are only supported in PowerShell 5. Please run this module in PowerShell 5 to connect to Microsoft Teams in a custom environment.'
+            }
+            Set-TeamsEnvironmentConfig -EndpointUris $Script:CustomEnvConfig.CustomTeamsEndpoints
             Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
-                -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint `
-                -EndpointUris $Global:CustomTeamsEndpoints
+                -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
         }
         else
         {

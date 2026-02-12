@@ -9,3 +9,11 @@ function Connect-MSCloudLoginO365Portal
         -ClientId $Script:MSCloudLoginConnectionProfile.O365Portal.ApplicationId `
         -SupportedAuthMethods @('Credentials', 'CredentialsWithTenantId', 'AccessTokens')
 }
+
+function Disconnect-MSCloudLoginO365Portal
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'O365Portal'
+}

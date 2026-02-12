@@ -76,7 +76,7 @@ function Connect-MSCloudLoginMicrosoftGraph
                         -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
                         -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CertificateThumbprint
                     $accessToken = ConvertTo-SecureString $accessToken -AsPlainText -Force
-                    Connect-MgGraph -AccessToken $accessToken -NoWelcome
+                    Connect-MgGraph -AccessToken $accessToken -NoWelcome -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment
                     Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
                 }
                 else

@@ -34,10 +34,10 @@
     CustomLicensingScope = "aeb86249-8ea3-49e2-900b-54cc8e308f85/.default"
     CustomLicensingAuthorizationUrl = "https://login.microsoftonline.com"
 
-    CustomGraphAuthorizationUrl = "https://login.microsoftonline.com/"
+    CustomGraphAuthorizationUrl = "https://login.microsoftonline.com"
     CustomGraphResourceUrl = "https://graph.microsoft.com/"
     CustomGraphScope = "https://graph.microsoft.com/.default"
-    CustomGraphTokenUrl = "https://login.microsoftonline.com/"
+    CustomGraphTokenUrl = "https://login.microsoftonline.com" # No trailing slash!
 
     CustomO365PortalHostUrl = "https://admin.microsoft.com"
     CustomO365PortalScope = "https://admin.microsoft.com/.default"
@@ -56,7 +56,7 @@
     CustomSCCAuthorizationUrl = "https://login.microsoftonline.com/organiations"
     CustomSCCAzureADAuthorizationEndpointUri = "https://login.microsoftonline.com/common"
 
-    CustomSharePointOnlineRESTHostUrl = "https://customdomain.sharepoint.com"
+    CustomSharePointOnlineRESTHostUrl = "https://customdomain.sharepoint.com" # No trailing slash!
     CustomSharePointOnlineRESTAuthorizationUrl = "https://login.microsoftonline.com"
 
     CustomTasksHostUrl = "https://tasks.office.com"
@@ -64,7 +64,7 @@
     CustomTasksAuthorizationUrl = "https://login.microsoftonline.com"
     CustomTasksResourceUrl = "https://tasks.office.com"
 
-    CustomTeamsTokenUrl = "https://login.microsoftonline.com/"
+    CustomTeamsTokenUrl = "https://login.microsoftonline.com" # No trailing slash!
     CustomTeamsScope = "https://api.interfaces.microsoft.com/.default"
     CustomTeamsEndpoints = @{
         ActiveDirectory = "https://login.microsoftonline.com"

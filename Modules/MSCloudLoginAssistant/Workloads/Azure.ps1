@@ -33,9 +33,7 @@ function Connect-MSCloudLoginAzure
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Azure.CertificateThumbprint `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithSecret')
     {
@@ -46,9 +44,7 @@ function Connect-MSCloudLoginAzure
             -Credential $credential `
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithPath')
     {
@@ -59,9 +55,7 @@ function Connect-MSCloudLoginAzure
             -CertificatePath $Script:MSCloudLoginConnectionProfile.Azure.CertificatePath `
             -CertificatePassword $Script:MSCloudLoginConnectionProfile.Azure.CertificatePassword `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'CredentialsWithApplicationId' -or
         $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'Credentials' -or
@@ -78,9 +72,7 @@ function Connect-MSCloudLoginAzure
                 -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
                 -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
                 -ErrorAction Stop | Out-Null
-            $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
         }
         catch
         {
@@ -89,9 +81,7 @@ function Connect-MSCloudLoginAzure
                 Add-MSCloudLoginAssistantEvent -Message 'MFA is required. Fallback to interactive login.' -Source $source -EntryType 'Warning'
                 Connect-AzAccount -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
                     -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
-                $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-                $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $true
+                $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection($true)
             }
             else
             {
@@ -103,21 +93,17 @@ function Connect-MSCloudLoginAzure
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Azure using Access Token' -Source $source
         Connect-AzAccount -AccessToken $Script:MSCloudLoginConnectionProfile.Azure.AccessTokens[0]`
-            -AccountId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
+            -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
             -AccountId "MSCloudLoginAssistant" | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'Identity')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Azure using Managed Identity' -Source $source
         Connect-AzAccount -Identity `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Azure.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.Azure.MultiFactorAuthentication = $false
+        $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     else
     {

@@ -244,6 +244,18 @@ class Workload : ICloneable
         $this.AuthenticationType = $this.RequestedAuthenticationType
         Add-MSCloudLoginAssistantEvent -Message "`$this.AuthenticationType determined to be {$($this.AuthenticationType)}" -Source $source
     }
+
+    CompleteConnection()
+    {
+        $this.CompleteConnection($false)
+    }
+
+    CompleteConnection([bool]$mfaUsed = $false)
+    {
+        $this.Connected = $true
+        $this.ConnectedDateTime = [System.DateTime]::Now.ToString()
+        $this.MultiFactorAuthentication = $mfaUsed
+    }
 }
 
 class AdminAPI:Workload

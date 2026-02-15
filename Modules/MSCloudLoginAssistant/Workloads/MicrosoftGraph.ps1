@@ -55,9 +55,7 @@ function Connect-MSCloudLoginMicrosoftGraph
 
         $accessToken = $accessToken | ConvertTo-SecureString -AsPlainText -Force
         Connect-MgGraph -AccessToken $accessToken -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment -NoWelcome
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId = (Get-MgContext).TenantId
     }
     else
@@ -103,9 +101,7 @@ function Connect-MSCloudLoginMicrosoftGraph
                     }
                 }
 
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithSecret')
             {
@@ -117,22 +113,18 @@ function Connect-MSCloudLoginMicrosoftGraph
                     -ClientSecretCredential $credObject `
                     -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
                     -NoWelcome
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithPath')
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with Certificate Path' -Source $source
-                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $CertificatePath), $CertificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
+                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CertificatePath), $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CertificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
                 Connect-MgGraph -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `
                     -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                     -Certificate $certificate `
                     -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
                     -NoWelcome
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'AccessTokens')
             {
@@ -141,9 +133,7 @@ function Connect-MSCloudLoginMicrosoftGraph
                 Connect-MgGraph -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
                     -AccessToken $secStringAccessToken `
                     -NoWelcome
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             }
             Add-MSCloudLoginAssistantEvent -Message 'Connected' -Source $source
         }
@@ -213,9 +203,7 @@ function Connect-MSCloudLoginMSGraphWithUser
             Connect-MgGraph -AccessToken $AccessToken `
                     -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
                     -NoWelcome
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens = $AccessToken
         }
         catch
@@ -240,9 +228,7 @@ function Connect-MSCloudLoginMSGraphWithUser
         {
             Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect without specifying the Environment' -Source $source
             Connect-MgGraph -AccessToken $AccessToken -NoWelcome
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens = $AccessToken
         }
         catch
@@ -257,7 +243,7 @@ function Connect-MSCloudLoginMSGraphWithUser
                     -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                     -Scopes 'Domain.Read.All' -ErrorAction 'Stop' `
                     -NoWelcome
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
             }
             catch
             {
@@ -274,7 +260,7 @@ function Connect-MSCloudLoginMSGraphWithUser
                         -ClientId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                         -Scopes 'Domain.Read.All' `
                         -NoWelcome
-                    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
+                    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
                 }
 
                 if ($err.Exception.Message -eq 'Device code terminal timed-out after 120 seconds. Please try again.')
@@ -320,9 +306,7 @@ function Connect-MSCloudLoginMSGraphWithUserMFA
     Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Microsoft Graph with MFA' -Source $source
 
     $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessToken = $AccessToken
-    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
-    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.MultiFactorAuthentication = $true
-    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
+    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection($true)
 }
 
 function Disconnect-MSCloudLoginMicrosoftGraph

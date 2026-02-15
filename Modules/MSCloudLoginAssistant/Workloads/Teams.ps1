@@ -126,9 +126,7 @@ function Connect-MSCloudLoginTeams
             }
         }
 
-        $Script:MSCloudLoginConnectionProfile.Teams.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'Credentials' -or
         $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'CredentialsWithTenantId')
@@ -171,9 +169,7 @@ function Connect-MSCloudLoginTeams
             Add-MSCloudLoginAssistantEvent -Message "Params: $($ConnectionParams | Out-String)" -Source $source
             Add-MSCloudLoginAssistantEvent -Message "User: $($Script:MSCloudLoginConnectionProfile.Teams.Credentials.Username)" -Source $source
             Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
-            $Script:MSCloudLoginConnectionProfile.Teams.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
         }
         catch
         {
@@ -197,9 +193,7 @@ function Connect-MSCloudLoginTeams
         }
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using Managed Identity' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
-        $Script:MSCloudLoginConnectionProfile.Teams.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'AccessTokens')
     {
@@ -219,9 +213,7 @@ function Connect-MSCloudLoginTeams
         }
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using Access Token' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
-        $Script:MSCloudLoginConnectionProfile.Teams.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
     }
 
     return
@@ -255,9 +247,7 @@ function Connect-MSCloudLoginTeamsMFA
 
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using MFA credentials' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Teams.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication = $true
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection($true)
     }
     catch
     {
@@ -274,7 +264,7 @@ function Disconnect-MSCloudLoginTeams
 
     $source = 'Disconnect-MSCloudLoginTeams'
 
-    if ($Script:MSCloudLoginAssistant.Teams.Connected)
+    if ($Script:MSCloudLoginConnectionProfile.Teams.Connected)
     {
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Microsoft Teams' -Source $source
         Disconnect-MicrosoftTeams | Out-Null

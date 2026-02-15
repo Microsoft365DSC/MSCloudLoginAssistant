@@ -1634,9 +1634,7 @@ function Connect-MSCloudLoginRESTWorkload
 
         # Set the access token and connection state
         $workloadProfile.AccessToken = $accessToken
-        $workloadProfile.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $workloadProfile.Connected = $true
-        $workloadProfile.MultiFactorAuthentication = $useMFA
+        $workloadProfile.CompleteConnection($useMFA)
 
         Add-MSCloudLoginAssistantEvent -Message "Successfully connected to $WorkloadName" -Source $source
     }

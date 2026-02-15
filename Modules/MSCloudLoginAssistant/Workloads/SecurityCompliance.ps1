@@ -201,3 +201,23 @@ function Connect-MSCloudLoginSecurityComplianceMFA
         throw $_
     }
 }
+
+function Disconnect-MSCloudLoginSecurityCompliance
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginSecurityCompliance'
+
+    if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Security & Compliance Center' -Source $source
+        Disconnect-ExchangeOnline -Confirm:$false
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Security & Compliance Center' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Security & Compliance Center were found.' -Source $source
+    }
+}

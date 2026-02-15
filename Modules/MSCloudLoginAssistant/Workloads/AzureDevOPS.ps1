@@ -9,3 +9,11 @@ function Connect-MSCloudLoginAzureDevOPS
         -ClientId $Script:MSCloudLoginConnectionProfile.AzureDevOPS.ApplicationId `
         -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithPath', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint')
 }
+
+function Disconnect-MSCloudLoginAzureDevOPS
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AzureDevOPS'
+}

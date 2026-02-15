@@ -308,6 +308,11 @@ class AdminAPI:Workload
         $Script:MSCloudLoginConnectionProfile.AdminAPI = $this
         Connect-MSCloudLoginAdminAPI
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginAdminAPI
+    }
 }
 
 class Azure:Workload
@@ -390,6 +395,11 @@ class AzureDevOPS:Workload
         $Script:MSCloudLoginConnectionProfile.AzureDevOPS = $this
         Connect-MSCloudLoginAzureDevOPS
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginAzureDevOPS
+    }
 }
 
 class DefenderForEndpoint:Workload
@@ -447,6 +457,10 @@ class DefenderForEndpoint:Workload
         Connect-MSCloudLoginDefenderForEndpoint
     }
 
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginDefenderForEndpoint
+    }
 }
 
 class EngageHub:Workload
@@ -507,6 +521,11 @@ class EngageHub:Workload
         }
         $Script:MSCloudLoginConnectionProfile.EngageHub = $this
         Connect-MSCloudLoginEngageHub
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginEngageHub
     }
 }
 
@@ -635,6 +654,11 @@ class Fabric:Workload
 
         $Script:MSCloudLoginConnectionProfile.Fabric = $this
         Connect-MSCloudLoginFabric
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginFabric
     }
 }
 
@@ -1112,6 +1136,11 @@ class SecurityComplianceCenter:Workload
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter = $this
         Connect-MSCloudLoginSecurityCompliance
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginSecurityCompliance
+    }
 }
 
 class SharePointOnlineREST:Workload
@@ -1224,6 +1253,11 @@ class SharePointOnlineREST:Workload
         $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST = $this
         Connect-MSCloudLoginSharePointOnlineREST
     }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginSharePointOnlineREST
+    }
 }
 
 class Tasks:Workload
@@ -1284,6 +1318,11 @@ class Tasks:Workload
         }
         $Script:MSCloudLoginConnectionProfile.Tasks = $this
         Connect-MSCloudLoginTasks
+    }
+
+    [void] Disconnect()
+    {
+        Disconnect-MSCloudLoginTasks
     }
 }
 

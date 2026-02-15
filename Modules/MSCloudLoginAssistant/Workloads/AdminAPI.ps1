@@ -9,3 +9,11 @@ function Connect-MSCloudLoginAdminAPI
         -ClientId $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId `
         -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithPath', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint')
 }
+
+function Disconnect-MSCloudLoginAdminAPI
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI'
+}

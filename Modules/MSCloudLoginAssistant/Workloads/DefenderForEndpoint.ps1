@@ -9,3 +9,11 @@ function Connect-MSCloudLoginDefenderForEndpoint
         -Scope $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Scope `
         -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithSecret', 'ServicePrincipalWithPath', 'ServicePrincipalWithThumbprint')
 }
+
+function Disconnect-MSCloudLoginDefenderForEndpoint
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'DefenderForEndpoint'
+}

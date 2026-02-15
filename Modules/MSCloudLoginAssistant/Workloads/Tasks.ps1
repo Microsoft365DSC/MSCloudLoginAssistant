@@ -9,3 +9,11 @@ function Connect-MSCloudLoginTasks
         -ClientId $Script:MSCloudLoginConnectionProfile.Tasks.ApplicationId `
         -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint', 'ServicePrincipalWithPath')
 }
+
+function Disconnect-MSCloudLoginTasks
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'Tasks'
+}

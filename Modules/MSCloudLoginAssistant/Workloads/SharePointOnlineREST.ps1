@@ -9,3 +9,11 @@ function Connect-MSCloudLoginSharePointOnlineREST
         -ClientId $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ApplicationId `
         -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithPath', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint')
 }
+
+function Disconnect-MSCloudLoginSharePointOnlineREST
+{
+    [CmdletBinding()]
+    param()
+
+    Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'SharePointOnlineREST'
+}

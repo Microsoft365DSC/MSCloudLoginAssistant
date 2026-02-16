@@ -11,7 +11,7 @@ $Global:CustomGraphResourceUrl = "https://graph.microsoft.com/"
 $Global:CustomGraphScope = "https://graph.microsoft.com/.default"
 $Global:CustomGraphTokenUrl = "https://login.microsoftonline.com/"
 
-$Global:CustomEXOConnectionUri = "https://outlook.prod.microsoft.com/powersehll-liveid/"
+$Global:CustomEXOConnectionUri = "https://outlook.prod.microsoft.com/powershell-liveid/"
 $Global:CustomEXOAzureADAuthorizationEndpointUri = "https://login.microsoftonline.us/common"
 
 $Global:CustomAdminApiScope = "6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default"

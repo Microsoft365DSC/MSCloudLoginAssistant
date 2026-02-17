@@ -575,6 +575,10 @@ function Compare-InputParametersForChange
     {
         $globalParameters.Add('AccessTokens', $workloadProfile.AccessTokens)
     }
+    if ($workloadInternalName -ne 'SecurityComplianceCenter')
+    {
+        $currentParameters.Remove('EnableSearchOnlySession') | Out-Null
+    }
     if ($null -ne $workloadProfile.EnableSearchOnlySession)
     {
         $globalParameters.Add('EnableSearchOnlySession', $workloadProfile.EnableSearchOnlySession)

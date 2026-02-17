@@ -1109,7 +1109,7 @@ class SecurityComplianceCenter:Workload
         }
 
         $connectionRegex = "ps.compliance.protection.(partner.)?(outlook|office365).(com|us|de|cn)"
-        $connectionInformation = Get-ConnectionInformation
+        $connectionInformation = Get-ConnectionInformation | Where-Object Name -Like "ExchangeOnlineProtection_*"
         if ($null -ne $connectionInformation -and $connectionInformation.ConnectionUri -notmatch $connectionRegex)
         {
             $this.ConnectionUrl = $connectionInformation.ConnectionUri

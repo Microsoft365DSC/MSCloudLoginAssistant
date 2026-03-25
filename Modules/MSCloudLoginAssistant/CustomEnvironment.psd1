@@ -23,7 +23,7 @@
     CustomEngageHubAuthorizationUrl = "https://login.microsoftonline.com"
     CustomEngageHubAPIUrl = "https://api.dev.engagecenter.microsoft.com"
 
-    CustomEXOConnectionUri = "https://outlook.prod.microsoft.com/powersehll-liveid/"
+    CustomEXOConnectionUri = "https://outlook.prod.microsoft.com/powershell-liveid/"
     CustomEXOAzureADAuthorizationEndpointUri = "https://login.microsoftonline.us/common"
 
     CustomFabricHostUrl = "https://api.fabric.microsoft.com"

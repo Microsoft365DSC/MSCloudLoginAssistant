@@ -62,9 +62,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
                 -ErrorAction Stop | Out-Null
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
         }
         catch
         {
@@ -86,9 +84,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri  `
                 -ShowBanner:$false `
                 -ErrorAction Stop | Out-Null
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
         }
         catch
         {
@@ -110,9 +106,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                 -ShowBanner:$false `
                 -ErrorAction Stop | Out-Null
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
         }
         catch
         {
@@ -127,9 +121,18 @@ function Connect-MSCloudLoginSecurityCompliance
             -AccessTokens $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AccessTokens `
             -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
             -ErrorAction Stop
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
+    }
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Identity')
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Managed Identity' -Source $source
+        Connect-IPPSSession -ManagedIdentity `
+            -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+            -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
+            -ShowBanner:$false `
+            -ErrorAction Stop | Out-Null
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
     }
     else
     {
@@ -142,9 +145,7 @@ function Connect-MSCloudLoginSecurityCompliance
                 -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
                 -ShowBanner:$false `
                 -ErrorAction Stop | Out-Null
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
         }
         catch
         {
@@ -192,13 +193,31 @@ function Connect-MSCloudLoginSecurityComplianceMFA
                 -ShowBanner:$false | Out-Null
         }
         Add-MSCloudLoginAssistantEvent -Message 'New Session with MFA created successfully' -Source $source
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication = $false
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection($true)
     }
     catch
     {
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
         throw $_
+    }
+}
+
+function Disconnect-MSCloudLoginSecurityCompliance
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginSecurityCompliance'
+
+    if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Security & Compliance Center' -Source $source
+        Disconnect-ExchangeOnline -Confirm:$false
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Security & Compliance Center' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Security & Compliance Center were found.' -Source $source
     }
 }

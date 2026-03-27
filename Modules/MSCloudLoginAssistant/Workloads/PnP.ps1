@@ -23,41 +23,33 @@ function Connect-MSCloudLoginPnP
         Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
     }
 
-    $requiresWindowsPowerShell = $false
-    if ($PSVersionTable.PSVersion.Major -ge 7)
+    $currentLoadedModule = Get-Module PnP.PowerShell
+    if ($null -eq $currentLoadedModule)
     {
-        try
+        if ($PSEdition -ne 'Desktop' -and $IsWindows)
         {
-            Get-PnPAlert -ErrorAction 'Stop' | Out-Null
-            if (-not $ForceRefreshConnection)
-            {
-                Add-MSCloudLoginAssistantEvent -Message 'Retrieved results from the command. Not re-connecting to PnP.' -Source $source
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
-                return
-            }
-        }
-        catch
-        {
-            Add-MSCloudLoginAssistantEvent -Message "Couldn't get results back from the command" -Source $source -EntryType 'Warning'
-            Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell 7 or above. Loading the PnP.PowerShell module using Windows PowerShell.' -Source $source
+            Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell Core on Windows.' -Source $source
+            $requiresWindowsPowerShell = $false
             try
             {
-                $currentLoadedModule = Get-Module PnP.PowerShell
-                if ($null -eq $currentLoadedModule)
+                Add-MSCloudLoginAssistantEvent -Message 'Loading the PnP.PowerShell module using Windows PowerShell.' -Source $source
+                $pnpModule = Get-Module -Name PnP.PowerShell -ListAvailable | Where-Object CompatiblePSEditions -Contains 'Desktop' | Sort-Object -Property Version -Descending | Select-Object -First 1
+                if ($null -eq $pnpModule)
                 {
-                    Import-Module PnP.PowerShell -UseWindowsPowerShell -Global -Force -ErrorAction Stop | Out-Null
+                    throw 'PnP.PowerShell module is not installed for Windows PowerShell. Please install the module using PowerShell 5.1 and try again.'
                 }
+                Import-Module -Name PnP.PowerShell -RequiredVersion $pnpModule.Version -UseWindowsPowerShell -Global -Force -ErrorAction Stop | Out-Null
             }
             catch
             {
                 $requiresWindowsPowerShell = $true
             }
-        }
-    }
 
-    if ($requiresWindowsPowerShell)
-    {
-        throw "Powershell 7+ was detected. We need to load the PnP.PowerShell module using the -UseWindowsPowerShell switch which requires the module to be installed under C:\Program Files\WindowsPowerShell\Modules. You can either move the module to that location or use PowerShell 5.1 to install the modules using 'Install-Module Pnp.PowerShell -Force -Scope AllUsers'."
+            if ($requiresWindowsPowerShell)
+            {
+                throw "Powershell 7+ was detected. We need to load the PnP.PowerShell module using the -UseWindowsPowerShell switch which requires the module to be installed under C:\Program Files\WindowsPowerShell\Modules. You can either move the module to that location or use PowerShell 5.1 to install the modules using 'Install-Module Pnp.PowerShell -Force -Scope AllUsers'."
+            }
+        }
     }
 
     if ([string]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
@@ -212,9 +204,7 @@ function Connect-MSCloudLoginPnP
                     }
                 }
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'ServicePrincipalWithPath')
             {
@@ -243,9 +233,7 @@ function Connect-MSCloudLoginPnP
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
                 }
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'ServicePrincipalWithSecret')
             {
@@ -271,9 +259,7 @@ function Connect-MSCloudLoginPnP
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
                         -WarningAction 'Ignore'
                 }
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'CredentialsWithTenantId')
             {
@@ -304,36 +290,7 @@ function Connect-MSCloudLoginPnP
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
                 }
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
-            }
-            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Credentials')
-            {
-                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
-                {
-                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and application id' -Source $source
-                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
-                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
-                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
-                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
-                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
-                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
-                }
-                else
-                {
-                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and application id' -Source $source
-                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
-                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
-                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
-                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
-                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
-                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
-                }
-
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Credentials')
             {
@@ -349,7 +306,7 @@ function Connect-MSCloudLoginPnP
                 }
                 else
                 {
-                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell and AdminUrl' -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
                     Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
@@ -358,9 +315,7 @@ function Connect-MSCloudLoginPnP
                         -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId
                 }
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Identity')
             {
@@ -379,9 +334,7 @@ function Connect-MSCloudLoginPnP
                     -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
                     -WarningAction 'Ignore'
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'AccessToken')
             {
@@ -407,9 +360,7 @@ function Connect-MSCloudLoginPnP
                         -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
                 }
 
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $false
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
         }
     }
@@ -422,18 +373,14 @@ function Connect-MSCloudLoginPnP
                 Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
                     -Interactive `
                     -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $true
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
             }
             catch
             {
                 try
                 {
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -UseWebLogin
-                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                    $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $true
-                    $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                    $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
                 }
                 catch
                 {
@@ -473,9 +420,7 @@ function Connect-MSCloudLoginPnP
                             -Interactive
                     }
                 }
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $true
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
             }
             catch
             {
@@ -484,9 +429,7 @@ function Connect-MSCloudLoginPnP
                 {
                     Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
                         -Interactive
-                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
-                    $Script:MSCloudLoginConnectionProfile.PnP.MultiFactorAuthentication = $true
-                    $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
+                    $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
                 }
                 catch
                 {
@@ -501,8 +444,7 @@ function Connect-MSCloudLoginPnP
             {
                 Register-PnPManagementShellAccess
                 Connect-PnPOnline -UseWebLogin -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl
-                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $true
-                $Script:MSCloudLoginConnectionProfile.PnP.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
             }
             catch
             {
@@ -512,9 +454,7 @@ function Connect-MSCloudLoginPnP
         else
         {
             $Script:MSCloudLoginConnectionProfile.PnP.connected = $false
-
-            $message = "An error has occurred $($_.Exception.Message)"
-            throw $message
+            throw
         }
     }
     return

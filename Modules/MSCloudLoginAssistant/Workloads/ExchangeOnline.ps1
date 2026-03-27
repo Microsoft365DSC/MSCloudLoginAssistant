@@ -119,7 +119,7 @@ function Connect-MSCloudLoginExchangeOnline
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint
             }
 
-            if (($null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.EndPoints -or $Global:CustomEnvironment) -and `
+            if ($Script:CustomEnvConfig.CustomEnvironment -and `
                 $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri -and `
                 $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri)
             {
@@ -149,9 +149,7 @@ function Connect-MSCloudLoginExchangeOnline
                     @CommandName | Out-Null
             }
 
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
             Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$ApplicationID}" -Source $source
         }
         catch
@@ -191,9 +189,7 @@ function Connect-MSCloudLoginExchangeOnline
                 -SkipLoadingCmdletHelp `
                 @CommandName | Out-Null
 
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
             Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$ApplicationID} with Certificate Path" -Source $source
         }
         catch
@@ -215,16 +211,14 @@ function Connect-MSCloudLoginExchangeOnline
                 -ErrorAction Stop `
                 -SkipLoadingCmdletHelp `
                 @CommandName | Out-Null
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Credentials without MFA' -Source $source
         }
         catch
         {
             if ($_.Exception.Message -like '*you must use multi-factor authentication to access*' -or $_.Exception.Message -like '*WAM Error*')
             {
-                Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials
+                Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials -CommandName $CommandName
             }
             else
             {
@@ -248,9 +242,7 @@ function Connect-MSCloudLoginExchangeOnline
                 -ErrorAction Stop `
                 -SkipLoadingCmdletHelp `
                 @CommandName | Out-Null
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Credentials & TenantId without MFA' -Source $source
         }
         catch
@@ -258,7 +250,8 @@ function Connect-MSCloudLoginExchangeOnline
             if ($_.Exception.Message -like '*you must use multi-factor authentication to access*' -or $_.Exception.Message -like '*WAM Error*')
             {
                 Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials `
-                    -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
+                    -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
+                    -CommandName $CommandName
             }
             else
             {
@@ -287,9 +280,7 @@ function Connect-MSCloudLoginExchangeOnline
                 -SkipLoadingCmdletHelp `
                 @CommandName | Out-Null
 
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $true
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($true)
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Managed Identity' -Source $source
         }
         catch
@@ -318,9 +309,7 @@ function Connect-MSCloudLoginExchangeOnline
                 -SkipLoadingCmdletHelp `
                 @CommandName | Out-Null
 
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $false
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Access Token' -Source $source
         }
         catch
@@ -355,7 +344,11 @@ function Connect-MSCloudLoginExchangeOnlineMFA
 
         [Parameter()]
         [System.String]
-        $TenantId
+        $TenantId,
+
+        [Parameter()]
+        [System.Collections.Hashtable]
+        $CommandName
     )
 
     $ProgressPreference = 'SilentlyContinue'
@@ -388,10 +381,7 @@ function Connect-MSCloudLoginExchangeOnlineMFA
                 @CommandName | Out-Null
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using credentials and tenantId with MFA' -Source $source
         }
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectedDateTime = [System.DateTime]::Now.ToString()
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication = $true
-
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($true)
     }
     catch
     {

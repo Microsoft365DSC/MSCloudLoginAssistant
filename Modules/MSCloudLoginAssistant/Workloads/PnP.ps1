@@ -1,0 +1,481 @@
+function Connect-MSCloudLoginPnP
+{
+    [CmdletBinding()]
+    param(
+        [boolean]
+        $ForceRefreshConnection = $false
+    )
+
+    $ProgressPreference = 'SilentlyContinue'
+    $source = 'Connect-MSCloudLoginPnP'
+
+    if ($Script:MSCloudLoginConnectionProfile.PnP.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Already connected to PnP, not attempting to authenticate.' -Source $source
+        return
+    }
+
+    # Check if Graph-module is loaded and, if not, explicitly load before PnP
+    # Workaround to fix: https://github.com/microsoft/Microsoft365DSC/issues/4746
+    if (-not (Get-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue))
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Explicit import of PS-module Microsoft.Graph.Authentication' -Source $source
+        Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+    }
+
+    $currentLoadedModule = Get-Module PnP.PowerShell
+    if ($null -eq $currentLoadedModule)
+    {
+        if ($PSEdition -ne 'Desktop' -and $IsWindows)
+        {
+            Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell Core on Windows.' -Source $source
+            $requiresWindowsPowerShell = $false
+            try
+            {
+                Add-MSCloudLoginAssistantEvent -Message 'Loading the PnP.PowerShell module using Windows PowerShell.' -Source $source
+                $pnpModule = Get-Module -Name PnP.PowerShell -ListAvailable | Where-Object CompatiblePSEditions -Contains 'Desktop' | Sort-Object -Property Version -Descending | Select-Object -First 1
+                if ($null -eq $pnpModule)
+                {
+                    throw 'PnP.PowerShell module is not installed for Windows PowerShell. Please install the module using PowerShell 5.1 and try again.'
+                }
+                Import-Module -Name PnP.PowerShell -RequiredVersion $pnpModule.Version -UseWindowsPowerShell -Global -Force -ErrorAction Stop | Out-Null
+            }
+            catch
+            {
+                $requiresWindowsPowerShell = $true
+            }
+
+            if ($requiresWindowsPowerShell)
+            {
+                throw "Powershell 7+ was detected. We need to load the PnP.PowerShell module using the -UseWindowsPowerShell switch which requires the module to be installed under C:\Program Files\WindowsPowerShell\Modules. You can either move the module to that location or use PowerShell 5.1 to install the modules using 'Install-Module Pnp.PowerShell -Force -Scope AllUsers'."
+            }
+        }
+    }
+
+    if ([string]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
+    {
+        if (-not [string]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl))
+        {
+            $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+        }
+        else
+        {
+            if ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Credentials' -and `
+                    -not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+            {
+                $adminUrl = Get-SPOAdminUrl -Credential $Script:MSCloudLoginConnectionProfile.PnP.Credentials
+                if ([String]::IsNullOrEmpty($adminUrl) -eq $false)
+                {
+                    $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $adminUrl
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                }
+                else
+                {
+                    throw 'Unable to retrieve SharePoint Admin Url. Check if Microsoft Graph can be contacted successfully.'
+                }
+            }
+            else
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('onmicrosoft'))
+                {
+                    if ($Script:MSCloudLoginConnectionProfile.Pnp.EnvironmentName -eq 'AzureDOD')
+                    {
+                        $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint-mil.')
+                    }
+                    else
+                    {
+                        $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                    }
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+                    {
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = "https://$domain"
+                    }
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+                }
+                elseif ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('.onmschina.'))
+                {
+                    $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.partner.onmschina.', '-admin.sharepoint.')
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+                    {
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = "https://$domain"
+                    }
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+                }
+                elseif ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('.onms.'))
+                {
+                    $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onms.', '-admin.spo.')
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+                    {
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = "https://$domain"
+                    }
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+                }
+                else
+                {
+                    throw 'TenantId must be in format contoso.onmicrosoft.com'
+                }
+            }
+        }
+    }
+    elseif ([string]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl))
+    {
+        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl
+    }
+
+    try
+    {
+        if (-not $Script:MSCloudLoginConnectionProfile.PnP.Connected)
+        {
+            if ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
+                {
+                    if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.Scope -and `
+                        $null -ne $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl)
+                    {
+                        $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Scope `
+                            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl `
+                            -ApplicationId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                            -TenantId $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                            -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint
+                        $Script:MSCloudLoginConnectionProfile.PnP.AccessTokens += $accessToken
+
+                        Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Thumbprint' -Source $source
+                        Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                        Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                            -AccessToken $($accessToken) | Out-Null
+                    }
+                    else
+                    {
+                        Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Thumbprint' -Source $source
+                        Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                        Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+
+                        if ($Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment -ne 'Custom')
+                        {
+                            Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                                -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                                -Tenant $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                                -Thumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint `
+                                -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment | Out-Null
+                        }
+                        else
+                        {
+                            Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                                -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                                -Tenant $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                                -Thumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint `
+                                -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                                -AzureADLoginEndPoint $Script:MSCloudLoginConnectionProfile.PnP.EndPoints.AzureADLoginEndPoint `
+                                -MicrosoftGraphEndPoint $Script:MSCloudLoginConnectionProfile.PnP.EndPoints.MicrosoftGraphEndPoint | Out-Null
+                        }
+                    }
+                }
+                elseif ($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Thumbprint' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+
+                    $tenantIdValue = $Script:MSCloudLoginConnectionProfile.PnP.TenantId
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.EnvironmentName -eq 'AzureChinaCloud')
+                    {
+                        $tenantIdValue = $Script:MSCloudLoginConnectionProfile.PnP.TenantGUID
+                    }
+
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment -ne 'Custom')
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                            -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                            -Tenant $tenantIdValue `
+                            -Thumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint `
+                            -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment | Out-Null
+                    }
+                    else
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                            -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                            -Tenant $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                            -Thumbprint $Script:MSCloudLoginConnectionProfile.PnP.CertificateThumbprint `
+                            -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                            -AzureADLoginEndPoint $Script:MSCloudLoginConnectionProfile.PnP.AzureADLoginEndPoint `
+                            -MicrosoftGraphEndPoint $Script:MSCloudLoginConnectionProfile.PnP.MicrosoftGraphEndPoint | Out-Null
+                    }
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'ServicePrincipalWithPath')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Path' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Tenant $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                        -CertificatePassword $Script:MSCloudLoginConnectionProfile.PnP.CertificatePassword `
+                        -CertificatePath $Script:MSCloudLoginConnectionProfile.PnP.CertificatePath `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Path' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Tenant $Script:MSCloudLoginConnectionProfile.PnP.TenantId `
+                        -CertificatePassword $Script:MSCloudLoginConnectionProfile.PnP.CertificatePassword `
+                        -CertificatePath $Script:MSCloudLoginConnectionProfile.PnP.CertificatePath `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'ServicePrincipalWithSecret')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Secret' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -ClientSecret $Script:MSCloudLoginConnectionProfile.PnP.ApplicationSecret `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                        -WarningAction 'Ignore'
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Service Principal - Secret' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -ClientSecret $Script:MSCloudLoginConnectionProfile.PnP.ApplicationSecret `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                        -WarningAction 'Ignore'
+                }
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'CredentialsWithTenantId')
+            {
+                throw 'You cannot specify TenantId with Credentials when connecting to PnP.'
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.Pnp.AuthenticationType -eq 'CredentialsWithApplicationId')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and Application Id' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ApplicationId: $($Script:MSCloudLoginConnectionProfile.PnP.ApplicationId)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials and Application Id' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ApplicationId: $($Script:MSCloudLoginConnectionProfile.PnP.ApplicationId)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Credentials')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with Credentials using SPOManagementShell and AdminUrl' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -Credentials $Script:MSCloudLoginConnectionProfile.PnP.Credentials `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                        -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ClientId
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'Identity')
+            {
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
+                {
+                    $connectionURL = $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl
+                }
+                else
+                {
+                    $connectionURL = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                }
+
+                $accessToken = Get-AuthToken -Resource $connectionURL -Identity
+                Connect-PnPOnline -Url $connectionURL `
+                    -AccessToken $accessToken `
+                    -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment `
+                    -WarningAction 'Ignore'
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'AccessToken')
+            {
+                $Ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($Script:MSCloudLoginConnectionProfile.PnP.AccessTokens[0])
+                $AccessTokenValue = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($Ptr)
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($Ptr)
+                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with AccessToken' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "ConnectionUrl: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -AccessToken $AccessTokenValue `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+                else
+                {
+                    Add-MSCloudLoginAssistantEvent -Message 'Connecting with AccessToken' -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)" -Source $source
+                    Add-MSCloudLoginAssistantEvent -Message "AdminUrl: $($Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)" -Source $source
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                        -AccessToken $AccessTokenValue `
+                        -AzureEnvironment $Script:MSCloudLoginConnectionProfile.PnP.PnPAzureEnvironment
+                }
+
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+        }
+    }
+    catch
+    {
+        if ($_.Exception.Message -like '*AADSTS50076*')
+        {
+            try
+            {
+                Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                    -Interactive `
+                    -ClientId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
+            }
+            catch
+            {
+                try
+                {
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -UseWebLogin
+                    $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
+                }
+                catch
+                {
+                    $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+                    throw $_
+                }
+            }
+        }
+        elseif ($_.Exception.Message -like '*The sign-in name or password does not match one in the Microsoft account system*')
+        {
+            # This error means that the account was trying to connect using MFA.
+            try
+            {
+                if ($null -ne $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl.AccessToken)
+                {
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                            -AccessToken $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl.AccessToken
+                    }
+                    else
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                            -AccessToken $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl.AccessToken
+                    }
+                }
+                else
+                {
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl)
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                            -Interactive
+                    }
+                    else
+                    {
+                        Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl `
+                            -Interactive
+                    }
+                }
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
+            }
+            catch
+            {
+                Add-MSCloudLoginAssistantEvent "Error acquiring AccessToken: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                try
+                {
+                    Connect-PnPOnline -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl `
+                        -Interactive
+                    $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection($true)
+                }
+                catch
+                {
+                    $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+                    throw $_
+                }
+            }
+        }
+        elseif ($_.Exception.Message -like '*AADSTS65001: The user or administrator has not consented to use the application with ID*')
+        {
+            try
+            {
+                Register-PnPManagementShellAccess
+                Connect-PnPOnline -UseWebLogin -Url $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl
+                $Script:MSCloudLoginConnectionProfile.PnP.CompleteConnection()
+            }
+            catch
+            {
+                throw "The PnP.PowerShell Azure AD Application has not been granted access for this tenant. Please run 'Register-PnPManagementShellAccess' to grant access and try again after."
+            }
+        }
+        else
+        {
+            $Script:MSCloudLoginConnectionProfile.PnP.connected = $false
+            throw
+        }
+    }
+    return
+}
+
+function Disconnect-MSCloudLoginPnP
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginPnP'
+
+    if ($Script:MSCloudLoginConnectionProfile.PnP.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from PnP' -Source $source
+        Disconnect-PnPOnline | Out-Null
+        $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from PnP' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to PnP were found' -Source $source
+    }
+}

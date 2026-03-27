@@ -1,0 +1,62 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - Dev
+      - master
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    permissions: write-all
+
+    # Only when run from the main repo
+    if: github.repository == 'Microsoft365DSC/MSCloudLoginAssistant'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Modules
+        shell: pwsh
+        run: |
+          Install-PSResource -Name Pester -Scope AllUsers -TrustRepository
+          Install-PSResource -Name ExchangeOnlineManagement -Scope AllUsers -TrustRepository
+          Install-PSResource -Name Microsoft.Graph.Beta.Identity.DirectoryManagement -Scope AllUsers -TrustRepository
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          Import-Module './Tests/TestHarness.psm1' -Force;
+
+          try
+          {
+              $results = Invoke-TestHarness -IgnoreCodeCoverage
+          }
+          catch
+          {
+              Import-Module './Tests/TestHarness.psm1' -Force;
+              $results = Invoke-TestHarness -IgnoreCodeCoverage
+          }
+          if ($results.FailedCount -gt 0)
+          {
+              throw "{$($results.FailedCount)} Unit Test(s) Failed"
+          }
+
+      - name: Validate Module Manifest
+        shell: pwsh
+        run: |
+          Test-ModuleManifest -Path ./Modules/MSCloudLoginAssistant/MSCloudLoginAssistant.psd1
+
+      - name: Validate Module Import
+        shell: pwsh
+        run: |
+          Import-Module ./Modules/MSCloudLoginAssistant/MSCloudLoginAssistant.psd1 -Force -ErrorAction Stop
+          $exportedFunctions = (Get-Module MSCloudLoginAssistant).ExportedFunctions.Keys
+          if ($exportedFunctions.Count -eq 0)
+          {
+              throw "No functions exported from the MSCloudLoginAssistant module."
+          }
+          Write-Host "Exported functions: $($exportedFunctions -join ', ')"

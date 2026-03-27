@@ -1,0 +1,29 @@
+name: Publish to PowerShell Gallery
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  PublishToGallery:
+    runs-on: windows-latest
+
+    # Only when run from the main repo
+    if: github.repository == 'Microsoft365DSC/MSCloudLoginAssistant'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Module Manifest
+        shell: pwsh
+        run: |
+          Test-ModuleManifest -Path ./Modules/MSCloudLoginAssistant/MSCloudLoginAssistant.psd1
+
+      - name: Publish
+        shell: pwsh
+        env:
+          PUBLIC_NUGETAPIKEY: ${{ secrets.NUGETAPIKEY }}
+        run: |
+          Publish-Module -Path "./Modules/MSCloudLoginAssistant" -NugetAPIKey $env:PUBLIC_NUGETAPIKEY

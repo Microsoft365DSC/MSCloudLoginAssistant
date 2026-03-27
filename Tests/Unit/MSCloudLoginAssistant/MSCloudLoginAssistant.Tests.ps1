@@ -493,7 +493,7 @@ Describe 'Reset-MSCloudLoginConnectionProfileContext' {
                 $originalTime = $Script:MSCloudLoginConnectionProfile.CreatedTime
 
                 # Small delay to ensure timestamp changes
-                Start-Sleep -Milliseconds 50
+                Start-Sleep -Seconds 1
                 Reset-MSCloudLoginConnectionProfileContext
 
                 $Script:MSCloudLoginConnectionProfile.CreatedTime | Should -Not -Be $originalTime

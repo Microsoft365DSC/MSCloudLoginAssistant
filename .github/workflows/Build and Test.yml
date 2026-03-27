@@ -23,6 +23,8 @@ jobs:
         shell: pwsh
         run: |
           Install-PSResource -Name Pester -Scope AllUsers -TrustRepository
+          Install-PSResource -Name ExchangeOnlineManagement -Scope AllUsers -TrustRepository
+          Install-PSResource -Name Microsoft.Graph.Beta.Identity.DirectoryManagement -Scope AllUsers -TrustRepository
 
       - name: Run Pester Tests
         shell: pwsh

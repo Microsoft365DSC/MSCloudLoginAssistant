@@ -11,7 +11,7 @@ function Connect-MSCloudLoginPowerPlatformREST
     try
     {
         $uri = "https://" + $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.BapEndpoint + `
-               "/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments"
+               "/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?api-version=2024-05-01"
         $headers = @{
             Authorization = $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.AccessToken
         }

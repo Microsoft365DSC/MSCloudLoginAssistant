@@ -695,7 +695,7 @@ function Compare-InputParametersForChange
     if ($null -ne $globalParameters)
     {
         # Only check the keys that exist in both hashtables because the authentication method is guaranteed to be the same
-        $keysToCheck = Compare-Object -ReferenceObject @($currentParameters.Keys) -DifferenceObject @($globalParameters.Keys) -PassThru -ExcludeDifferent
+        $keysToCheck = Compare-Object -ReferenceObject @($currentParameters.Keys) -DifferenceObject @($globalParameters.Keys) -PassThru -ExcludeDifferent -IncludeEqual
         $currentValues = @()
         $currentParameters.GetEnumerator() | Where-Object { $keysToCheck -contains $_.Key } | ForEach-Object { if ($null -ne $_.Value) { $currentValues += $_.Value } }
         $globalValues = @()

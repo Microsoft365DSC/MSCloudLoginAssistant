@@ -92,7 +92,11 @@ function Connect-M365Tenant
             { $Workload -eq 'ExchangeOnline' }
         )]
         [System.String[]]
-        $ExchangeOnlineCmdlets = @()
+        $ExchangeOnlineCmdlets = @(),
+
+        [Parameter()]
+        [System.String]
+        $CustomEnvironmentFileName = 'CustomEnvironment.psd1'
     )
 
     $source = 'Connect-M365Tenant'
@@ -106,6 +110,9 @@ function Connect-M365Tenant
     {
         $workloadInternalName = 'PowerPlatform'
     }
+
+    $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
+    . "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
 
     if ($null -eq $Script:MSCloudLoginConnectionProfile)
     {

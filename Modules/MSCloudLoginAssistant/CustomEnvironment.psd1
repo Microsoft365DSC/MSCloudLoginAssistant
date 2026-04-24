@@ -52,8 +52,8 @@
     CustomPowerPlatformRESTClientId = "1950a258-227b-4e31-a9cf-717495945fc2"
     CustomPowerPlatformRESTBapEndpoint = "api.bap.microsoft.com"
 
-    CustomSCCConnectionUrl = "https://ps.compliance.microsoft.com/powershell-liveid/"
-    CustomSCCAuthorizationUrl = "https://login.microsoftonline.com/organiations"
+    CustomSCCConnectionUrl = "https://ps.compliance.protection.outlook.com/powershell-liveid/"
+    CustomSCCAuthorizationUrl = "https://login.microsoftonline.com/organizations"
     CustomSCCAzureADAuthorizationEndpointUri = "https://login.microsoftonline.com/common"
 
     CustomSharePointOnlineRESTHostUrl = "https://customdomain.sharepoint.com" # No trailing slash!

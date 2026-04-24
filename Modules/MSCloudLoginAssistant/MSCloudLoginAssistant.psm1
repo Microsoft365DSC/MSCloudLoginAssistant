@@ -11,6 +11,87 @@ foreach ($module in $privateModules)
     . $module.FullName
 }
 
+<#
+.SYNOPSIS
+    Connects to a Microsoft 365 workload using the specified authentication method.
+
+.DESCRIPTION
+    Connect-M365Tenant establishes an authenticated session to a target Microsoft 365 workload.
+    It supports multiple authentication types including credentials, service principal with certificate
+    thumbprint, service principal with secret, managed identity, and access tokens.
+    The function maintains a connection profile and will reuse an existing connection unless the
+    authentication parameters have changed.
+
+.PARAMETER Workload
+    The Microsoft 365 workload to connect to. Valid values are: AdminAPI, Azure, AzureDevOPS,
+    EngageHub, ExchangeOnline, Fabric, Licensing, O365Portal, SecurityComplianceCenter, PnP,
+    PowerPlatforms, PowerPlatformREST, MicrosoftTeams, MicrosoftGraph, SharePointOnlineREST,
+    Tasks, DefenderForEndpoint.
+
+.PARAMETER Url
+    The URL to connect to. Required for workloads such as PnP and SharePointOnlineREST.
+
+.PARAMETER Credential
+    The PSCredential object containing username and password for credential-based authentication.
+
+.PARAMETER ApplicationId
+    The Application (client) ID of the Azure AD app registration used for service principal authentication.
+
+.PARAMETER TenantId
+    The Tenant ID (GUID or domain) of the Azure AD tenant.
+
+.PARAMETER ApplicationSecret
+    The client secret for service principal authentication with a secret.
+
+.PARAMETER CertificateThumbprint
+    The thumbprint of the certificate used for service principal authentication.
+
+.PARAMETER UseModernAuth
+    Switch to enable modern authentication.
+
+.PARAMETER CertificatePassword
+    The password for the certificate file used in service principal authentication with a certificate path.
+
+.PARAMETER CertificatePath
+    The file system path to the certificate (.pfx) used for service principal authentication.
+
+.PARAMETER EnableSearchOnlySession
+    Switch to enable a search-only session. Applicable to the SecurityComplianceCenter workload.
+
+.PARAMETER Identity
+    Switch to authenticate using a managed identity (system-assigned or user-assigned).
+
+.PARAMETER AccessTokens
+    An array of access tokens to use for authentication.
+
+.PARAMETER Endpoints
+    A hashtable of custom endpoint URLs to override defaults.
+
+.PARAMETER ExchangeOnlineCmdlets
+    An array of Exchange Online cmdlets to load. Only applicable when Workload is 'ExchangeOnline'.
+
+.PARAMETER CustomEnvironmentFileName
+    The name of the custom environment configuration file. Defaults to 'CustomEnvironment.psd1'.
+    Must be located in the same directory as the CustomEnvironment.psd1 file (root of the module).
+
+.OUTPUTS
+    None. Connect-M365Tenant does not return any output.
+
+.EXAMPLE
+    PS> Connect-M365Tenant -Workload 'MicrosoftGraph' -ApplicationId '00000000-0000-0000-0000-000000000000' `
+        -TenantId 'contoso.onmicrosoft.com' -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+
+.EXAMPLE
+    PS> Connect-M365Tenant -Workload 'ExchangeOnline' -Credential $Credential
+
+.EXAMPLE
+    PS> Connect-M365Tenant -Workload 'MicrosoftGraph' -Identity
+
+.EXAMPLE
+    PS> Connect-M365Tenant -Workload 'PnP' -Url 'https://contoso-admin.sharepoint.com' `
+        -ApplicationId '00000000-0000-0000-0000-000000000000' -TenantId 'contoso.onmicrosoft.com' `
+        -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+#>
 function Connect-M365Tenant
 {
     [CmdletBinding()]

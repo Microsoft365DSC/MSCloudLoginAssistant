@@ -11,17 +11,6 @@ foreach ($module in $privateModules)
     . $module.FullName
 }
 
-$requiredModules = @(
-    'Microsoft.Graph.Beta.Identity.DirectoryManagement'
-)
-foreach ($module in $requiredModules)
-{
-    if (-not (Get-Module -Name $module -ListAvailable))
-    {
-        throw "The module $module is required to be installed. Please install the module and try again."
-    }
-}
-
 function Connect-M365Tenant
 {
     [CmdletBinding()]
@@ -1034,7 +1023,7 @@ function Get-MSCloudLoginOrganizationName
         {
             Connect-M365Tenant -Workload MicrosoftGraph -AccessTokens $AccessTokens
         }
-        $domain = Get-MgDomain -ErrorAction Stop | Where-Object { $_.IsInitial -eq $True }
+        $domain = (Invoke-MgGraphRequest -Method GET -Uri "/v1.0/domains" -ErrorAction Stop).value | Where-Object { $_.IsInitial -eq $True }
 
         if ($null -ne $domain)
         {

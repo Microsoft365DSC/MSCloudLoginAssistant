@@ -7,7 +7,7 @@ function Connect-MSCloudLoginDefenderForEndpoint
         -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.AuthorizationUrl `
         -ClientId $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.ApplicationId `
         -Scope $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Scope `
-        -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithSecret', 'ServicePrincipalWithPath', 'ServicePrincipalWithThumbprint')
+        -SupportedAuthMethods @('AccessTokens', 'Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId', 'Identity', 'ServicePrincipalWithPath', 'ServicePrincipalWithSecret', 'ServicePrincipalWithThumbprint')
 }
 
 function Disconnect-MSCloudLoginDefenderForEndpoint

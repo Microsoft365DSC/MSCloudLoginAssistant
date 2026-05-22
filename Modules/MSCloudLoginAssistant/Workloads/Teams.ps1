@@ -128,6 +128,31 @@ function Connect-MSCloudLoginTeams
 
         $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
     }
+    elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithPath')
+    {
+        Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
+        $certificatePath = $Script:MSCloudLoginConnectionProfile.Teams.CertificatePath
+        $certificatePassword = $Script:MSCloudLoginConnectionProfile.Teams.CertificatePassword
+        if (Test-Path $certificatePath)
+        {
+            if ($certificatePassword)
+            {
+                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $certificatePath), $certificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
+            }
+            else
+            {
+                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $certificatePath))
+            }
+        }
+        else
+        {
+            throw "Certificate path '$certificatePath' not found"
+        }
+        Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
+            -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
+            -Certificate $certificate
+        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
+    }
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'Credentials' -or
         $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'CredentialsWithTenantId')
     {

@@ -216,6 +216,11 @@ class Workload : ICloneable
                     $tenantGUIDValue = $Script:CloudEnvironmentInfo.token_endpoint.Split('/')[3]
                     $this.TenantGUID = $tenantGUIDValue
                 }
+                elseif ($Script:CloudEnvironmentInfo.tenant_region_scope -eq 'USGov')
+                {
+                    # Regular GCC tenants do not have a sub_scope
+                    $this.EnvironmentName = 'AzureUSGovernment'
+                }
                 elseif ($Script:CustomEnvConfig.CustomEnvironment)
                 {
                     $this.EnvironmentName = 'Custom'

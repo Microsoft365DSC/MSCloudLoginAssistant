@@ -1437,7 +1437,7 @@ function Get-AuthToken {
     $codeChallenge = [System.Convert]::ToBase64String($challengeBytes).TrimEnd('=')
     $codeChallenge = $codeChallenge.Replace('+', '-').Replace('/', '_')
     $redirectUri = "http://localhost:8400/"
-    $authorizeUrl = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/authorize?client_id=$ClientId&response_type=code&redirect_uri=$([System.Uri]::EscapeDataString($redirectUri))&response_mode=query&scope=$([System.Uri]::EscapeDataString($Scope))&code_challenge=$codeChallenge&code_challenge_method=S256"
+    $authorizeUrl = "$AuthorizationUrl/$TenantId/oauth2/v2.0/authorize?client_id=$ClientId&response_type=code&redirect_uri=$([System.Uri]::EscapeDataString($redirectUri))&response_mode=query&scope=$([System.Uri]::EscapeDataString($Scope))&code_challenge=$codeChallenge&code_challenge_method=S256"
 
     $listener = [System.Net.HttpListener]::new()
     $listener.Prefixes.Add($redirectUri)

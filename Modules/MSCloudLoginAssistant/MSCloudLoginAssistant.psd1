@@ -112,7 +112,8 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Add SubscriptionId parameter to the Azure workload connection profile to support multiple subscriptions in the same tenant'
+            ReleaseNotes = '* Add SubscriptionId parameter to the Azure workload connection profile to support multiple subscriptions in the same tenant
+* Fixed an issue where the SharePoint Online admin URL was not being correctly set for tenants in sovereign clouds.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

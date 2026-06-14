@@ -78,13 +78,18 @@ function Connect-MSCloudLoginPnP
             {
                 if ($Script:MSCloudLoginConnectionProfile.PnP.TenantId.Contains('onmicrosoft'))
                 {
-                    if ($Script:MSCloudLoginConnectionProfile.Pnp.EnvironmentName -eq 'AzureDOD')
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.EnvironmentName -eq 'AzureDOD')
                     {
                         $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint-mil.')
                     }
                     else
                     {
                         $domain = $Script:MSCloudLoginConnectionProfile.PnP.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                    }
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.EnvironmentName -in @('AzureUSGovernment', 'AzureDOD'))
+                    {
+                        # If the tenant id is in the format of contoso.onmicrosoft.com, replace the .com with .us for sovereign clouds
+                        $domain = $domain.Replace('.com', '.us')
                     }
                     if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl)
                     {

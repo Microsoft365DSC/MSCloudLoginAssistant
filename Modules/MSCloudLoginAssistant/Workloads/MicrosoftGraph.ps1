@@ -64,7 +64,7 @@ function Connect-MSCloudLoginMicrosoftGraph
         {
             if ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
             {
-                if ($Script:CustomEnvConfig.CustomEnvironment -and `
+                if (($Script:CustomEnvConfig.CustomEnvironment -or $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment -eq 'Custom') -and `
                     $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope -and `
                     $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl)
                 {

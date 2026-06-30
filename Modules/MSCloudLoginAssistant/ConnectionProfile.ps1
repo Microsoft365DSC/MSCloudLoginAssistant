@@ -184,7 +184,7 @@ class Workload : ICloneable
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -TenantId $this.TenantId
             }
 
-            Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
+            Add-MSCloudLoginAssistantEvent -Message "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
         }
 
         switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
@@ -324,6 +324,9 @@ class Azure:Workload
 {
     [string]
     $ManagementUrl
+
+    [string]
+    $SubscriptionId
 
     Azure()
     {

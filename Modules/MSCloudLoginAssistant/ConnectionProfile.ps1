@@ -1243,6 +1243,11 @@ class SharePointOnlineREST:Workload
             if ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('onmicrosoft'))
             {
                 $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                if ($this.EnvironmentName -in @('AzureUSGovernment', 'AzureDOD'))
+                {
+                    # If the tenant id is in the format of contoso.onmicrosoft.com, replace the .com with .us for sovereign clouds
+                    $domain = $domain.Replace('.com', '.us')
+                }
                 if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
                 {
                     $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"

@@ -111,7 +111,7 @@ class Workload : ICloneable
     $Credentials
 
     [string]
-    [ValidateSet('AzureCloud', 'AzureChinaCloud', 'AzureGermanyCloud', 'AzureUSGovernment', 'AzureDOD', 'Custom')]
+    [ValidateSet('AzureCloud', 'AzureChinaCloud', 'AzureGermanyCloud', 'AzureUSGovernment', 'AzureDOD', 'AzureFranceCloud', 'Custom')]
     $EnvironmentName
 
     [boolean]
@@ -184,7 +184,7 @@ class Workload : ICloneable
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -TenantId $this.TenantId
             }
 
-            Add-MSCloudLoginAssistantEvent "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
+            Add-MSCloudLoginAssistantEvent -Message "Set environment to {$($Script:CloudEnvironmentInfo.tenant_region_sub_scope)}" -Source $source
         }
 
         switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
@@ -220,6 +220,11 @@ class Workload : ICloneable
                 {
                     # Regular GCC tenants do not have a sub_scope
                     $this.EnvironmentName = 'AzureUSGovernment'
+                }
+                elseif ($Script:CloudEnvironmentInfo.tenant_region_scope -eq 'FG')
+                {
+                    # Regular GCC tenants do not have a sub_scope
+                    $this.EnvironmentName = 'AzureFranceCloud'
                 }
                 elseif ($Script:CustomEnvConfig.CustomEnvironment)
                 {
@@ -298,6 +303,11 @@ class AdminAPI:Workload
                 $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
             }
+            'AzureFranceCloud'
+            {
+                $this.Scope            = "$($this.Resource)/.default"
+                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
+            }
             'Custom'
             {
                 $this.Scope            = $Script:CustomEnvConfig.CustomAdminApiScope
@@ -324,6 +334,9 @@ class Azure:Workload
 {
     [string]
     $ManagementUrl
+
+    [string]
+    $SubscriptionId
 
     Azure()
     {
@@ -382,6 +395,12 @@ class AzureDevOPS:Workload
                 $this.HostUrl          = "https://dev.azure.com"
                 $this.Scope            = "$($this.Resource)/.default"
                 $this.AuthorizationUrl = "https://login.microsoftonline.us"
+            }
+            'AzureFranceCloud'
+            {
+                $this.HostUrl          = "https://dev.azure.com"
+                $this.Scope            = "$($this.Resource)/.default"
+                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
             }
             'Custom'
             {
@@ -443,6 +462,12 @@ class DefenderForEndpoint:Workload
                 $this.HostUrl          = 'https://api-gcc.securitycenter.microsoft.us'
                 $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
                 $this.AuthorizationUrl = 'https://login.microsoftonline.com'
+            }
+            'AzureFranceCloud'
+            {
+                $this.HostUrl          = 'https://api.securitycenter.microsoft.com/'
+                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
+                $this.AuthorizationUrl = 'https://login.sovcloud-identity.fr'
             }
             'Custom'
             {
@@ -537,7 +562,7 @@ class EngageHub:Workload
 class ExchangeOnline:Workload
 {
     [string]
-    [ValidateSet('O365Default', 'O365GermanyCloud', 'O365China', 'O365USGovGCCHigh', 'O365USGovDod')]
+    [ValidateSet('O365Default', 'O365GermanyCloud', 'O365China', 'O365USGovGCCHigh', 'O365USGovDod', 'Custom')]
     $ExchangeEnvironmentName = 'O365Default'
 
     [string]
@@ -585,8 +610,15 @@ class ExchangeOnline:Workload
             {
                 $this.ExchangeEnvironmentName = 'O365China'
             }
+            'AzureFranceCloud'
+            {
+                $this.ConnectionUri                   = 'https://outlook.sovcloud.fr/PowerShell-LiveID'
+                $this.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.fr/' + $Script:MSCloudLoginConnectionProfile.OrganizationName
+                $this.ExchangeEnvironmentName         = "Custom"
+            }
             'Custom'
             {
+                $this.ExchangeEnvironmentName         = "Custom"
                 $this.ConnectionUri                   = $Script:CustomEnvConfig.CustomEXOConnectionUri
                 $this.AzureADAuthorizationEndpointUri = $Script:CustomEnvConfig.CustomEXOAzureADAuthorizationEndpointUri
             }
@@ -733,7 +765,7 @@ class Licensing:Workload
 class MicrosoftGraph:Workload
 {
     [string]
-    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany', 'Custom')]
+    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany', 'France', 'Custom')]
     $GraphEnvironment = 'Global'
 
     [string]
@@ -801,6 +833,14 @@ class MicrosoftGraph:Workload
                 $this.ResourceUrl      = 'https://microsoftgraph.chinacloudapi.cn/'
                 $this.Scope            = 'https://microsoftgraph.chinacloudapi.cn/.default'
                 $this.TokenUrl         = "https://login.chinacloudapi.cn/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'AzureFranceCloud'
+            {
+                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
+                $this.GraphEnvironment = 'Custom'
+                $this.ResourceUrl      = 'https://graph.svc.sovcloud.fr/'
+                $this.Scope            = 'https://graph.svc.sovcloud.fr/.default'
+                $this.TokenUrl         = "https://login.sovcloud-identity.fr/$($this.TenantId)/oauth2/v2.0/token"
             }
             'Custom'
             {
@@ -902,7 +942,7 @@ class PnP:Workload
     $AdminUrl
 
     [string]
-    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'Custom')]
+    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'France', 'Custom')]
     $PnPAzureEnvironment
 
     PnP()
@@ -1119,8 +1159,13 @@ class SecurityComplianceCenter:Workload
             }
             'AzureChinaCloud'
             {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/'
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.svc.sovcloud.fr/powershell-liveid/'
                 $this.AuthorizationUrl = 'https://login.chinacloudapi.cn/organizations'
+            }
+            'AzureFranceCloud'
+            {
+                $this.ConnectionUrl    = 'https://ps.compliance.protection.svc.sovcloud.fr/PowerShell-LiveID'
+                $this.AuthorizationUrl = 'https://login.sovcloud-identity.fr/organizations'
             }
             'Custom'
             {
@@ -1198,6 +1243,11 @@ class SharePointOnlineREST:Workload
             if ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('onmicrosoft'))
             {
                 $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
+                if ($this.EnvironmentName -in @('AzureUSGovernment', 'AzureDOD'))
+                {
+                    # If the tenant id is in the format of contoso.onmicrosoft.com, replace the .com with .us for sovereign clouds
+                    $domain = $domain.Replace('.com', '.us')
+                }
                 if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
                 {
                     $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"
@@ -1351,12 +1401,22 @@ class Teams:Workload
         ([Workload]$this).Setup()
         switch ($this.EnvironmentName)
         {
+            "AzureFranceCloud"
+            {
+                $endPointUriDict = @{
+                    ActiveDirectory = 'https://login.sovcloud-identity.fr/'
+                    MsGraphEndpointResourceId = 'https://graph.svc.sovcloud.fr'
+                    TeamsConfigApiEndPoint = 'https://config.teams.sovcloud.fr'
+                }
+                $Script:CustomEnvConfig.CustomEnvironment = $true
+                $Script:CustomEnvConfig.CustomTeamsEndpoints = $endPointUriDict
+            }
             "Custom"
             {
                 $this.TokenUrl   = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
                 $this.GraphScope = $Script:CustomEnvConfig.CustomGraphScope
                 $this.TeamsScope = $Script:CustomEnvConfig.CustomTeamsScope
-                $this.Endpoints = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                $this.Endpoints  = $Script:CustomEnvConfig.CustomTeamsEndpoints
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

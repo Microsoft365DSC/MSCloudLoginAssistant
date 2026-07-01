@@ -119,7 +119,7 @@ function Connect-MSCloudLoginExchangeOnline
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint
             }
 
-            if ($Script:CustomEnvConfig.CustomEnvironment -and `
+            if (($Script:CustomEnvConfig.CustomEnvironment -or $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName -eq 'Custom') -and `
                 $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri -and `
                 $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri)
             {

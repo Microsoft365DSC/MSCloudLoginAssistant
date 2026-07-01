@@ -165,6 +165,13 @@ function Connect-M365Tenant
         $ExchangeOnlineCmdlets = @(),
 
         [Parameter()]
+        [ValidateScript(
+            { $Workload -eq 'Azure' }
+        )]
+        [System.String]
+        $SubscriptionId,
+
+        [Parameter()]
         [System.String]
         $CustomEnvironmentFileName = 'CustomEnvironment.psd1'
     )
@@ -229,6 +236,7 @@ function Connect-M365Tenant
         }
         'Azure'
         {
+            $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId = $SubscriptionId
             $Script:MSCloudLoginConnectionProfile.Azure.Connect()
         }
         'AzureDevOPS'
@@ -730,6 +738,10 @@ function Compare-InputParametersForChange
         {
             $currentParameters.Add('EnableSearchOnlySession', $false)
         }
+    }
+    if ($null -ne $workloadProfile.SubscriptionId)
+    {
+        $globalParameters.Add('SubscriptionId', $workloadProfile.SubscriptionId)
     }
 
     # Clean the current parameters

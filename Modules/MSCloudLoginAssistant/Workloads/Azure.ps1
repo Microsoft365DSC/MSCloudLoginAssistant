@@ -25,6 +25,12 @@ function Connect-MSCloudLoginAzure
         }
     }
 
+    $additionalParameters = @{}
+    if ($Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId)
+    {
+        $additionalParameters['Subscription'] = $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId
+    }
+
     if ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Azure using AAD App with Certificate Thumbprint' -Source $source
@@ -32,7 +38,8 @@ function Connect-MSCloudLoginAzure
             -ApplicationId $Script:MSCloudLoginConnectionProfile.Azure.ApplicationId `
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Azure.CertificateThumbprint `
-            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
+            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+            @additionalParameters | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithSecret')
@@ -43,7 +50,8 @@ function Connect-MSCloudLoginAzure
         Connect-AzAccount -ServicePrincipal `
             -Credential $credential `
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
-            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
+            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+            @additionalParameters | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithPath')
@@ -54,7 +62,8 @@ function Connect-MSCloudLoginAzure
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -CertificatePath $Script:MSCloudLoginConnectionProfile.Azure.CertificatePath `
             -CertificatePassword $Script:MSCloudLoginConnectionProfile.Azure.CertificatePassword `
-            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
+            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+            @additionalParameters | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'CredentialsWithApplicationId' -or
@@ -71,6 +80,7 @@ function Connect-MSCloudLoginAzure
             Connect-AzAccount -Credential $Script:MSCloudLoginConnectionProfile.Azure.Credentials `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
                 -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+                @additionalParameters `
                 -ErrorAction Stop | Out-Null
             $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
         }
@@ -80,7 +90,8 @@ function Connect-MSCloudLoginAzure
             {
                 Add-MSCloudLoginAssistantEvent -Message 'MFA is required. Fallback to interactive login.' -Source $source -EntryType 'Warning'
                 Connect-AzAccount -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
-                    -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
+                    -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+                    @additionalParameters | Out-Null
                 $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection($true)
             }
             else
@@ -95,14 +106,16 @@ function Connect-MSCloudLoginAzure
         Connect-AzAccount -AccessToken $Script:MSCloudLoginConnectionProfile.Azure.AccessTokens[0]`
             -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
             -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
-            -AccountId "MSCloudLoginAssistant" | Out-Null
+            -AccountId "MSCloudLoginAssistant" `
+            @additionalParameters | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'Identity')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Azure using Managed Identity' -Source $source
         Connect-AzAccount -Identity `
-            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName | Out-Null
+            -Environment $Script:MSCloudLoginConnectionProfile.Azure.EnvironmentName `
+            @additionalParameters | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
     }
     else

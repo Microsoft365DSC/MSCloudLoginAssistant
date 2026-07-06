@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.1.68'
+    ModuleVersion          = '1.1.69'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,8 +112,7 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Add SubscriptionId parameter to the Azure workload connection profile to support multiple subscriptions in the same tenant
-* Fixed an issue where the SharePoint Online admin URL was not being correctly set for tenants in sovereign clouds.'
+            ReleaseNotes = '* Fixed an issue where PnP.PowerShell module was always imported with Windows PowerShell on Windows.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

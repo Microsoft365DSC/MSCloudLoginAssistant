@@ -26,7 +26,8 @@ function Connect-MSCloudLoginPnP
     $currentLoadedModule = Get-Module PnP.PowerShell
     if ($null -eq $currentLoadedModule)
     {
-        if ($PSEdition -ne 'Desktop' -and $IsWindows)
+        $availablePnPModule = Get-Module -Name PnP.PowerShell -ListAvailable | Sort-Object -Property Version -Descending | Select-Object -First 1
+        if ($PSEdition -ne 'Desktop' -and $IsWindows -and $availablePnPModule.Version.Major -eq 1)
         {
             Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell Core on Windows.' -Source $source
             $requiresWindowsPowerShell = $false

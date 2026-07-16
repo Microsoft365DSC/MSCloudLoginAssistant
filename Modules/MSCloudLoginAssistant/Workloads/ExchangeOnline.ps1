@@ -113,10 +113,13 @@ function Connect-MSCloudLoginExchangeOnline
             if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
                 $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
             {
+                <#
                 $Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName `
                     -ApplicationId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
                     -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
                     -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint
+                #>
+                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
             }
 
             if (($Script:CustomEnvConfig.CustomEnvironment -or $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName -eq 'Custom') -and `
@@ -267,7 +270,8 @@ function Connect-MSCloudLoginExchangeOnline
         {
             if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName)
             {
-                $Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName -Identity
+                #$Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName -Identity
+                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
             }
 
             Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `

@@ -39,22 +39,6 @@ function Connect-MSCloudLoginTeams
         Add-MSCloudLoginAssistantEvent -Message 'Already connected to Microsoft Teams. Not attempting to re-connect.' -Source $source
         return
     }
-
-    [array]$activeSessions = Get-PSSession | Where-Object -FilterScript { $_.Name -like '*SfBPowerShellSessionViaTeamsModule*' -and $_.State -eq 'Opened' }
-
-    if ($activeSessions.Count -ge 1)
-    {
-        Add-MSCloudLoginAssistantEvent -Message "Found {$($activeSessions.Count)} existing Microsoft Teams Session" -Source $source
-        Add-MSCloudLoginAssistantEvent -Message ($activeSessions | Out-String) -Source $source
-        $ProxyModule = Import-PSSession $activeSessions[0] `
-            -DisableNameChecking `
-            -AllowClobber
-        Add-MSCloudLoginAssistantEvent -Message "Imported session into $ProxyModule" -Source $source
-        Import-Module $ProxyModule -Global | Out-Null
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
-        Add-MSCloudLoginAssistantEvent 'Reloaded the Microsoft Teams Module' -Source $source
-        return
-    }
     Add-MSCloudLoginAssistantEvent -Message 'No Active Connections to Microsoft Teams were found.' -Source $source
 
     if ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithThumbprint')

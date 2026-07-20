@@ -1,11 +1,7 @@
 function Connect-MSCloudLoginExchangeOnline
 {
     [CmdletBinding()]
-    param(
-        [Parameter()]
-        [switch]
-        $SkipPSSessionEvaluation
-    )
+    param()
 
     $InformationPreference = 'SilentlyContinue'
     $ProgressPreference = 'SilentlyContinue'
@@ -53,8 +49,47 @@ function Connect-MSCloudLoginExchangeOnline
 
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
+        Add-MSCloudLoginAssistantEvent -Message 'Exchange Online is already connected' -Source $source
         return
     }
+
+    [array]$currentSessions = Get-ConnectionInformation | Where-Object -Property Name -Like 'ExchangeOnline_*'
+    if ($null -ne $currentSessions -and $currentSessions.Count -gt 0)
+    {
+        Add-MSCloudLoginAssistantEvent -Message "Found {$($currentSessions.Count)} active Exchange Online session(s) but not connected" -Source $source
+        if (-not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId) -and
+            -not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId))
+        {
+            $filteredSessions = $currentSessions | Where-Object { $_.AppId -eq $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
+                -and $_.Organization -eq $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId }
+
+            if ($filteredSessions.Count -gt 0)
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Found an active Exchange Online session for ApplicationId {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)} and TenantId {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)}" -Source $source
+                Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
+                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+                return
+            }
+        }
+
+        if (-not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName))
+        {
+            $filteredSessions = $currentSessions | Where-Object { $_.UserPrincipalName -eq $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName }
+
+            if ($filteredSessions.Count -gt 0)
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Found an active Exchange Online session for UserPrincipalName {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName)}" -Source $source
+                Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
+                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+                return
+            }
+        }
+    }
+    Add-MSCloudLoginAssistantEvent -Message 'No active Exchange Online session found.' -Source $source
 
     Add-MSCloudLoginAssistantEvent -Message "Loaded Modules: $(Get-Module | Select-Object -ExpandProperty Name)" -Source $source
     $alreadyLoadedEXOProxyModules = Get-Module | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-AcceptedDomain') }
@@ -63,27 +98,6 @@ function Connect-MSCloudLoginExchangeOnline
         Add-MSCloudLoginAssistantEvent -Message "Removing module {$($loadedModule.Name)} from current EXO session" -Source $source
         Remove-Module $loadedModule.Name -Force -Verbose:$false | Out-Null
     }
-
-    [array]$activeSessions = Get-PSSession | Where-Object -FilterScript { $_.ComputerName -like '*outlook.office*' -and $_.State -eq 'Opened' }
-    Add-MSCloudLoginAssistantEvent -Message "Active Sessions: $($activeSessions | Out-String)" -Source $source
-    if (-not $SkipPSSessionEvaluation -and $activeSessions.Length -ge 1)
-    {
-        Add-MSCloudLoginAssistantEvent -Message "Found {$($activeSessions.Length)} existing Exchange Online Session" -Source $source
-        $ProxyModule = Import-PSSession $activeSessions[0] `
-            -DisableNameChecking `
-            -AllowClobber
-        Add-MSCloudLoginAssistantEvent -Message "Imported session into $ProxyModule" -Source $source
-        Import-Module $ProxyModule -Global `
-            -Verbose:$false | Out-Null
-        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
-        Add-MSCloudLoginAssistantEvent -Message 'Reloaded the Exchange Module' -Source $source
-
-        # Rerun the function to make sure we have all the necessary commands loaded
-        # but prevent an infinite loop by skipping the PSSession evaluation
-        Connect-MSCloudLoginExchangeOnline -SkipPSSessionEvaluation
-        return
-    }
-    Add-MSCloudLoginAssistantEvent -Message 'No active Exchange Online session found.' -Source $source
 
     # Make sure we disconnect from any existing connections
     Disconnect-ExchangeOnline -Confirm:$false
@@ -110,6 +124,7 @@ function Connect-MSCloudLoginExchangeOnline
             {
                 throw 'Certificate Thumbprint authentication is only supported on the Windows platform.'
             }
+
             if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
                 $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
             {

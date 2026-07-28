@@ -219,213 +219,240 @@ function Connect-M365Tenant
         $Endpoints,
 
         [Parameter()]
-        [ValidateScript(
-            { $Workload -eq 'ExchangeOnline' }
-        )]
-        [System.String[]]
-        $ExchangeOnlineCmdlets = @(),
-
-        [Parameter()]
-        [ValidateScript(
-            { $Workload -eq 'Azure' }
-        )]
-        [System.String]
-        $SubscriptionId,
-
-        [Parameter()]
         [System.String]
         $CustomEnvironmentFileName = 'CustomEnvironment.psd1'
     )
 
-    $source = 'Connect-M365Tenant'
-    $workloadInternalName = $Workload
-
-    if ($Workload -eq 'MicrosoftTeams')
+    dynamicparam
     {
-        $workloadInternalName = 'Teams'
-    }
-    elseif ($Workload -eq 'PowerPlatforms')
-    {
-        $workloadInternalName = 'PowerPlatform'
-    }
-
-    $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
-    . "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
-
-    if ($null -eq $Script:MSCloudLoginConnectionProfile)
-    {
-        $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-    }
-
-    Add-MSCloudLoginAssistantEvent -Message "Checking connection to platform {$Workload}" -Source $source
-    $authenticationParameters = @{}
-    foreach ($parameter in $PSBoundParameters.GetEnumerator())
-    {
-        if ($parameter.Key -eq 'Credential')
+        $paramDictionary = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
+        if ($Workload -eq 'ExchangeOnline')
         {
-            $authenticationParameters.Add('Credentials', $parameter.Value)
+            $parameterAttribute = [System.Management.Automation.ParameterAttribute]@{
+                Mandatory = $false
+            }
+
+            $attributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
+            $attributeCollection.Add($parameterAttribute)
+
+            $dynamicParameter = [System.Management.Automation.RuntimeDefinedParameter]::new(
+                'ExchangeOnlineCmdlets', [System.String[]], $attributeCollection
+            )
+
+            $paramDictionary.Add('ExchangeOnlineCmdlets', $dynamicParameter)
         }
-        else
+
+        if ($Workload -eq 'Azure')
         {
-            if ($parameter.Key -in @('AccessTokens', 'ApplicationId', 'ApplicationSecret', 'CertificateThumbprint', 'CertificatePath', 'CertificatePassword', 'Identity', 'Endpoints', 'TenantId', 'TenantGUID'))
-            {
-                $authenticationParameters.Add($parameter.Key, $parameter.Value)
+            $parameterAttribute = [System.Management.Automation.ParameterAttribute]@{
+                Mandatory = $false
             }
+
+            $attributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
+            $attributeCollection.Add($parameterAttribute)
+
+            $dynamicParameter = [System.Management.Automation.RuntimeDefinedParameter]::new(
+                'SubscriptionId', [System.String], $attributeCollection
+            )
+
+            $paramDictionary.Add('SubscriptionId', $dynamicParameter)
         }
-    }
-    $Script:MSCloudLoginConnectionProfile.$workloadInternalName.RequestedAuthenticationType = Get-AuthenticationTypeFromParameters -AuthenticationObject $authenticationParameters
 
-    # Only validate the parameters if we are not already connected
-    if ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
-            -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
+        return $paramDictionary
+    }
+
+    process
     {
-        Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
-        $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected = $false
-    }
+        $source = 'Connect-M365Tenant'
+        $workloadInternalName = $Workload
 
-    # Apply the parameters to the connection profile
-    foreach ($key in $authenticationParameters.Keys)
-    {
-        $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $authenticationParameters[$key]
-    }
-
-    Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript {
-        switch ($Workload)
+        if ($Workload -eq 'MicrosoftTeams')
         {
-            'AdminAPI'
+            $workloadInternalName = 'Teams'
+        }
+        elseif ($Workload -eq 'PowerPlatforms')
+        {
+            $workloadInternalName = 'PowerPlatform'
+        }
+
+        $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
+        . "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
+
+        if ($null -eq $Script:MSCloudLoginConnectionProfile)
+        {
+            $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+        }
+
+        Add-MSCloudLoginAssistantEvent -Message "Checking connection to platform {$Workload}" -Source $source
+        $authenticationParameters = @{}
+        foreach ($parameter in $PSBoundParameters.GetEnumerator())
+        {
+            if ($parameter.Key -eq 'Credential')
             {
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.Connect()
+                $authenticationParameters.Add('Credentials', $parameter.Value)
             }
-            'Azure'
+            else
             {
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId = $SubscriptionId
-                $Script:MSCloudLoginConnectionProfile.Azure.Connect()
-            }
-            'AzureDevOPS'
-            {
-                $Script:MSCloudLoginConnectionProfile.AzureDevOPS.Connect()
-            }
-            'DefenderForEndpoint'
-            {
-                $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Connect()
-            }
-            'EngageHub'
-            {
-                $Script:MSCloudLoginConnectionProfile.EngageHub.Connect()
-            }
-            'ExchangeOnline'
-            {
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
-            }
-            'Fabric'
-            {
-                $Script:MSCloudLoginConnectionProfile.Fabric.Connect()
-            }
-            'Licensing'
-            {
-                $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
-            }
-            'O365Portal'
-            {
-                $Script:MSCloudLoginConnectionProfile.O365Portal.Connect()
-            }
-            'MicrosoftGraph'
-            {
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connect()
-            }
-            'MicrosoftTeams'
-            {
-                $Script:MSCloudLoginConnectionProfile.Teams.Connect()
-            }
-            'PnP'
-            {
-                # Mark as disconnected if we are trying to connect to a different url then we previously connected to.
-                if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -or `
-                        -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -and `
-                        $Url -or (-not $Url -and -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
+                if ($parameter.Key -in @('AccessTokens', 'ApplicationId', 'ApplicationSecret', 'CertificateThumbprint', 'CertificatePath', 'CertificatePassword', 'Identity', 'Endpoints', 'TenantId', 'TenantGUID'))
                 {
-                    Add-MSCloudLoginAssistantEvent -Message "Connecting to a different connection URL. Old URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl), New URL: $Url" -Source $source
-                    $ForceRefresh = $false
-                    if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
-                        -not [System.String]::IsNullOrEmpty($url))
-                    {
-                        $ForceRefresh = $true
-                    }
-                    $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
-                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Url
-                    $Script:MSCloudLoginConnectionProfile.PnP.Connect($ForceRefresh)
+                    $authenticationParameters.Add($parameter.Key, $parameter.Value)
                 }
-                else
+            }
+        }
+        $Script:MSCloudLoginConnectionProfile.$workloadInternalName.RequestedAuthenticationType = Get-AuthenticationTypeFromParameters -AuthenticationObject $authenticationParameters
+
+        # Only validate the parameters if we are not already connected
+        if ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
+                -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
+            $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected = $false
+        }
+
+        # Apply the parameters to the connection profile
+        foreach ($key in $authenticationParameters.Keys)
+        {
+            $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $authenticationParameters[$key]
+        }
+
+        Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript {
+            switch ($Workload)
+            {
+                'AdminAPI'
                 {
-                    try
+                    $Script:MSCloudLoginConnectionProfile.AdminAPI.Connect()
+                }
+                'Azure'
+                {
+                    $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId = $SubscriptionId
+                    $Script:MSCloudLoginConnectionProfile.Azure.Connect()
+                }
+                'AzureDevOPS'
+                {
+                    $Script:MSCloudLoginConnectionProfile.AzureDevOPS.Connect()
+                }
+                'DefenderForEndpoint'
+                {
+                    $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Connect()
+                }
+                'EngageHub'
+                {
+                    $Script:MSCloudLoginConnectionProfile.EngageHub.Connect()
+                }
+                'ExchangeOnline'
+                {
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
+                }
+                'Fabric'
+                {
+                    $Script:MSCloudLoginConnectionProfile.Fabric.Connect()
+                }
+                'Licensing'
+                {
+                    $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
+                }
+                'O365Portal'
+                {
+                    $Script:MSCloudLoginConnectionProfile.O365Portal.Connect()
+                }
+                'MicrosoftGraph'
+                {
+                    $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connect()
+                }
+                'MicrosoftTeams'
+                {
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connect()
+                }
+                'PnP'
+                {
+                    # Mark as disconnected if we are trying to connect to a different url then we previously connected to.
+                    if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -or `
+                            -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -and `
+                            $Url -or (-not $Url -and -not $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl))
                     {
-                        $contextUrl = (Get-PnPContext).Url
-                        if ([System.String]::IsNullOrEmpty($url))
-                        {
-                            $Url = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
-                            if (-not $Url.EndsWith('/') -and $contextUrl.EndsWith('/'))
-                            {
-                                $Url += '/'
-                            }
-                        }
-                        if ($contextUrl -ne $Url)
+                        Add-MSCloudLoginAssistantEvent -Message "Connecting to a different connection URL. Old URL: $($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl), New URL: $Url" -Source $source
+                        $ForceRefresh = $false
+                        if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -ne $Url -and `
+                            -not [System.String]::IsNullOrEmpty($url))
                         {
                             $ForceRefresh = $true
-                            Add-MSCloudLoginAssistantEvent -Message "Connecting to a different context URL. Old URL: $contextUrl, New URL: $Url" -Source $source
-                            $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
-                            if ($url)
+                        }
+                        $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+                        $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Url
+                        $Script:MSCloudLoginConnectionProfile.PnP.Connect($ForceRefresh)
+                    }
+                    else
+                    {
+                        try
+                        {
+                            $contextUrl = (Get-PnPContext).Url
+                            if ([System.String]::IsNullOrEmpty($url))
                             {
-                                $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Url
+                                $Url = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                                if (-not $Url.EndsWith('/') -and $contextUrl.EndsWith('/'))
+                                {
+                                    $Url += '/'
+                                }
                             }
-                            else
+                            if ($contextUrl -ne $Url)
                             {
-                                $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                                $ForceRefresh = $true
+                                Add-MSCloudLoginAssistantEvent -Message "Connecting to a different context URL. Old URL: $contextUrl, New URL: $Url" -Source $source
+                                $Script:MSCloudLoginConnectionProfile.PnP.Connected = $false
+                                if ($url)
+                                {
+                                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Url
+                                }
+                                else
+                                {
+                                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl = $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                                }
+                                $Script:MSCloudLoginConnectionProfile.PnP.Connect($ForceRefresh)
                             }
-                            $Script:MSCloudLoginConnectionProfile.PnP.Connect($ForceRefresh)
+                        }
+                        catch
+                        {
+                            Write-Information -MessageData "Couldn't acquire PnP Context"
                         }
                     }
-                    catch
+
+                    # If the AdminUrl is empty and a URL was provided, assume that the url
+                    # provided is the admin center;
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl -and $Url)
                     {
-                        Write-Information -MessageData "Couldn't acquire PnP Context"
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
                     }
                 }
-
-                # If the AdminUrl is empty and a URL was provided, assume that the url
-                # provided is the admin center;
-                if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl -and $Url)
+                'PowerPlatforms'
                 {
-                    $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
+                    $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connect()
                 }
-            }
-            'PowerPlatforms'
-            {
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connect()
-            }
-            'PowerPlatformREST'
-            {
-                $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Connect()
-            }
-            'SecurityComplianceCenter'
-            {
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
-            }
-            'SharePointOnlineREST'
-            {
-                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = $Url
-                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.Connect()
-
-                # If the AdminUrl is empty and a URL was provided, assume that the url
-                # provided is the admin center;
-                if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl -and $Url)
+                'PowerPlatformREST'
                 {
-                    $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
+                    $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Connect()
                 }
-            }
-            'Tasks'
-            {
-                $Script:MSCloudLoginConnectionProfile.Tasks.Connect()
+                'SecurityComplianceCenter'
+                {
+                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
+                    $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
+                }
+                'SharePointOnlineREST'
+                {
+                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = $Url
+                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.Connect()
+
+                    # If the AdminUrl is empty and a URL was provided, assume that the url
+                    # provided is the admin center;
+                    if (-not $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl -and $Url)
+                    {
+                        $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
+                    }
+                }
+                'Tasks'
+                {
+                    $Script:MSCloudLoginConnectionProfile.Tasks.Connect()
+                }
             }
         }
     }

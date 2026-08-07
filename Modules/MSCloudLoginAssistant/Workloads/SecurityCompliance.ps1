@@ -16,18 +16,7 @@ function Connect-MSCloudLoginSecurityCompliance
     $loadedModules = Get-Module
     Add-MSCloudLoginAssistantEvent -Message "The following modules are already loaded: $loadedModules" -Source $source
 
-    $alreadyLoadedSCProxyModules = $loadedModules | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-ComplianceSearch') }
-    foreach ($loadedModule in $alreadyLoadedSCProxyModules)
-    {
-        Add-MSCloudLoginAssistantEvent -Message "Removing module {$($loadedModule.Name)} from current S+C session" -Source $source
-        # Temporarily set ErrorAction to SilentlyContinue to make sure the Remove-Module doesn't throw an error if some files are still in use.
-        # Using the ErrorAction preference parameter doesn't work because within the Remove-Module cmdlet, that preference is not passed to
-        # the underlying cmdlets.
-        $currErrorActionPreference = $ErrorActionPreference
-        $ErrorActionPreference = 'SilentlyContinue'
-        Remove-Module $loadedModule.Name -Force -Verbose:$false | Out-Null
-        $ErrorActionPreference = $currErrorActionPreference
-    }
+    Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-ComplianceSearch' -Source $source
 
     [array]$activeSessions = Get-PSSession | Where-Object -FilterScript { $_.ComputerName -like '*ps.compliance.protection*' -and $_.State -eq 'Opened' }
 
@@ -41,8 +30,8 @@ function Connect-MSCloudLoginSecurityCompliance
         Add-MSCloudLoginAssistantEvent -Message "Imported session into $ProxyModule" -Source $source
         Import-Module $ProxyModule -Global `
             -Verbose:$false | Out-Null
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
-        Add-MSCloudLoginAssistantEvent 'Reloaded the Security & Compliance Module' -Source $source
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication)
+        Add-MSCloudLoginAssistantEvent -Message 'Reloaded the Security & Compliance Module' -Source $source
         return
     }
     Add-MSCloudLoginAssistantEvent -Message 'No Active Connections to Security & Compliance were found.' -Source $source
@@ -67,7 +56,8 @@ function Connect-MSCloudLoginSecurityCompliance
         catch
         {
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
-            throw $_
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Certificate Thumbprint: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
         }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'ServicePrincipalWithPath')
@@ -89,7 +79,8 @@ function Connect-MSCloudLoginSecurityCompliance
         catch
         {
             $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
-            throw $_
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Certificate Path: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
         }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'CredentialsWithTenantId')
@@ -110,8 +101,17 @@ function Connect-MSCloudLoginSecurityCompliance
         }
         catch
         {
-            Add-MSCloudLoginAssistantEvent -Message "Could not connect connect IPPSSession with Credentials & TenantId: {$($_.Exception)}" -Source $source
-            Connect-MSCloudLoginSecurityComplianceMFA -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId
+            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Could not connect IPPSSession with Credentials & TenantId, account requires MFA: {$($_.Exception.Message)}" -Source $source
+                Connect-MSCloudLoginSecurityComplianceMFA -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId
+            }
+            else
+            {
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Credentials & TenantId: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                throw
+            }
         }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'AccessTokens')
@@ -134,7 +134,7 @@ function Connect-MSCloudLoginSecurityCompliance
             -ErrorAction Stop | Out-Null
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
     }
-    else
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Credentials')
     {
         try
         {
@@ -149,9 +149,22 @@ function Connect-MSCloudLoginSecurityCompliance
         }
         catch
         {
-            Add-MSCloudLoginAssistantEvent -Message "Could not connect connect IPPSSession with Credentials: {$($_.Exception)}" -Source $source -EntryType Error
-            Connect-MSCloudLoginSecurityComplianceMFA
+            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Could not connect IPPSSession with Credentials, account requires MFA: {$($_.Exception.Message)}" -Source $source
+                Connect-MSCloudLoginSecurityComplianceMFA
+            }
+            else
+            {
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Credentials: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                throw
+            }
         }
+    }
+    else
+    {
+        throw "Authentication type '$($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType)' is not supported for workload 'SecurityComplianceCenter'."
     }
 
     $Script:MSCloudLoginCurrentLoadedModule = 'SC'
@@ -198,7 +211,8 @@ function Connect-MSCloudLoginSecurityComplianceMFA
     catch
     {
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
-        throw $_
+        Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance using MFA: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+        throw
     }
 }
 

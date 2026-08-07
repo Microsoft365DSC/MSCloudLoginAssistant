@@ -2,7 +2,9 @@ $Script:WriteToEventLog = ([Environment]::GetEnvironmentVariable('MSCLOUDLOGINAS
                           ($env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true')
 
 $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\CustomEnvironment.psd1"
+$Script:LoadedCustomEnvFileName = 'CustomEnvironment.psd1'
 . "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
+. "$PSScriptRoot\Helpers.ps1"
 
 $privateModules = Get-ChildItem -Path "$PSScriptRoot\Workloads" -Filter '*.ps1' -Recurse
 foreach ($module in $privateModules)
@@ -275,8 +277,14 @@ function Connect-M365Tenant
             $workloadInternalName = 'PowerPlatform'
         }
 
-        $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
-        . "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
+        # Only (re)load the custom environment configuration when it changed. The classes in
+        # ConnectionProfile.ps1 read $Script:CustomEnvConfig at runtime, so re-dot-sourcing
+        # the file on every call is unnecessary and would re-declare all classes each time.
+        if ($null -eq $Script:CustomEnvConfig -or $Script:LoadedCustomEnvFileName -ne $CustomEnvironmentFileName)
+        {
+            $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
+            $Script:LoadedCustomEnvFileName = $CustomEnvironmentFileName
+        }
 
         if ($null -eq $Script:MSCloudLoginConnectionProfile)
         {
@@ -287,6 +295,11 @@ function Connect-M365Tenant
         $authenticationParameters = @{}
         foreach ($parameter in $PSBoundParameters.GetEnumerator())
         {
+            # Never propagate null or empty values onto the connection profile.
+            if (Test-MSCloudLoginParameterValueEmpty -Value $parameter.Value)
+            {
+                continue
+            }
             if ($parameter.Key -eq 'Credential')
             {
                 $authenticationParameters.Add('Credentials', $parameter.Value)
@@ -299,20 +312,34 @@ function Connect-M365Tenant
                 }
             }
         }
-        $Script:MSCloudLoginConnectionProfile.$workloadInternalName.RequestedAuthenticationType = Get-AuthenticationTypeFromParameters -AuthenticationObject $authenticationParameters
 
-        # Only validate the parameters if we are not already connected
-        if ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
-                -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
+        # Internal re-entrant calls (e.g. Get-SPOAdminUrl) pass no authentication parameters at all.
+        # If the workload is already connected, reuse the session instead of deriving an
+        # 'Interactive' authentication type and forcing a reconnect.
+        $authInfluencingKeys = @('Credentials', 'ApplicationId', 'ApplicationSecret', 'CertificateThumbprint',
+            'CertificatePath', 'CertificatePassword', 'Identity', 'AccessTokens')
+        $hasAuthParameters = @($authenticationParameters.Keys | Where-Object { $_ -in $authInfluencingKeys }).Count -gt 0
+        if ($hasAuthParameters -or -not $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected)
         {
-            Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
-            $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected = $false
+            $Script:MSCloudLoginConnectionProfile.$workloadInternalName.RequestedAuthenticationType = Get-AuthenticationTypeFromParameters -AuthenticationObject $authenticationParameters
+
+            # Only validate the parameters if we are not already connected
+            if ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
+                    -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
+                $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected = $false
+            }
         }
 
-        # Apply the parameters to the connection profile
-        foreach ($key in $authenticationParameters.Keys)
+        # Apply the parameters to the connection profile, but only when a (re)connect is about
+        # to happen. This keeps the invariant that the profile describes the live session.
+        if (-not $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected)
         {
-            $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $authenticationParameters[$key]
+            foreach ($key in $authenticationParameters.Keys)
+            {
+                $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $authenticationParameters[$key]
+            }
         }
 
         Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript {
@@ -413,7 +440,7 @@ function Connect-M365Tenant
                         }
                         catch
                         {
-                            Write-Information -MessageData "Couldn't acquire PnP Context"
+                            Add-MSCloudLoginAssistantEvent -Message "Couldn't acquire PnP Context to evaluate a URL change: $($_.Exception.Message)" -Source $source -EntryType 'Warning'
                         }
                     }
 
@@ -579,15 +606,18 @@ function Reset-MSCloudLoginConnectionProfileContext
         $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method -ErrorAction SilentlyContinue)
         if ($disconnectExists)
         {
-            $disconnectExists = $null -ne ($Script:MSCloudLoginConnectionProfile.$workloadToReset | Get-Member -Name 'Disconnect' -MemberType Method)
-            if ($disconnectExists)
+            try
             {
                 $Script:MSCloudLoginConnectionProfile.$workloadToReset.Disconnect()
             }
-            else
+            catch
             {
-                Add-MSCloudLoginAssistantEvent -Message "No disconnect method found for workload {$workloadToReset}. Operation ignored." -Source $source
+                Add-MSCloudLoginAssistantEvent -Message "Failed to disconnect workload {$workloadToReset}: $($_.Exception.Message)" -Source $source -EntryType 'Error'
             }
+        }
+        else
+        {
+            Add-MSCloudLoginAssistantEvent -Message "No disconnect method found for workload {$workloadToReset}. Operation ignored." -Source $source
         }
     }
 
@@ -625,6 +655,15 @@ function Add-MSCloudLoginAssistantEvent
         [System.UInt32]
         $EventID = 1
     )
+
+    if ($EntryType -eq 'Error')
+    {
+        Write-Verbose -Message "ERROR: [$Source] $Message"
+    }
+    else
+    {
+        Write-Verbose -Message "[$Source] $Message"
+    }
 
     if (-not $Script:WriteToEventLog)
     {
@@ -702,52 +741,37 @@ function Add-MSCloudLoginAssistantEvent
 #>
 function Compare-InputParametersForChange
 {
+    [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param (
         [Parameter()]
         [System.Collections.Hashtable]
         $CurrentParamSet
     )
 
-    $currentParameters = $currentParamSet
     $source = 'Compare-InputParametersForChange'
 
-    if ($null -ne $currentParameters['Credential'].UserName)
+    if ($null -eq $Script:MSCloudLoginConnectionProfile)
     {
-        $currentParameters.Add('UserName', $currentParameters['Credential'].UserName)
+        return $true
     }
-    $currentParameters.Remove('Credential') | Out-Null
-    $currentParameters.Remove('CmdletsToLoad') | Out-Null
-    $currentParameters.Remove('UseModernAuth') | Out-Null
-    $currentParameters.Remove('ProfileName') | Out-Null
-    $currentParameters.Remove('Verbose') | Out-Null
-    $currentParameters.Remove('ErrorAction') | Out-Null
 
-    $globalParameters = @{}
-    $workloadProfile = $Script:MSCloudLoginConnectionProfile
+    if ($null -eq $CurrentParamSet)
+    {
+        $CurrentParamSet = @{}
+    }
 
+    $workload = $CurrentParamSet['Workload']
+    $workloadInternalName = switch ($workload)
+    {
+        'MicrosoftTeams' { 'Teams' }
+        'PowerPlatforms' { 'PowerPlatform' }
+        default { $workload }
+    }
+    $workloadProfile = $Script:MSCloudLoginConnectionProfile.$workloadInternalName
     if ($null -eq $workloadProfile)
     {
-        # No Workload profile yet, so we need to connect
-        # This should not happen, but just in case
-        # We are not able to detect a change, so we return $false
-        return $false
-    }
-    else
-    {
-        $workload = $currentParameters['Workload']
-        if ($Workload -eq 'MicrosoftTeams')
-        {
-            $workloadInternalName = 'Teams'
-        }
-        elseif ($Workload -eq 'PowerPlatforms')
-        {
-            $workloadInternalName = 'PowerPlatform'
-        }
-        else
-        {
-            $workloadInternalName = $workload
-        }
-        $workloadProfile = $Script:MSCloudLoginConnectionProfile.$workloadInternalName
+        return $true
     }
 
     if ($workloadProfile.RequestedAuthenticationType -ne $workloadProfile.AuthenticationType)
@@ -757,139 +781,126 @@ function Compare-InputParametersForChange
         return $true
     }
 
-    # Clean the global Params
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.TenantId))
+    $desired = @{}
+    foreach ($entry in $CurrentParamSet.GetEnumerator())
     {
-        $globalParameters.Add('TenantId', $workloadProfile.TenantId)
-    }
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.Credentials.UserName))
-    {
-        $globalParameters.Add('UserName', $workloadProfile.Credentials.UserName)
-
-        # If the tenant id is part of the username, we need to remove it from the global parameters
-        # and the current parameters, otherwise it would report as a drift
-        if ($workloadInternalName -eq 'MicrosoftGraph' `
-                -and $globalParameters.ContainsKey('TenantId') `
-                -and $globalParameters.TenantId -eq $workloadProfile.Credentials.UserName.Split('@')[1])
+        switch ($entry.Key)
         {
-            $currentParameters.Remove('TenantId') | Out-Null
-            $globalParameters.Remove('TenantId') | Out-Null
+            'Credential'
+            {
+                $desired['Credentials'] = $entry.Value
+            }
+            'ExchangeOnlineCmdlets'
+            {
+                $desired['CmdletsToLoad'] = $entry.Value
+            }
+            'Url'
+            {
+                $desired['ConnectionUrl'] = $entry.Value
+            }
+            { $_ -in @('ApplicationId', 'TenantId', 'TenantGUID', 'ApplicationSecret',
+                    'CertificateThumbprint', 'CertificatePath', 'CertificatePassword',
+                    'Identity', 'AccessTokens', 'Endpoints', 'SubscriptionId',
+                    'EnableSearchOnlySession') }
+            {
+                $desired[$entry.Key] = $entry.Value
+            }
+            # Everything else (Workload, UseModernAuth, CustomEnvironmentFileName, SkipModuleReload,
+            # common parameters, ...) is intentionally not compared.
         }
     }
-    if ($workloadInternalName -eq 'PNP' -and $currentParameters.ContainsKey('Url') -and `
-        -not [System.String]::IsNullOrEmpty($currentParameters.Url))
-    {
-        $globalParameters.Add('Url', $workloadProfile.ConnectionUrl)
-    }
-    if ($null -ne $workloadProfile.ExchangeOnlineCmdlets)
-    {
-        $globalParameters.Add('ExchangeOnlineCmdlets', $ExchangeOnlineCmdlets)
-    }
 
-    # This is the global graph application id. If it is something different, it means that we should compare the parameters
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.ApplicationId) `
-            -and -not($workloadInternalName -eq 'MicrosoftGraph' -and $workloadProfile.ApplicationId -eq '14d82eec-204b-4c2f-b7e8-296a70dab67e'))
+    # Active state: the same canonical keys, read from the workload profile.
+    $active = @{}
+    foreach ($key in @('Credentials', 'ApplicationId', 'TenantId', 'TenantGUID', 'ApplicationSecret',
+            'CertificateThumbprint', 'CertificatePath', 'CertificatePassword',
+            'Identity', 'AccessTokens', 'Endpoints'))
     {
-        $globalParameters.Add('ApplicationId', $workloadProfile.ApplicationId)
+        $active[$key] = $workloadProfile.$key
     }
-
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.ApplicationSecret))
+    switch ($workloadInternalName)
     {
-        $globalParameters.Add('ApplicationSecret', $workloadProfile.ApplicationSecret)
-    }
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.CertificateThumbprint))
-    {
-        $globalParameters.Add('CertificateThumbprint', $workloadProfile.CertificateThumbprint)
-    }
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.CertificatePassword))
-    {
-        $globalParameters.Add('CertificatePassword', $workloadProfile.CertificatePassword)
-    }
-    if (-not [System.String]::IsNullOrEmpty($workloadProfile.CertificatePath))
-    {
-        $globalParameters.Add('CertificatePath', $workloadProfile.CertificatePath)
-    }
-    if ($workloadProfile.Identity)
-    {
-        $globalParameters.Add('Identity', $workloadProfile.Identity)
-    }
-    if ($workloadProfile.AccessTokens)
-    {
-        $globalParameters.Add('AccessTokens', $workloadProfile.AccessTokens)
-    }
-    if ($workloadInternalName -ne 'SecurityComplianceCenter')
-    {
-        $currentParameters.Remove('EnableSearchOnlySession') | Out-Null
-    }
-    if ($null -ne $workloadProfile.EnableSearchOnlySession)
-    {
-        $globalParameters.Add('EnableSearchOnlySession', $workloadProfile.EnableSearchOnlySession)
-        if (-not $currentParameters.ContainsKey('EnableSearchOnlySession'))
+        'Azure'
         {
-            $currentParameters.Add('EnableSearchOnlySession', $false)
+            $active['SubscriptionId'] = $workloadProfile.SubscriptionId
+        }
+        'ExchangeOnline'
+        {
+            $active['CmdletsToLoad'] = $workloadProfile.CmdletsToLoad
+        }
+        'SecurityComplianceCenter'
+        {
+            $active['EnableSearchOnlySession'] = $workloadProfile.EnableSearchOnlySession
+        }
+        { $_ -in @('PnP', 'SharePointOnlineREST') }
+        {
+            $active['ConnectionUrl'] = $workloadProfile.ConnectionUrl
         }
     }
-    if ($null -ne $workloadProfile.SubscriptionId)
+
+    # Workload specific normalization to prevent false positives for the common
+    # credentials-only Microsoft Graph connection pattern.
+    if ($workloadInternalName -eq 'MicrosoftGraph')
     {
-        $globalParameters.Add('SubscriptionId', $workloadProfile.SubscriptionId)
+        if ($active['ApplicationId'] -eq '14d82eec-204b-4c2f-b7e8-296a70dab67e' -and `
+                [System.String]::IsNullOrEmpty($desired['ApplicationId']))
+        {
+            # The default Microsoft Graph PowerShell app id is injected by the module itself.
+            $active.Remove('ApplicationId')
+        }
+        if ($null -ne $active['Credentials'] -and `
+                [System.String]::IsNullOrEmpty($desired['TenantId']) -and `
+                $active['TenantId'] -eq ($active['Credentials'].UserName -split '@')[1])
+        {
+            # The TenantId was inferred from the credential UPN suffix.
+            $active.Remove('TenantId')
+        }
     }
 
-    # Clean the current parameters
-    # Remove the workload, as we don't need to compare that
-    $currentParameters.Remove('Workload') | Out-Null
-
-    if ([System.String]::IsNullOrEmpty($currentParameters.ApplicationId))
+    # Drop empty values so that absent / $null / '' / @() / $false are all equivalent on both sides.
+    foreach ($table in @($desired, $active))
     {
-        $currentParameters.Remove('ApplicationId') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.TenantId))
-    {
-        $currentParameters.Remove('TenantId') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.ApplicationSecret))
-    {
-        $currentParameters.Remove('ApplicationSecret') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.CertificateThumbprint))
-    {
-        $currentParameters.Remove('CertificateThumbprint') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.CertificatePassword))
-    {
-        $currentParameters.Remove('CertificatePassword') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.CertificatePath))
-    {
-        $currentParameters.Remove('CertificatePath') | Out-Null
-    }
-    if ($currentParameters.ContainsKey('Identity') -and -not ($currentParameters.Identity))
-    {
-        $currentParameters.Remove('Identity') | Out-Null
-    }
-    if ([System.String]::IsNullOrEmpty($currentParameters.Url))
-    {
-        $currentParameters.Remove('Url') | Out-Null
+        foreach ($key in @($table.Keys))
+        {
+            if (Test-MSCloudLoginParameterValueEmpty -Value $table[$key])
+            {
+                $table.Remove($key)
+            }
+        }
     }
 
-    if ($null -ne $globalParameters)
+    # Key-wise comparison over the union of keys: a key that is present on only one side counts as a change.
+    $changedKeys = [System.Collections.Generic.List[string]]::new()
+    $allKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($key in $desired.Keys)
     {
-        # Only check the keys that exist in both hashtables because the authentication method is guaranteed to be the same
-        $keysToCheck = Compare-Object -ReferenceObject @($currentParameters.Keys) -DifferenceObject @($globalParameters.Keys) -PassThru -ExcludeDifferent -IncludeEqual
-        $currentValues = @()
-        $currentParameters.GetEnumerator() | Where-Object { $keysToCheck -contains $_.Key } | ForEach-Object { if ($null -ne $_.Value) { $currentValues += $_.Value } }
-        $globalValues = @()
-        $globalParameters.GetEnumerator() | Where-Object { $keysToCheck -contains $_.Key } | ForEach-Object { if ($null -ne $_.Value) { $globalValues += $_.Value } }
-        $diffValues = Compare-Object -ReferenceObject $currentValues -DifferenceObject $globalValues -PassThru
+        $null = $allKeys.Add($key)
+    }
+    foreach ($key in $active.Keys)
+    {
+        $null = $allKeys.Add($key)
     }
 
-    if ($null -eq $diffValues)
+    foreach ($key in $allKeys)
+    {
+        if ($desired.ContainsKey($key) -ne $active.ContainsKey($key))
+        {
+            $changedKeys.Add($key)
+        }
+        elseif (-not (Test-MSCloudLoginParameterValueEqual -KeyName $key -Left $desired[$key] -Right $active[$key]))
+        {
+            $changedKeys.Add($key)
+        }
+    }
+
+    if ($changedKeys.Count -eq 0)
     {
         # no differences were found
         return $false
     }
 
-    # We found differences, so we need to connect
-    Add-MSCloudLoginAssistantEvent -Message "Found differences in parameters: $diffKeys, with values: $($diffValues | ConvertTo-Json)" -Source $source
+    # SECURITY: only the NAMES of the changed parameters are logged, never their values.
+    Add-MSCloudLoginAssistantEvent -Message "Authentication parameters changed for workload {$workloadInternalName}: $($changedKeys -join ', ')" -Source $source
     return $true
 }
 
@@ -907,26 +918,36 @@ function Get-SPOAdminUrl
     $source = 'Get-SPOAdminUrl'
     Add-MSCloudLoginAssistantEvent -Message 'Connection to Microsoft Graph is required to automatically determine SharePoint Online admin URL...' -Source $source
 
+    # Only pass the credential through when one was actually provided, otherwise the
+    # re-entrant Connect-M365Tenant call would be treated as an 'Interactive' request.
+    $graphConnectParams = @{
+        Workload = 'MicrosoftGraph'
+    }
+    if ($null -ne $Credential)
+    {
+        $graphConnectParams['Credential'] = $Credential
+    }
+
     try
     {
         $result = Invoke-MgGraphRequest -Uri '/v1.0/sites/root' -ErrorAction SilentlyContinue
         $weburl = $result.webUrl
         if (-not $weburl)
         {
-            Connect-M365Tenant -Workload 'MicrosoftGraph' -Credential $Credential
+            Connect-M365Tenant @graphConnectParams
             $weburl = (Invoke-MgGraphRequest -Uri '/v1.0/sites/root').webUrl
         }
     }
     catch
     {
-        Connect-M365Tenant -Workload 'MicrosoftGraph' -Credential $Credential
+        Connect-M365Tenant @graphConnectParams
         try
         {
             $weburl = (Invoke-MgGraphRequest -Uri /v1.0/sites/root).webUrl
         }
         catch
         {
-            if (Assert-IsNonInteractiveShell -eq $false)
+            if ((Assert-IsNonInteractiveShell) -eq $false)
             {
                 # Only run interactive command when Exporting
                 Add-MSCloudLoginAssistantEvent -Message 'Requesting access to read information about the domain' -Source $source
@@ -985,114 +1006,17 @@ function Get-MSCloudLoginAccessToken
     try
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-        $certificate = Get-Item "Cert:\CurrentUser\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-        if ($null -eq $certificate)
-        {
-            Add-MSCloudLoginAssistantEvent 'Certificate not found in CurrentUser\My' -Source $source
-            $certificate = Get-ChildItem "Cert:\LocalMachine\My\$($CertificateThumbprint)" -ErrorAction SilentlyContinue
-            if ($null -eq $certificate)
-            {
-                throw 'Certificate not found in LocalMachine\My'
-            }
-        }
-        # Create base64 hash of certificate
-        $CertificateBase64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
-
-        # Create JWT timestamp for expiration
-        $StartDate = (Get-Date '1970-01-01T00:00:00Z' ).ToUniversalTime()
-        $JWTExpirationTimeSpan = (New-TimeSpan -Start $StartDate -End (Get-Date).ToUniversalTime().AddMinutes(2)).TotalSeconds
-        $JWTExpiration = [math]::Round($JWTExpirationTimeSpan, 0)
-
-        # Create JWT validity start timestamp
-        $NotBeforeExpirationTimeSpan = (New-TimeSpan -Start $StartDate -End ((Get-Date).ToUniversalTime())).TotalSeconds
-        $NotBefore = [math]::Round($NotBeforeExpirationTimeSpan, 0)
-
-        # Create JWT header
-        $JWTHeader = @{
-            alg = 'RS256'
-            typ = 'JWT'
-            # Use the CertificateBase64Hash and replace/strip to match web encoding of base64
-            x5t = $CertificateBase64Hash -replace '\+', '-' -replace '/', '_' -replace '='
-        }
-
-        # Create JWT payload
-        $JWTPayLoad = @{
-            # What endpoint is allowed to use this JWT
-            aud = $AzureADAuthorizationEndpointUri
-
-            # Expiration timestamp
-            exp = $JWTExpiration
-
-            # Issuer = your application
-            iss = $ApplicationId
-
-            # JWT ID: random guid
-            jti = [guid]::NewGuid()
-
-            # Not to be used before
-            nbf = $NotBefore
-
-            # JWT Subject
-            sub = $ApplicationId
-        }
-
-        # Convert header and payload to base64
-        $JWTHeaderToByte = [System.Text.Encoding]::UTF8.GetBytes(($JWTHeader | ConvertTo-Json))
-        $EncodedHeader = [System.Convert]::ToBase64String($JWTHeaderToByte)
-
-        $JWTPayLoadToByte = [System.Text.Encoding]::UTF8.GetBytes(($JWTPayload | ConvertTo-Json))
-        $EncodedPayload = [System.Convert]::ToBase64String($JWTPayLoadToByte)
-
-        # Join header and Payload with "." to create a valid (unsigned) JWT
-        $JWT = $EncodedHeader + '.' + $EncodedPayload
-
-        # Get the private key object of your certificate
-        $PrivateKey = ([System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($Certificate))
-
-        # Define RSA signature and hashing algorithm
-        $RSAPadding = [Security.Cryptography.RSASignaturePadding]::Pkcs1
-        $HashAlgorithm = [Security.Cryptography.HashAlgorithmName]::SHA256
-
-        # Create a signature of the JWT
-        $Signature = [Convert]::ToBase64String(
-            $PrivateKey.SignData([System.Text.Encoding]::UTF8.GetBytes($JWT), $HashAlgorithm, $RSAPadding)
-        ) -replace '\+', '-' -replace '/', '_' -replace '='
-
-        # Join the signature to the JWT with "."
-        $JWT = $JWT + '.' + $Signature
-
-        # Create a hash with body parameters
-        $Body = @{
-            client_id             = $ApplicationId
-            client_assertion      = $JWT
-            client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
-            scope                 = $ConnectionUri
-            grant_type            = 'client_credentials'
-        }
-
-        $Url = $AzureADAuthorizationEndpointUri
-
-        # Use the self-generated JWT as Authorization
-        $Header = @{
-            Authorization = "Bearer $JWT"
-        }
-
-        # Splat the parameters for Invoke-Restmethod for cleaner code
-        $PostSplat = @{
-            ContentType = 'application/x-www-form-urlencoded'
-            Method      = 'POST'
-            Body        = $Body
-            Uri         = $Url
-            Headers     = $Header
-        }
-
-        $Request = Invoke-RestMethod @PostSplat
-        return $Request.access_token
+        $response = Get-AuthToken -TokenEndpoint $AzureADAuthorizationEndpointUri `
+            -Scope $ConnectionUri `
+            -ClientId $ApplicationId `
+            -TenantId $TenantId `
+            -CertificateThumbprint $CertificateThumbprint
+        return $response.access_token
     }
     catch
     {
         Add-MSCloudLoginAssistantEvent -Message $_ -Source $source -EntryType Error
-        throw $_
+        throw
     }
 }
 
@@ -1129,35 +1053,28 @@ function Get-CloudEnvironmentInfo
     $source = 'Get-CloudEnvironmentInfo'
     Add-MSCloudLoginAssistantEvent -Message 'Retrieving Environment Details' -Source $source
 
-    try
+    if ($null -ne $Credentials)
     {
-        if ($null -ne $Credentials)
-        {
-            $tenantName = $Credentials.UserName.Split('@')[1]
-        }
-        elseif (-not [string]::IsNullOrEmpty($TenantId))
-        {
-            $tenantName = $TenantId
-        }
-        elseif ($Identity.IsPresent)
-        {
-            return
-        }
-        else
-        {
-            throw 'TenantId or Credentials must be provided'
-        }
-        ## endpoint will work with TenantId or tenantName
-        $response = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing
+        $tenantName = Get-MSCloudLoginTenantDomainFromCredentials -Credentials $Credentials
+    }
+    elseif (-not [string]::IsNullOrEmpty($TenantId))
+    {
+        $tenantName = $TenantId
+    }
+    elseif ($Identity.IsPresent)
+    {
+        return
+    }
+    else
+    {
+        throw 'TenantId or Credentials must be provided'
+    }
+    ## endpoint will work with TenantId or tenantName
+    $response = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing
 
-        $content = $response.Content
-        $result = ConvertFrom-Json $content
-        return $result
-    }
-    catch
-    {
-        throw $_
-    }
+    $content = $response.Content
+    $result = ConvertFrom-Json $content
+    return $result
 }
 
 function Get-MSCloudLoginOrganizationName
@@ -1188,6 +1105,7 @@ function Get-MSCloudLoginOrganizationName
         $AccessTokens
     )
 
+    $source = 'Get-MSCloudLoginOrganizationName'
     try
     {
         if (-not [string]::IsNullOrEmpty($ApplicationId) -and -not [System.String]::IsNullOrEmpty($CertificateThumbprint))
@@ -1215,7 +1133,12 @@ function Get-MSCloudLoginOrganizationName
     }
     catch
     {
-        Add-MSCloudLoginAssistantEvent -Message "Couldn't get domain. Using TenantId instead" -Source $source
+        if ([System.String]::IsNullOrEmpty($TenantId))
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Couldn't get domain and no TenantId was provided as fallback: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
+        Add-MSCloudLoginAssistantEvent -Message "Couldn't get domain ($($_.Exception.Message)). Using TenantId instead" -Source $source
         return $TenantId
     }
 }
@@ -1307,7 +1230,11 @@ function Get-AuthToken {
 
         [Parameter()]
         [System.String]
-        $Scope
+        $Scope,
+
+        [Parameter()]
+        [System.String]
+        $TokenEndpoint
     )
 
     if ($Identity.IsPresent) {
@@ -1333,7 +1260,9 @@ function Get-AuthToken {
             $secretFile = ''
             try
             {
-                Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{
+                # This request is expected to fail with a 401 whose WWW-Authenticate header
+                # points at the secret file used for the authenticated retry below.
+                $null = Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{
                     Metadata = $true
                 } -UseBasicParsing
             }
@@ -1346,6 +1275,10 @@ function Get-AuthToken {
                 }
             }
 
+            if ([System.String]::IsNullOrEmpty($secretFile))
+            {
+                throw "Unable to determine the Azure Arc managed identity secret file: the challenge request to '$endpoint' did not return the expected WWW-Authenticate header."
+            }
             $secret = Get-Content -Raw $secretFile
             $response = Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{
                 Metadata = $true
@@ -1369,7 +1302,10 @@ function Get-AuthToken {
     }
 
     $useResource = $PSBoundParameters.ContainsKey('Resource') -and $Resource
-    if ($useResource) {
+    if (-not [System.String]::IsNullOrEmpty($TokenEndpoint)) {
+        # Custom environments provide the full token endpoint directly.
+        $tokenEndpoint = $TokenEndpoint
+    } elseif ($useResource) {
         $tokenEndpoint = "$AuthorizationUrl/$TenantId/oauth2/token"
     } else {
         $tokenEndpoint = "$AuthorizationUrl/$TenantId/oauth2/v2.0/token"
@@ -1377,25 +1313,11 @@ function Get-AuthToken {
 
     if ($ClientSecret -or $CertificatePath -or $CertificateThumbprint) {
         if ($CertificatePath) {
-            if (Test-Path $CertificatePath) {
-                if ($CertificatePassword) {
-                    $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $CertificatePath), $CertificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
-                } else {
-                    $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $CertificatePath))
-                }
-            } else {
-                throw "Certificate path '$CertificatePath' not found"
-            }
+            $certificate = Get-MSCloudLoginCertificate -CertificatePath $CertificatePath -CertificatePassword $CertificatePassword
         }
 
         if ($CertificateThumbprint) {
-            $certificate = Get-Item "Cert:\CurrentUser\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
-            if ($null -eq $certificate) {
-                $certificate = Get-Item "Cert:\LocalMachine\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
-                if ($null -eq $certificate) {
-                    throw "Certificate with thumbprint '$CertificateThumbprint' not found in LocalMachine\My nor CurrentUser\My"
-                }
-            }
+            $certificate = Get-MSCloudLoginCertificate -CertificateThumbprint $CertificateThumbprint
         }
 
         if ($useResource) {
@@ -1422,8 +1344,8 @@ function Get-AuthToken {
             }
 
             if ($CertificateThumbprint -or $CertificatePath) {
-                $base64Hash = [System.Convert]::ToBase64String($certificate.GetCertHash())
-                $header.Add('x5t', $base64Hash)
+                # RFC 7515 4.1.7: x5t is the base64url encoding of the certificate's SHA-1 hash.
+                $header.Add('x5t', (ConvertTo-Base64Url -Bytes $certificate.GetCertHash()))
             }
             $payload = @{
                 aud = $tokenEndpoint
@@ -1523,6 +1445,19 @@ function Get-AuthToken {
             try {
                 $result = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body $pollBody -ContentType 'application/x-www-form-urlencoded'
             } catch {
+                # Keep polling only while authorization is still pending. Terminal OAuth errors
+                # (access_denied, expired_token, invalid_client, ...) must surface immediately
+                # instead of timing out after 5 minutes with a misleading message.
+                $oauthError = $null
+                try {
+                    $oauthError = ($_.ErrorDetails.Message | ConvertFrom-Json).error
+                } catch {
+                    # Not an OAuth error payload (e.g. a network failure) - treat as terminal.
+                    $oauthError = $null
+                }
+                if ($oauthError -notin @('authorization_pending', 'slow_down')) {
+                    throw
+                }
                 $result = $null
             }
         } while ($null -eq $result)
@@ -1545,23 +1480,27 @@ function Get-AuthToken {
     $listener.Prefixes.Add($redirectUri)
     $listener.Start()
     try {
-        if ($IsWindows) {
-            Start-Process $authorizeUrl
-        } else {
-            return
+        try {
+            if ($IsWindows) {
+                Start-Process $authorizeUrl
+            } else {
+                Write-Host "Open $authorizeUrl in your browser to authenticate"
+            }
+        } catch {
+            Write-Verbose "Unable to automatically open browser: $($_.Exception.Message)"
+            Write-Host "Open $authorizeUrl in your browser to authenticate"
         }
-    } catch {
-        Write-Verbose "Unable to automatically open browser: $($_.Exception.Message)"
-        Write-Host "Open $authorizeUrl in your browser to authenticate"
+        $context = $listener.GetContext()
+        $query = [System.Web.HttpUtility]::ParseQueryString($context.Request.Url.Query)
+        $code = $query['code']
+        $responseBytes = [System.Text.Encoding]::UTF8.GetBytes('<html><body>You may close this window.</body></html>')
+        $context.Response.ContentLength64 = $responseBytes.Length
+        $context.Response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
+        $context.Response.OutputStream.Close()
+    } finally {
+        $listener.Stop()
+        $listener.Close()
     }
-    $context = $listener.GetContext()
-    $query = [System.Web.HttpUtility]::ParseQueryString($context.Request.Url.Query)
-    $code = $query['code']
-    $responseBytes = [System.Text.Encoding]::UTF8.GetBytes('<html><body>You may close this window.</body></html>')
-    $context.Response.ContentLength64 = $responseBytes.Length
-    $context.Response.OutputStream.Write($responseBytes, 0, $responseBytes.Length)
-    $context.Response.OutputStream.Close()
-    $listener.Stop()
 
     $body = @{
         client_id     = $ClientId
@@ -1571,9 +1510,9 @@ function Get-AuthToken {
         redirect_uri  = $redirectUri
         code_verifier = $codeVerifier
     }
-    Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body $body -ContentType 'application/x-www-form-urlencoded'
+    $response = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body $body -ContentType 'application/x-www-form-urlencoded'
 
-    return $response.access_token
+    return $response
 }
 
 <#
@@ -1595,9 +1534,6 @@ function Get-AuthToken {
 .PARAMETER Scope
     The OAuth scope to request (for v2.0 endpoints).
 
-.PARAMETER Resource
-    The OAuth resource to request (for v1.0 endpoints). Either Scope or Resource should be provided.
-
 .PARAMETER ClientId
     The client/application ID for delegated auth flows.
 
@@ -1608,7 +1544,7 @@ function Get-AuthToken {
     Number of minutes before token expiration to trigger renewal. Default is 50.
 
 .EXAMPLE
-    Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl $authUrl -Resource $resource -ClientId $clientId
+    Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl $authUrl -Scope $scope -ClientId $clientId
 #>
 function Connect-MSCloudLoginRESTWorkload
 {
@@ -1625,10 +1561,6 @@ function Connect-MSCloudLoginRESTWorkload
         [Parameter()]
         [System.String]
         $Scope,
-
-        [Parameter()]
-        [System.String]
-        $Resource,
 
         [Parameter()]
         [System.String]
@@ -1651,19 +1583,11 @@ function Connect-MSCloudLoginRESTWorkload
     $authType = $workloadProfile.AuthenticationType
 
     # Token expiration check for applicable auth types
-    if ($workloadProfile.Connected)
+    if (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile `
+            -TokenExpirationMinutes $TokenExpireCheckMinutes `
+            -Source $source)
     {
-        $tokenBasedAuthTypes = @('ServicePrincipalWithSecret', 'Identity')
-        if ($authType -in $tokenBasedAuthTypes -and `
-            (Get-Date -Date $workloadProfile.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-$TokenExpireCheckMinutes))
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
-            $workloadProfile.Connected = $false
-        }
-        else
-        {
-            return
-        }
+        return
     }
 
     # Validate authentication method is supported
@@ -1678,7 +1602,7 @@ function Connect-MSCloudLoginRESTWorkload
         $tenantId = $workloadProfile.TenantId
         if ([System.String]::IsNullOrEmpty($tenantId) -and $null -ne $workloadProfile.Credentials)
         {
-            $tenantId = $workloadProfile.Credentials.UserName.Split('@')[1]
+            $tenantId = Get-MSCloudLoginTenantDomainFromCredentials -Credentials $workloadProfile.Credentials
         }
 
         $accessToken = $null
@@ -1694,15 +1618,7 @@ function Connect-MSCloudLoginRESTWorkload
                     Credentials      = $workloadProfile.Credentials
                     TenantId         = $tenantId
                     ClientId         = if ($workloadProfile.ApplicationId) { $workloadProfile.ApplicationId } else { $ClientId }
-                }
-
-                if ($Resource)
-                {
-                    $authParams.Resource = $Resource
-                }
-                else
-                {
-                    $authParams.Scope = $Scope
+                    Scope            = $Scope
                 }
 
                 try
@@ -1712,7 +1628,7 @@ function Connect-MSCloudLoginRESTWorkload
                 }
                 catch
                 {
-                    if ($_.ErrorDetails.Message -like '*AADSTS50076*')
+                    if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
                     {
                         Add-MSCloudLoginAssistantEvent -Message 'Account requires MFA, using device code flow' -Source $source
                         $authParams.DeviceCode = $true
@@ -1735,19 +1651,11 @@ function Connect-MSCloudLoginRESTWorkload
                     CertificateThumbprint = $workloadProfile.CertificateThumbprint
                     TenantId              = $tenantId
                     ClientId              = $workloadProfile.ApplicationId
-                }
-
-                if ($Resource)
-                {
-                    $authParams.Resource = $Resource
-                }
-                else
-                {
-                    $authParams.Scope = $Scope
+                    Scope                 = $Scope
                 }
 
                 $tokenResponse = Get-AuthToken @authParams
-                $accessToken = "Bearer $($tokenResponse.access_token)"
+                $accessToken = "$($tokenResponse.token_type) $($tokenResponse.access_token)"
             }
 
             'ServicePrincipalWithSecret'
@@ -1758,15 +1666,7 @@ function Connect-MSCloudLoginRESTWorkload
                     ClientSecret     = $workloadProfile.ApplicationSecret
                     TenantId         = $tenantId
                     ClientId         = $workloadProfile.ApplicationId
-                }
-
-                if ($Resource)
-                {
-                    $authParams.Resource = $Resource
-                }
-                else
-                {
-                    $authParams.Scope = $Scope
+                    Scope            = $Scope
                 }
 
                 $tokenResponse = Get-AuthToken @authParams
@@ -1782,25 +1682,17 @@ function Connect-MSCloudLoginRESTWorkload
                     CertificatePassword = $workloadProfile.CertificatePassword
                     TenantId            = $tenantId
                     ClientId            = $workloadProfile.ApplicationId
-                }
-
-                if ($Resource)
-                {
-                    $authParams.Resource = $Resource
-                }
-                else
-                {
-                    $authParams.Scope = $Scope
+                    Scope               = $Scope
                 }
 
                 $tokenResponse = Get-AuthToken @authParams
-                $accessToken = "Bearer $($tokenResponse.access_token)"
+                $accessToken = "$($tokenResponse.token_type) $($tokenResponse.access_token)"
             }
 
             'Identity'
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect using Managed Identity' -Source $source
-                $resourceValue = if ($Resource) { $Resource } else { $Scope -replace '/\.default$', '' }
+                $resourceValue = $Scope -replace '/\.default$', ''
                 $tokenValue = Get-AuthToken -Resource $resourceValue -Identity
                 $accessToken = "Bearer $tokenValue"
             }
@@ -1808,7 +1700,7 @@ function Connect-MSCloudLoginRESTWorkload
             'AccessTokens'
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Using provided access token' -Source $source
-                $providedToken = $workloadProfile.AccessTokens[0]
+                $providedToken = Get-MSCloudLoginAccessTokenValue -Token $workloadProfile.AccessTokens[0]
                 $accessToken = if ($providedToken -like 'Bearer *') { $providedToken } else { "Bearer $providedToken" }
             }
         }
@@ -1822,6 +1714,7 @@ function Connect-MSCloudLoginRESTWorkload
     catch
     {
         $workloadProfile.Connected = $false
+        Add-MSCloudLoginAssistantEvent -Message "Failed to connect to ${WorkloadName}: $($_.Exception.Message)" -Source $source -EntryType 'Error'
         throw
     }
 }

@@ -7,32 +7,22 @@ function Connect-MSCloudLoginTeams
     $source = 'Connect-MSCloudLoginTeams'
 
     Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-CsTeamsCallingPolicy command from within MSCloudLoginAssistant' -Source $source
-    $currentErrorPreference = $ErrorActionPreference
-    $Script:ErrorActionPreference = 'SilentlyContinue'
     try
     {
-        try
-        {
-            $results = Get-CsTeamsCallingPolicy -ErrorAction Stop
-        }
-        catch
-        {
-            $results = $null
-        }
-
+        $results = Get-CsTeamsCallingPolicy -ErrorAction Stop
         if ($null -ne $results)
         {
             Add-MSCloudLoginAssistantEvent -Message 'Succeeded' -Source $source
-            $Script:MSCloudLoginConnectionProfile.Teams.Connected = $true
+            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection($Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication)
             return
         }
     }
     catch
     {
-        Add-MSCloudLoginAssistantEvent -Message 'Failed' -Source $source -EntryType 'Error'
+        # Liveness probe: a failure only means that there is no usable Teams session yet.
+        Add-MSCloudLoginAssistantEvent -Message "Probe for existing Microsoft Teams session failed: $($_.Exception.Message)" -Source $source
         $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
     }
-    $Script:ErrorActionPreference = $currentErrorPreference
 
     if ($Script:MSCloudLoginConnectionProfile.Teams.Connected)
     {
@@ -106,7 +96,8 @@ function Connect-MSCloudLoginTeams
             catch
             {
                 $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-                throw $_
+                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Microsoft Teams with Certificate Thumbprint: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                throw
             }
         }
 
@@ -115,23 +106,8 @@ function Connect-MSCloudLoginTeams
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithPath')
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
-        $certificatePath = $Script:MSCloudLoginConnectionProfile.Teams.CertificatePath
-        $certificatePassword = $Script:MSCloudLoginConnectionProfile.Teams.CertificatePassword
-        if (Test-Path $certificatePath)
-        {
-            if ($certificatePassword)
-            {
-                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $certificatePath), $certificatePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet)
-            }
-            else
-            {
-                $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path $certificatePath))
-            }
-        }
-        else
-        {
-            throw "Certificate path '$certificatePath' not found"
-        }
+        $certificate = Get-MSCloudLoginCertificate -CertificatePath $Script:MSCloudLoginConnectionProfile.Teams.CertificatePath `
+            -CertificatePassword $Script:MSCloudLoginConnectionProfile.Teams.CertificatePassword
         Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
             -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
             -Certificate $certificate
@@ -142,9 +118,8 @@ function Connect-MSCloudLoginTeams
     {
         if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureGermany')
         {
-            Write-Warning 'Microsoft Teams is not supported in the Germany Cloud'
             $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-            return
+            throw 'Microsoft Teams is not supported in the Germany Cloud'
         }
 
         try
@@ -182,16 +157,18 @@ function Connect-MSCloudLoginTeams
         }
         catch
         {
-            Add-MSCloudLoginAssistantEvent -Message "Error from Non-MFA Logic Path: $_" -Source $source -EntryType 'Error'
-            if ($_.Exception.Message -like '*AADSTS50076*' -or $_.Exception.Message -eq 'One or more errors occurred.')
+            # TODO: 'One or more errors occurred.' is the generic AggregateException message and is
+            # far too broad as an MFA indicator; kept for backwards compatibility.
+            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_ -AdditionalPatterns @('One or more errors occurred.')) -and -not (Assert-IsNonInteractiveShell))
             {
+                Add-MSCloudLoginAssistantEvent -Message "Account requires MFA: $($_.Exception.Message)" -Source $source
                 Connect-MSCloudLoginTeamsMFA
             }
             else
             {
                 $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-                Add-MSCloudLoginAssistantEvent -Message $_ -Source $source -EntryType 'Error'
-                throw $_
+                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Microsoft Teams with Credentials: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                throw
             }
         }
     }
@@ -211,10 +188,7 @@ function Connect-MSCloudLoginTeams
         {
             if ($null -ne $tokenInfo)
             {
-                $Ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($tokenInfo)
-                $AccessTokenValue = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($Ptr)
-                [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($Ptr)
-                $tokenValues += $AccessTokenValue
+                $tokenValues += Get-MSCloudLoginAccessTokenValue -Token $tokenInfo
             }
         }
         $ConnectionParams = @{
@@ -223,6 +197,10 @@ function Connect-MSCloudLoginTeams
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using Access Token' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
         $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
+    }
+    else
+    {
+        throw "Authentication type '$($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType)' is not supported for workload 'MicrosoftTeams'."
     }
 
     return
@@ -262,7 +240,7 @@ function Connect-MSCloudLoginTeamsMFA
     {
         Add-MSCloudLoginAssistantEvent -Message "Error from MFA logic Path: $_" -Source $source -EntryType 'Error'
         $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-        throw $_
+        throw
     }
 }
 

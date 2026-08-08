@@ -291,34 +291,9 @@ class AdminAPI:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureFranceCloud'
-            {
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
-            }
-            'Custom'
-            {
-                $this.Scope            = $Script:CustomEnvConfig.CustomAdminApiScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomAdminApiAuthorizationUrl
-            }
-            default
-            {
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'AdminAPI' -EnvironmentName $this.EnvironmentName -Replacements @{ Resource = $this.Resource }
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.AdminAPI = $this
         Connect-MSCloudLoginAdminAPI
@@ -382,39 +357,10 @@ class AzureDevOPS:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = "https://dev.azure.us"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = "https://dev.azure.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureFranceCloud'
-            {
-                $this.HostUrl          = "https://dev.azure.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomAzureDevopsHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomAzureDevopsScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomAzureDevopsAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = "https://dev.azure.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'AzureDevOPS' -EnvironmentName $this.EnvironmentName -Replacements @{ Resource = $this.Resource }
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.AzureDevOPS = $this
         Connect-MSCloudLoginAzureDevOPS
@@ -449,39 +395,10 @@ class DefenderForEndpoint:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = 'https://api-gov.securitycenter.microsoft.us'
-                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.us'
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = 'https://api-gcc.securitycenter.microsoft.us'
-                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.com'
-            }
-            'AzureFranceCloud'
-            {
-                $this.HostUrl          = 'https://api.securitycenter.microsoft.com/'
-                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
-                $this.AuthorizationUrl = 'https://login.sovcloud-identity.fr'
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomDefenderForEndpointHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomDefenderForEndpointScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomDefenderForEndpointAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = 'https://api.securitycenter.microsoft.com/'
-                $this.Scope            = 'https://api.securitycenter.microsoft.com/.default'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.com'
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'DefenderForEndpoint' -EnvironmentName $this.EnvironmentName
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint = $this
         Connect-MSCloudLoginDefenderForEndpoint
@@ -518,37 +435,12 @@ class EngageHub:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.ClientId         = ""
-                $this.Scope            = "https://engagehub.microsoft.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.APIUrl           = "https://api.engagecenter.microsoft.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.ClientId         = ""
-                $this.Scope            = "https://engagehub.microsoft.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.APIUrl           = "https://api.engagecenter.microsoft.us"
-            }
-            'Custom'
-            {
-                $this.ClientId         = $Script:CustomEnvConfig.CustomEngageHubClientId
-                $this.Scope            = $Script:CustomEnvConfig.CustomEngageHubScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomEngageHubAuthorizationUrl
-                $this.APIUrl           = $Script:CustomEnvConfig.CustomEngageHubAPIUrl
-            }
-            default
-            {
-                $this.ClientId         = ""
-                $this.Scope            = "https://engagehub.microsoft.com/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-                $this.APIUrl           = "https://api.engagecenter.microsoft.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'EngageHub' -EnvironmentName $this.EnvironmentName
+        $this.ClientId         = $endpointInfo.ClientId
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
+        $this.APIUrl           = $endpointInfo.APIUrl
+
         $Script:MSCloudLoginConnectionProfile.EngageHub = $this
         Connect-MSCloudLoginEngageHub
     }
@@ -661,33 +553,10 @@ class Fabric:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = "https://api.fabric.microsoft.us"
-                $this.Scope            = "https://api.fabric.microsoft.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = "https://api.fabric.microsoft.us"
-                $this.Scope            = "https://api.fabric.microsoft.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomFabricHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomFabricScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomFabricAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = "https://api.fabric.microsoft.com"
-                $this.Scope            = "https://api.fabric.microsoft.com/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'Fabric' -EnvironmentName $this.EnvironmentName
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.Fabric = $this
         Connect-MSCloudLoginFabric
@@ -724,33 +593,10 @@ class Licensing:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomLicensingHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomLicensingScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomLicensingAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = "https://licensing.m365.microsoft.com"
-                $this.Scope            = "$($this.Resource)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'Licensing' -EnvironmentName $this.EnvironmentName -Replacements @{ Resource = $this.Resource }
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.Licensing = $this
         Connect-MSCloudLoginLicensing
@@ -797,7 +643,7 @@ class MicrosoftGraph:Workload
 
         if ($null -ne $this.Credentials -and [System.String]::IsNullOrEmpty($this.TenantId))
         {
-            $this.TenantId = $this.Credentials.Username.Split('@')[1]
+            $this.TenantId = Get-MSCloudLoginTenantDomainFromCredentials -Credentials $this.Credentials
         }
 
         switch ($this.EnvironmentName)
@@ -883,33 +729,10 @@ class O365Portal:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = "https://portal.apps.mil"
-                $this.Scope            = "https://portal.apps.mil/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us/"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = "https://portal.office365.us"
-                $this.Scope            = "https://portal.office365.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomO365PortalHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomO365PortalScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomO365PortalAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = "https://admin.microsoft.com"
-                $this.Scope            = "https://admin.microsoft.com/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'O365Portal' -EnvironmentName $this.EnvironmentName
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $Script:MSCloudLoginConnectionProfile.O365Portal = $this
         Connect-MSCloudLoginO365Portal
@@ -1012,10 +835,13 @@ class PowerPlatform:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
+        $Script:MSCloudLoginConnectionProfile.PowerPlatform = $this
         Connect-MSCloudLoginPowerPlatform
     }
     [void] Disconnect()
     {
+        # Clear the PowerApps module's cached session so that a reconnect starts clean.
+        $Global:currentSession = $null
         $this.Connected = $false
     }
 }
@@ -1049,60 +875,16 @@ class PowerPlatformREST:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'PowerPlatformREST' -EnvironmentName $this.EnvironmentName
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
+        $this.Audience         = $endpointInfo.Audience
+        $this.BapEndpoint      = $endpointInfo.BapEndpoint
+        if ($endpointInfo.ContainsKey('ClientId'))
         {
-            <# AUDIENCE
-            "prod" = "https://service.powerapps.com/";
-            "preview" = "https://service.powerapps.com/";
-            "tip1"= "https://service.powerapps.com/";
-            "tip2"= "https://service.powerapps.com/";
-            "usgov"= "https://gov.service.powerapps.us/";
-            "usgovhigh"= "https://high.service.powerapps.us/";
-            "dod" = "https://service.apps.appsplatform.us/";
-            "china" = "https://service.powerapps.cn/";
-            #>
-
-            <# BAP
-                        "prod"      { "api.bap.microsoft.com" }
-                        "usgov"     { "gov.api.bap.microsoft.us" }
-                        "usgovhigh" { "high.api.bap.microsoft.us" }
-                        "dod"       { "api.bap.appsplatform.us" }
-                        "china"     { "api.bap.partner.microsoftonline.cn" }
-                        "preview"   { "preview.api.bap.microsoft.com" }
-                        "tip1"      { "tip1.api.bap.microsoft.com"}
-                        "tip2"      { "tip2.api.bap.microsoft.com" }
-            #>
-            'AzureDOD'
-            {
-                $this.Scope            = "https://service.apps.appsplatform.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.Audience         = "https://service.apps.appsplatform.us/"
-                $this.BapEndpoint      = "api.bap.appsplatform.us"
-
-            }
-            'AzureUSGovernment'
-            {
-                $this.Scope            = "https://gov.service.powerapps.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.Audience         = "https://gov.service.powerapps.us/"
-                $this.BapEndpoint      = "gov.api.bap.microsoft.us"
-            }
-            'Custom'
-            {
-                $this.Scope            = $Script:CustomEnvConfig.CustomPowerPlatformRESTScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomPowerPlatformRESTAuthorizationUrl
-                $this.Audience         = $Script:CustomEnvConfig.CustomPowerPlatformRESTAudience
-                $this.ClientId         = $Script:CustomEnvConfig.CustomPowerPlatformRESTClientId
-                $this.BapEndpoint      = $Script:CustomEnvConfig.CustomPowerPlatformRESTBapEndpoint
-            }
-            default
-            {
-                $this.Scope            = "https://service.powerapps.com/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-                $this.Audience         = "https://service.powerapps.com/"
-                $this.BapEndpoint      = "api.bap.microsoft.com"
-            }
+            $this.ClientId = $endpointInfo.ClientId
         }
+
         $Script:MSCloudLoginConnectionProfile.PowerPlatformREST = $this
         Connect-MSCloudLoginPowerPlatformREST
     }
@@ -1135,44 +917,9 @@ class SecurityComplianceCenter:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
-        {
-            'AzureCloud'
-            {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.com/organizations'
-            }
-            'AzureUSGovernment'
-            {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
-            }
-            'AzureDOD'
-            {
-                $this.ConnectionUrl    = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.us/organizations'
-            }
-            'AzureGermany'
-            {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.outlook.de/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.microsoftonline.de/organizations'
-            }
-            'AzureChinaCloud'
-            {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.svc.sovcloud.fr/powershell-liveid/'
-                $this.AuthorizationUrl = 'https://login.chinacloudapi.cn/organizations'
-            }
-            'AzureFranceCloud'
-            {
-                $this.ConnectionUrl    = 'https://ps.compliance.protection.svc.sovcloud.fr/PowerShell-LiveID'
-                $this.AuthorizationUrl = 'https://login.sovcloud-identity.fr/organizations'
-            }
-            'Custom'
-            {
-                $this.ConnectionUrl    = $Script:CustomEnvConfig.CustomSCCConnectionUrl
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomSCCAzureADAuthorizationEndpointUri
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'SecurityComplianceCenter' -EnvironmentName $this.EnvironmentName
+        $this.ConnectionUrl    = $endpointInfo.ConnectionUrl
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
 
         $connectionRegex = "ps.compliance.protection.(partner.)?(outlook|office365).(com|us|de|cn)"
         $connectionInformation = Get-ConnectionInformation | Where-Object Name -Like "ExchangeOnlineProtection_*"
@@ -1240,70 +987,31 @@ class SharePointOnlineREST:Workload
         elseif (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl -and `
                 -not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId))
         {
-            if ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('onmicrosoft'))
+            $spoUrls = Get-MSCloudLoginSPOUrlFromTenantId -TenantId $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId `
+                -EnvironmentName $this.EnvironmentName
+            if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
             {
-                $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.onmicrosoft.', '-admin.sharepoint.')
-                if ($this.EnvironmentName -in @('AzureUSGovernment', 'AzureDOD'))
-                {
-                    # If the tenant id is in the format of contoso.onmicrosoft.com, replace the .com with .us for sovereign clouds
-                    $domain = $domain.Replace('.com', '.us')
-                }
-                if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
-                {
-                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"
-                }
-                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = ("https://$domain").Replace('-admin', '')
+                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = $spoUrls.AdminUrl
             }
-            elseif ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('.onmschina.'))
-            {
-                $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.partner.onmschina.', '-admin.sharepoint.')
-                if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
-                {
-                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"
-                }
-                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = ("https://$domain").Replace('-admin', '')
-            }
-            elseif ($Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Contains('.onms.'))
-            {
-                $domain = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.TenantId.Replace('.onms.', '-admin.sharepoint.')
-                if (-not $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl)
-                {
-                    $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl = "https://$domain"
-                }
-                $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = ("https://$domain").Replace('-admin', '')
-            }
-            else
-            {
-                throw 'TenantId must be in format contoso.onmicrosoft.com'
-            }
+            $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.ConnectionUrl = $spoUrls.ConnectionUrl
         }
 
-        switch ($this.EnvironmentName)
+        if ([System.String]::IsNullOrEmpty($this.AdminUrl))
         {
-            'AzureDOD'
-            {
-                $this.HostUrl          = $this.AdminUrl
-                $this.Scope            = "$($this.AdminUrl)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = $this.AdminUrl
-                $this.Scope            = "$($this.AdminUrl)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomSharePointOnlineRESTHostUrl
-                $this.Scope            = "$($Script:CustomEnvConfig.CustomSharePointOnlineRESTHostUrl)/.default"
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomSharePointOnlineRESTAuthorizationUrl
-            }
-            default
-            {
-                $this.HostUrl          = $this.AdminUrl
-                $this.Scope            = "$($this.AdminUrl)/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-            }
+            $this.AdminUrl = $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST.AdminUrl
+        }
+
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'SharePointOnlineREST' -EnvironmentName $this.EnvironmentName -Replacements @{ AdminUrl = $this.AdminUrl }
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
+        if ($this.EnvironmentName -eq 'Custom')
+        {
+            # The custom environment configuration has no dedicated Scope key.
+            $this.Scope = "$($this.HostUrl)/.default"
+        }
+        else
+        {
+            $this.Scope = $endpointInfo.Scope
         }
         $Script:MSCloudLoginConnectionProfile.SharePointOnlineREST = $this
         Connect-MSCloudLoginSharePointOnlineREST
@@ -1340,37 +1048,12 @@ class Tasks:Workload
     [void] Connect()
     {
         ([Workload]$this).Setup()
-        switch ($this.EnvironmentName)
-        {
-            'AzureDOD'
-            {
-                $this.HostUrl          = "https://tasks.osi.apps.mil"
-                $this.Scope            = "https://tasks.osi.apps.mil/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.ResourceUrl      = "https://tasks.osi.apps.mil"
-            }
-            'AzureUSGovernment'
-            {
-                $this.HostUrl          = "https://tasks.office365.us"
-                $this.Scope            = "https://tasks.office365.us/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.ResourceUrl      = "https://tasks.office365.us"
-            }
-            'Custom'
-            {
-                $this.HostUrl          = $Script:CustomEnvConfig.CustomTasksHostUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomTasksScope
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomTasksAuthorizationUrl
-                $this.ResourceUrl      = $Script:CustomEnvConfig.CustomTasksResourceUrl
-            }
-            default
-            {
-                $this.HostUrl          = "https://tasks.office.com"
-                $this.Scope            = "https://tasks.office.com/.default"
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-                $this.ResourceUrl      = "https://tasks.office.com"
-            }
-        }
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'Tasks' -EnvironmentName $this.EnvironmentName
+        $this.HostUrl          = $endpointInfo.HostUrl
+        $this.Scope            = $endpointInfo.Scope
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
+        $this.ResourceUrl      = $endpointInfo.ResourceUrl
+
         $Script:MSCloudLoginConnectionProfile.Tasks = $this
         Connect-MSCloudLoginTasks
     }

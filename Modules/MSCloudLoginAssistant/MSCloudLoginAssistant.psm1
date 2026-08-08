@@ -1,12 +1,12 @@
 $Script:WriteToEventLog = ([Environment]::GetEnvironmentVariable('MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG', 'Machine') -eq 'true') -or `
                           ($env:MSCLOUDLOGINASSISTANT_WRITETOEVENTLOG -eq 'true')
 
-$Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\CustomEnvironment.psd1"
+$Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot/CustomEnvironment.psd1"
 $Script:LoadedCustomEnvFileName = 'CustomEnvironment.psd1'
-. "$PSScriptRoot\ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
-. "$PSScriptRoot\Helpers.ps1"
+. "$PSScriptRoot/ConnectionProfile.ps1" -CustomEnvironmentConfig $Script:CustomEnvConfig
+. "$PSScriptRoot/Helpers.ps1"
 
-$privateModules = Get-ChildItem -Path "$PSScriptRoot\Workloads" -Filter '*.ps1' -Recurse
+$privateModules = Get-ChildItem -Path "$PSScriptRoot/Workloads" -Filter '*.ps1' -Recurse
 foreach ($module in $privateModules)
 {
     Write-Verbose "Importing workload $($module.FullName)"
@@ -282,7 +282,7 @@ function Connect-M365Tenant
         # the file on every call is unnecessary and would re-declare all classes each time.
         if ($null -eq $Script:CustomEnvConfig -or $Script:LoadedCustomEnvFileName -ne $CustomEnvironmentFileName)
         {
-            $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot\$CustomEnvironmentFileName" -ErrorAction Stop
+            $Script:CustomEnvConfig = Import-PowerShellDataFile -Path "$PSScriptRoot/$CustomEnvironmentFileName" -ErrorAction Stop
             $Script:LoadedCustomEnvFileName = $CustomEnvironmentFileName
         }
 
@@ -304,9 +304,14 @@ function Connect-M365Tenant
             {
                 $authenticationParameters.Add('Credentials', $parameter.Value)
             }
+            elseif ($parameter.Key -eq 'ExchangeOnlineCmdlets')
+            {
+                # The parameter and the property on the ExchangeOnline workload have different names.
+                $authenticationParameters.Add('CmdletsToLoad', $parameter.Value)
+            }
             else
             {
-                if ($parameter.Key -in @('AccessTokens', 'ApplicationId', 'ApplicationSecret', 'CertificateThumbprint', 'CertificatePath', 'CertificatePassword', 'Identity', 'Endpoints', 'TenantId', 'TenantGUID'))
+                if ($parameter.Key -in @('AccessTokens', 'ApplicationId', 'ApplicationSecret', 'CertificateThumbprint', 'CertificatePath', 'CertificatePassword', 'Identity', 'Endpoints', 'TenantId', 'TenantGUID', 'SubscriptionId'))
                 {
                     $authenticationParameters.Add($parameter.Key, $parameter.Value)
                 }
@@ -332,6 +337,14 @@ function Connect-M365Tenant
             }
         }
 
+        # Optional parameters that describe the session rather than the identity. Omitting one that
+        # was provided on an earlier call is drift as well, so the profile falls back to the unset
+        # value instead of silently keeping the previous one.
+        $optionalSessionParameters = @{
+            Azure          = @{ SubscriptionId = '' }
+            ExchangeOnline = @{ CmdletsToLoad = @() }
+        }
+
         # Apply the parameters to the connection profile, but only when a (re)connect is about
         # to happen. This keeps the invariant that the profile describes the live session.
         if (-not $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected)
@@ -339,6 +352,17 @@ function Connect-M365Tenant
             foreach ($key in $authenticationParameters.Keys)
             {
                 $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $authenticationParameters[$key]
+            }
+
+            if ($optionalSessionParameters.ContainsKey($workloadInternalName))
+            {
+                foreach ($key in $optionalSessionParameters[$workloadInternalName].Keys)
+                {
+                    if (-not $authenticationParameters.ContainsKey($key))
+                    {
+                        $Script:MSCloudLoginConnectionProfile.$workloadInternalName.($key) = $optionalSessionParameters[$workloadInternalName][$key]
+                    }
+                }
             }
         }
 
@@ -348,48 +372,57 @@ function Connect-M365Tenant
                 'AdminAPI'
                 {
                     $Script:MSCloudLoginConnectionProfile.AdminAPI.Connect()
+                    break
                 }
                 'Azure'
                 {
-                    $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId = $SubscriptionId
                     $Script:MSCloudLoginConnectionProfile.Azure.Connect()
+                    break
                 }
                 'AzureDevOPS'
                 {
                     $Script:MSCloudLoginConnectionProfile.AzureDevOPS.Connect()
+                    break
                 }
                 'DefenderForEndpoint'
                 {
                     $Script:MSCloudLoginConnectionProfile.DefenderForEndpoint.Connect()
+                    break
                 }
                 'EngageHub'
                 {
                     $Script:MSCloudLoginConnectionProfile.EngageHub.Connect()
+                    break
                 }
                 'ExchangeOnline'
                 {
-                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = $ExchangeOnlineCmdlets
                     $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connect()
+                    break
                 }
                 'Fabric'
                 {
                     $Script:MSCloudLoginConnectionProfile.Fabric.Connect()
+                    break
                 }
                 'Licensing'
                 {
                     $Script:MSCloudLoginConnectionProfile.Licensing.Connect()
+                    break
                 }
                 'O365Portal'
                 {
                     $Script:MSCloudLoginConnectionProfile.O365Portal.Connect()
+                    break
                 }
                 'MicrosoftGraph'
                 {
                     $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connect()
+                    break
                 }
                 'MicrosoftTeams'
                 {
                     $Script:MSCloudLoginConnectionProfile.Teams.Connect()
+                    break
                 }
                 'PnP'
                 {
@@ -450,19 +483,23 @@ function Connect-M365Tenant
                     {
                         $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
                     }
+                    break
                 }
                 'PowerPlatforms'
                 {
                     $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connect()
+                    break
                 }
                 'PowerPlatformREST'
                 {
                     $Script:MSCloudLoginConnectionProfile.PowerPlatformREST.Connect()
+                    break
                 }
                 'SecurityComplianceCenter'
                 {
                     $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession = $EnableSearchOnlySession
                     $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connect()
+                    break
                 }
                 'SharePointOnlineREST'
                 {
@@ -475,10 +512,12 @@ function Connect-M365Tenant
                     {
                         $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = $Url
                     }
+                    break
                 }
                 'Tasks'
                 {
                     $Script:MSCloudLoginConnectionProfile.Tasks.Connect()
+                    break
                 }
             }
         }
@@ -555,10 +594,15 @@ function Get-MSCloudLoginConnectionProfile
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
                 'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
-                'MicrosoftTeams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
+                'MicrosoftTeams', 'Teams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload
     )
+
+    if ($Workload -eq 'MicrosoftTeams')
+    {
+        $Workload = 'Teams'
+    }
 
     if ($null -ne $Script:MSCloudLoginConnectionProfile.$Workload)
     {
@@ -1628,7 +1672,7 @@ function Connect-MSCloudLoginRESTWorkload
                 }
                 catch
                 {
-                    if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
+                    if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_))
                     {
                         Add-MSCloudLoginAssistantEvent -Message 'Account requires MFA, using device code flow' -Source $source
                         $authParams.DeviceCode = $true

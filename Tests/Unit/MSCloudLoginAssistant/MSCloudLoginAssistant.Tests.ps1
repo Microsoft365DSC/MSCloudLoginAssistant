@@ -382,6 +382,118 @@ Describe 'Connect-M365Tenant' {
             }
         }
     }
+
+    Context 'When connecting to Azure with a SubscriptionId' {
+        It 'Should persist the SubscriptionId on the Azure connection profile' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-A'
+            }
+        }
+
+        It 'Should keep the session valid when the same SubscriptionId is provided again' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
+                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+
+                $Script:AzureConnectedStates | Should -Be @($false, $true)
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-A'
+            }
+        }
+
+        It 'Should invalidate the session when a different SubscriptionId is provided' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
+                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-B'
+
+                $Script:AzureConnectedStates | Should -Be @($false, $false)
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
+            }
+        }
+
+        It 'Should treat an omitted SubscriptionId as drift and clear it on the profile' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
+                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
+
+                # Only the first call that drops the SubscriptionId reconnects, afterwards the
+                # profile is back to the unset value and further calls converge again.
+                $Script:AzureConnectedStates | Should -Be @($false, $false, $true)
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'Should invalidate the session when the SubscriptionId is set again after being omitted' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
+                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-B'
+
+                $Script:AzureConnectedStates | Should -Be @($false, $false, $false)
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
+            }
+        }
+    }
+
+    Context 'When connecting to ExchangeOnline with cmdlets to load' {
+        It 'Should map ExchangeOnlineCmdlets onto the CmdletsToLoad property' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -ExchangeOnlineCmdlets @('Get-Mailbox')
+
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad | Should -Be @('Get-Mailbox')
+            }
+        }
+
+        It 'Should treat omitted cmdlets as drift and clear them on the profile' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:ExoConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginExchangeOnline -MockWith {
+                    $Script:ExoConnectedStates.Add($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -ExchangeOnlineCmdlets @('Get-Mailbox')
+                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
+                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
+
+                $Script:ExoConnectedStates | Should -Be @($false, $false, $true)
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad | Should -BeNullOrEmpty
+            }
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -519,6 +631,46 @@ Describe 'Compare-InputParametersForChange' {
                     TenantId          = 'tenant-id'
                     ApplicationSecret = 'secret'
                     SubscriptionId    = 'sub-B'
+                }
+                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
+            }
+        }
+
+        It 'Should detect an omitted SubscriptionId as a change' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType          = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.Azure.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationId               = 'app-id'
+                $Script:MSCloudLoginConnectionProfile.Azure.TenantId                    = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationSecret           = 'secret'
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId              = 'sub-A'
+
+                $params = @{
+                    Workload          = 'Azure'
+                    ApplicationId     = 'app-id'
+                    TenantId          = 'tenant-id'
+                    ApplicationSecret = 'secret'
+                }
+                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
+            }
+        }
+
+        It 'Should detect omitted cmdlets to load as a change' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType          = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId               = 'app-id'
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId                    = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationSecret           = 'secret'
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad               = @('Get-Mailbox')
+
+                $params = @{
+                    Workload          = 'ExchangeOnline'
+                    ApplicationId     = 'app-id'
+                    TenantId          = 'tenant-id'
+                    ApplicationSecret = 'secret'
                 }
                 (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
             }

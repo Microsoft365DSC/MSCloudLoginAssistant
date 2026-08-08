@@ -176,7 +176,7 @@ function Connect-MSCloudLoginMSGraphWithUser
                 -Scope $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
                 -TenantId (Get-MSCloudLoginTenantDomainFromCredentials -Credentials $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials)
 
-            $AccessToken = ConvertTo-SecureString $request.access_token -AsPlainText -Force
+            $AccessToken = ConvertTo-SecureString -String $request.access_token -AsPlainText -Force
 
             Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Graph - Environment {$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment)}" -Source $source
 
@@ -189,7 +189,7 @@ function Connect-MSCloudLoginMSGraphWithUser
         }
         catch
         {
-            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
+            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_))
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Account used requires MFA' -Source $source
                 Connect-MSCloudLoginMSGraphWithUserMFA
@@ -295,7 +295,7 @@ function Connect-MSCloudLoginMSGraphWithUserMFA
         -Scope $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
         -DeviceCode
 
-    $AccessToken = ConvertTo-SecureString $request.access_token -AsPlainText -Force
+    $AccessToken = ConvertTo-SecureString -String $request.access_token -AsPlainText -Force
 
     Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Graph with MFA - Environment {$($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment)}" -Source $source
     Connect-MgGraph -AccessToken $AccessToken `

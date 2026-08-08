@@ -134,7 +134,7 @@ function Connect-MSCloudLoginSecurityCompliance
             -ErrorAction Stop | Out-Null
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
     }
-    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Credentials')
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -in @('Credentials', 'CredentialsWithApplicationId'))
     {
         try
         {

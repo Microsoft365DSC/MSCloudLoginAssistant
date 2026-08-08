@@ -464,6 +464,26 @@ Describe 'Connect-M365Tenant' {
                 $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
             }
         }
+
+        It 'Should detect a SubscriptionId change even when no identity parameter is repeated' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
+                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
+                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                }
+
+                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
+                # Same subscription, no identity parameters: the session must be reused.
+                Connect-M365Tenant -Workload 'Azure' -SubscriptionId 'sub-A'
+                # Different subscription, still no identity parameters: this is drift.
+                Connect-M365Tenant -Workload 'Azure' -SubscriptionId 'sub-B'
+
+                $Script:AzureConnectedStates | Should -Be @($false, $true, $false)
+                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
+            }
+        }
     }
 
     Context 'When connecting to ExchangeOnline with cmdlets to load' {
@@ -1105,6 +1125,55 @@ Describe 'Get-MSCloudLoginConnectionProfile' {
             $result = Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI'
             $result | Should -Not -BeNullOrEmpty
             $result.TenantId | Should -Be 'test-tenant-profile'
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Connect-MSCloudLoginSecurityCompliance
+# ---------------------------------------------------------------------------
+Describe 'Connect-MSCloudLoginSecurityCompliance' {
+
+    BeforeAll {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
+            Mock -CommandName Get-Module -MockWith { return @() }
+            Mock -CommandName Get-PSSession -MockWith { return @() }
+            Mock -CommandName Connect-IPPSSession -MockWith { }
+        }
+    }
+
+    Context 'When the authentication type is credential based' {
+        It 'Should connect for both Credentials and CredentialsWithApplicationId' -TestCases @(
+            @{ AuthenticationType = 'Credentials' }
+            @{ AuthenticationType = 'CredentialsWithApplicationId' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthenticationType = $AuthenticationType } {
+                param($AuthenticationType)
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $profile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $profile.AuthenticationType = $AuthenticationType
+                $profile.Credentials = [System.Management.Automation.PSCredential]::new(
+                    'admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))
+                $profile.ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+                $profile.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.com/organizations'
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Not -Throw
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected | Should -BeTrue
+            }
+        }
+    }
+
+    Context 'When the authentication type is not supported' {
+        It 'Should throw' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType = 'Interactive'
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw "*is not supported for workload 'SecurityComplianceCenter'*"
+            }
         }
     }
 }

@@ -327,10 +327,32 @@ function Connect-M365Tenant
         if ($hasAuthParameters -or -not $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected)
         {
             $Script:MSCloudLoginConnectionProfile.$workloadInternalName.RequestedAuthenticationType = Get-AuthenticationTypeFromParameters -AuthenticationObject $authenticationParameters
+        }
 
-            # Only validate the parameters if we are not already connected
-            if ($Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected `
-                    -and (Compare-InputParametersForChange -CurrentParamSet $PSBoundParameters))
+        # Parameters that describe the session rather than the identity. A call that only
+        # changes one of them, without repeating any identity parameter, must still be
+        # detected as drift - but then only those keys may be compared, because the identity
+        # keys of the profile would otherwise all report as removed.
+        $sessionParameterKeys = @('SubscriptionId', 'CmdletsToLoad', 'ConnectionUrl', 'EnableSearchOnlySession')
+        $hasSessionParameters = @($authenticationParameters.Keys | Where-Object { $_ -in $sessionParameterKeys }).Count -gt 0
+        if (-not $hasSessionParameters)
+        {
+            $hasSessionParameters = @($PSBoundParameters.Keys | Where-Object { $_ -in @('Url', 'EnableSearchOnlySession') }).Count -gt 0
+        }
+
+        # Only validate the parameters if we are already connected
+        if (($hasAuthParameters -or $hasSessionParameters) `
+                -and $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected)
+        {
+            $compareParameters = @{
+                CurrentParamSet = $PSBoundParameters
+            }
+            if (-not $hasAuthParameters)
+            {
+                $compareParameters.LimitToKeys = $sessionParameterKeys
+            }
+
+            if (Compare-InputParametersForChange @compareParameters)
             {
                 Add-MSCloudLoginAssistantEvent -Message "Resetting connection for workload $workloadInternalName" -Source $source
                 $Script:MSCloudLoginConnectionProfile.$workloadInternalName.Connected = $false
@@ -790,7 +812,11 @@ function Compare-InputParametersForChange
     param (
         [Parameter()]
         [System.Collections.Hashtable]
-        $CurrentParamSet
+        $CurrentParamSet,
+
+        [Parameter()]
+        [System.String[]]
+        $LimitToKeys
     )
 
     $source = 'Compare-InputParametersForChange'
@@ -818,7 +844,7 @@ function Compare-InputParametersForChange
         return $true
     }
 
-    if ($workloadProfile.RequestedAuthenticationType -ne $workloadProfile.AuthenticationType)
+    if ($null -eq $LimitToKeys -and $workloadProfile.RequestedAuthenticationType -ne $workloadProfile.AuthenticationType)
     {
         # Authentication type changed, so we need to reconnect
         Add-MSCloudLoginAssistantEvent -Message "Authentication type changed from {$($workloadProfile.AuthenticationType)} to {$($workloadProfile.RequestedAuthenticationType)}" -Source $source
@@ -898,6 +924,23 @@ function Compare-InputParametersForChange
         {
             # The TenantId was inferred from the credential UPN suffix.
             $active.Remove('TenantId')
+        }
+    }
+
+    # When the caller only supplied session parameters (no identity parameters at all), the
+    # identity keys of the active profile must not be compared. Otherwise, they would all show up as
+    # 'present on one side only' and report a change on every single call.
+    if ($null -ne $LimitToKeys)
+    {
+        foreach ($table in @($desired, $active))
+        {
+            foreach ($key in @($table.Keys))
+            {
+                if ($key -notin $LimitToKeys)
+                {
+                    $table.Remove($key)
+                }
+            }
         }
     }
 

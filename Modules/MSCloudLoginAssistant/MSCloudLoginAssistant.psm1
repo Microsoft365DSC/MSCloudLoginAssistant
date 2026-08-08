@@ -908,6 +908,14 @@ function Compare-InputParametersForChange
         }
     }
 
+    foreach ($key in @('SubscriptionId', 'CmdletsToLoad', 'ConnectionUrl', 'EnableSearchOnlySession'))
+    {
+        if ($desired.ContainsKey($key) -and -not $active.ContainsKey($key))
+        {
+            $desired.Remove($key)
+        }
+    }
+
     # Workload specific normalization to prevent false positives for the common
     # credentials-only Microsoft Graph connection pattern.
     if ($workloadInternalName -eq 'MicrosoftGraph')

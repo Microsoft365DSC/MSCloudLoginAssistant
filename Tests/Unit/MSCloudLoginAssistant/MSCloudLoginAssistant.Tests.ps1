@@ -695,6 +695,28 @@ Describe 'Compare-InputParametersForChange' {
                 (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
             }
         }
+
+        It 'Should ignore a session parameter that the workload does not own' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType          = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId               = 'app-id'
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId                    = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationSecret           = 'secret'
+
+                # EnableSearchOnlySession only exists on SecurityComplianceCenter. Supplying it
+                # for another workload must not be reported as a change on every call.
+                $params = @{
+                    Workload                = 'MicrosoftGraph'
+                    ApplicationId           = 'app-id'
+                    TenantId                = 'tenant-id'
+                    ApplicationSecret       = 'secret'
+                    EnableSearchOnlySession = $true
+                }
+                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
+            }
+        }
     }
 
     Context 'String comparison semantics' {

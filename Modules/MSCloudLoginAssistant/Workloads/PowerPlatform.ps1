@@ -3,9 +3,10 @@ function Connect-MSCloudLoginPowerPlatform
     [CmdletBinding()]
     param()
 
+    $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginPowerPlatform'
 
-    if ($Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected)
+    if (Test-MSCloudLoginConnectionReusable -WorkloadProfile $Script:MSCloudLoginConnectionProfile.PowerPlatform -Source $source)
     {
         return
     }
@@ -19,8 +20,8 @@ function Connect-MSCloudLoginPowerPlatform
         }
         if ($Script:MSCloudLoginConnectionProfile.PowerPlatform.EnvironmentName -eq 'AzureGermany')
         {
-            Write-Warning 'Microsoft PowerPlatform is not supported in the Germany Cloud'
-            return
+            $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $false
+            throw 'Microsoft PowerPlatform is not supported in the Germany Cloud'
         }
 
         switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
@@ -67,13 +68,17 @@ function Connect-MSCloudLoginPowerPlatform
         {
             throw 'You cannot specify TenantId with Credentials when connecting to PowerPlatforms.'
         }
-        else
+        elseif ($Script:MSCloudLoginConnectionProfile.PowerPlatform.AuthenticationType -in @('Credentials', 'CredentialsWithApplicationId'))
         {
             Add-PowerAppsAccount -Username $Script:MSCloudLoginConnectionProfile.PowerPlatform.Credentials.UserName `
                 -Password $Script:MSCloudLoginConnectionProfile.PowerPlatform.Credentials.Password `
                 -Endpoint $Script:MSCloudLoginConnectionProfile.PowerPlatform.Endpoint `
                 -ErrorAction Stop | Out-Null
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.CompleteConnection()
+        }
+        else
+        {
+            throw "Authentication type '$($Script:MSCloudLoginConnectionProfile.PowerPlatform.AuthenticationType)' is not supported for workload 'PowerPlatform'."
         }
     }
     catch
@@ -103,21 +108,25 @@ function Connect-MSCloudLoginPowerPlatform
             }
             catch
             {
+                if (Assert-IsNonInteractiveShell)
+                {
+                    $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $false
+                    Add-MSCloudLoginAssistantEvent -Message "Failed to connect to PowerPlatform against the preview endpoint: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                    throw
+                }
                 Connect-MSCloudLoginPowerPlatformMFA
             }
         }
-        elseif ($_.Exception.Message -like '*AADSTS50076: Due to a configuration change made by your administrator*')
+        elseif ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_ -AdditionalPatterns @('*Cannot find an overload for "UserCredential"*')) -and -not (Assert-IsNonInteractiveShell))
         {
-            Connect-MSCloudLoginPowerPlatformMFA
-        }
-        elseif ($_.Exception.Message -like '*Cannot find an overload for "UserCredential"*')
-        {
+            Add-MSCloudLoginAssistantEvent -Message "Account requires MFA: $($_.Exception.Message)" -Source $source
             Connect-MSCloudLoginPowerPlatformMFA
         }
         else
         {
             $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $false
-            throw $_
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to PowerPlatform: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
         }
     }
     return
@@ -136,7 +145,7 @@ function Connect-MSCloudLoginPowerPlatformMFA
     catch
     {
         $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $false
-        throw $_
+        throw
     }
     return
 }

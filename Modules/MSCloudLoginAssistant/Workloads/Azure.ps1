@@ -5,24 +5,11 @@ function Connect-MSCloudLoginAzure
 
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginAzure'
-    # If the current profile is not the same we expect, make the switch.
-    if ($Script:MSCloudLoginConnectionProfile.Azure.Connected)
+    if (Test-MSCloudLoginConnectionReusable -WorkloadProfile $Script:MSCloudLoginConnectionProfile.Azure `
+            -ProbeScript { Get-AzContext } `
+            -Source $source)
     {
-        if (($Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'ServicePrincipalWithSecret' `
-                    -or $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType -eq 'Identity') `
-                -and (Get-Date -Date $Script:MSCloudLoginConnectionProfile.Azure.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-50))
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $source
-            $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
-        }
-        elseif ($null -eq (Get-AzContext))
-        {
-            $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
-        }
-        else
-        {
-            return
-        }
+        return
     }
 
     $additionalParameters = @{}
@@ -75,7 +62,7 @@ function Connect-MSCloudLoginAzure
         {
             if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.Azure.TenantId))
             {
-                $Script:MSCloudLoginConnectionProfile.Azure.TenantId = $Script:MSCloudLoginConnectionProfile.Azure.Credentials.UserName.Split('@')[1]
+                $Script:MSCloudLoginConnectionProfile.Azure.TenantId = Get-MSCloudLoginTenantDomainFromCredentials -Credentials $Script:MSCloudLoginConnectionProfile.Azure.Credentials
             }
             Connect-AzAccount -Credential $Script:MSCloudLoginConnectionProfile.Azure.Credentials `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
@@ -86,7 +73,7 @@ function Connect-MSCloudLoginAzure
         }
         catch
         {
-            if ($_.Exception.Message -like '*AADSTS50076*')
+            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_) -and -not (Assert-IsNonInteractiveShell))
             {
                 Add-MSCloudLoginAssistantEvent -Message 'MFA is required. Fallback to interactive login.' -Source $source -EntryType 'Warning'
                 Connect-AzAccount -TenantId $Script:MSCloudLoginConnectionProfile.Azure.TenantId `
@@ -96,7 +83,9 @@ function Connect-MSCloudLoginAzure
             }
             else
             {
-                throw $_
+                $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
+                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Azure with Credentials: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                throw
             }
         }
     }

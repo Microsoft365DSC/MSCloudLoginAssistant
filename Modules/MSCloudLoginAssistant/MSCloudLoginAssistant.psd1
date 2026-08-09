@@ -112,7 +112,9 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Refactored module and consolidated functions.'
+            ReleaseNotes = '* Refactored module and consolidated functions.
+* Fixed the SharePointOnlineREST admin URL for AzureDOD tenants, which incorrectly used the GCC High domain (`sharepoint.us`) instead of `sharepoint-mil.us`.
+* Fixed connecting to the SecurityComplianceCenter workload with a credential and an application id (`CredentialsWithApplicationId`).'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

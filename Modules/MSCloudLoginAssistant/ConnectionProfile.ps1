@@ -692,7 +692,7 @@ class MicrosoftGraph:Workload
             'AzureFranceCloud'
             {
                 $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
-                $this.GraphEnvironment = 'Custom'
+                $this.GraphEnvironment = 'BleuCloud'
                 $this.ResourceUrl      = 'https://graph.svc.sovcloud.fr/'
                 $this.Scope            = 'https://graph.svc.sovcloud.fr/.default'
                 $this.TokenUrl         = "https://login.sovcloud-identity.fr/$($this.TenantId)/oauth2/v2.0/token"
@@ -700,7 +700,7 @@ class MicrosoftGraph:Workload
             'AzureGermanyCloud'
             {
                 $this.AuthorizationUrl = "https://login.sovcloud-identity.de"
-                $this.GraphEnvironment = 'Custom'
+                $this.GraphEnvironment = 'DelosCloud'
                 $this.ResourceUrl      = 'https://graph.svc.sovcloud.de/'
                 $this.Scope            = 'https://graph.svc.sovcloud.de/.default'
                 $this.TokenUrl         = "https://login.sovcloud-identity.de/$($this.TenantId)/oauth2/v2.0/token"

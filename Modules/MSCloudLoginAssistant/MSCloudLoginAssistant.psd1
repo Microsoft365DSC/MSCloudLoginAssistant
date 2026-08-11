@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.2.0'
+    ModuleVersion          = '1.2.1'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,9 +112,7 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Refactored module and consolidated functions.
-* Fixed the SharePointOnlineREST admin URL for AzureDOD tenants, which incorrectly used the GCC High domain (`sharepoint.us`) instead of `sharepoint-mil.us`.
-* Fixed connecting to the SecurityComplianceCenter workload with a credential and an application id (`CredentialsWithApplicationId`).'
+            ReleaseNotes = '* Added support for Delos Cloud in Germany.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

@@ -66,6 +66,7 @@
 
     CustomTeamsTokenUrl = "https://login.microsoftonline.com" # No trailing slash!
     CustomTeamsScope = "https://api.interfaces.microsoft.com/.default"
+
     CustomTeamsEndpoints = @{
         ActiveDirectory = "https://login.microsoftonline.com"
         MsGraphEndpointResourceId = "https://graph.microsoft.com/"

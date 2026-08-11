@@ -1165,7 +1165,24 @@ function Get-CloudEnvironmentInfo
         throw 'TenantId or Credentials must be provided'
     }
     ## endpoint will work with TenantId or tenantName
-    $response = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing
+    switch ($tenantName)
+    {
+        { $_ -like '*.onsovcloud.de*' }
+        {
+            $loginEndpoint = 'login.sovcloud-identity.de'
+            break
+        }
+        { $_ -like '*.onsovcloud.fr*' }
+        {
+            $loginEndpoint = 'login.sovcloud-identity.fr'
+            break
+        }
+        default
+        {
+            $loginEndpoint = "login.microsoftonline.com"
+        }
+    }
+    $response = Invoke-WebRequest -Uri "https://$loginEndpoint/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing
 
     $content = $response.Content
     $result = ConvertFrom-Json $content

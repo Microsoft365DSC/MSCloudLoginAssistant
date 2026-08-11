@@ -223,8 +223,11 @@ class Workload : ICloneable
                 }
                 elseif ($Script:CloudEnvironmentInfo.tenant_region_scope -eq 'FG')
                 {
-                    # Regular GCC tenants do not have a sub_scope
                     $this.EnvironmentName = 'AzureFranceCloud'
+                }
+                elseif ($Script:CloudEnvironmentInfo.tenant_region_scope -eq 'GG2')
+                {
+                    $this.EnvironmentName = 'AzureGermanyCloud'
                 }
                 elseif ($Script:CustomEnvConfig.CustomEnvironment)
                 {
@@ -508,6 +511,12 @@ class ExchangeOnline:Workload
                 $this.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.fr/' + $Script:MSCloudLoginConnectionProfile.OrganizationName
                 $this.ExchangeEnvironmentName         = "Custom"
             }
+            'AzureGermanyCloud'
+            {
+                $this.ConnectionUri                   = 'https://outlook.sovcloud.de/PowerShell-LiveID'
+                $this.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.de/' + $Script:MSCloudLoginConnectionProfile.OrganizationName
+                $this.ExchangeEnvironmentName         = "Custom"
+            }
             'Custom'
             {
                 $this.ExchangeEnvironmentName         = "Custom"
@@ -683,10 +692,18 @@ class MicrosoftGraph:Workload
             'AzureFranceCloud'
             {
                 $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
-                $this.GraphEnvironment = 'Custom'
+                $this.GraphEnvironment = 'BleuCloud'
                 $this.ResourceUrl      = 'https://graph.svc.sovcloud.fr/'
                 $this.Scope            = 'https://graph.svc.sovcloud.fr/.default'
                 $this.TokenUrl         = "https://login.sovcloud-identity.fr/$($this.TenantId)/oauth2/v2.0/token"
+            }
+            'AzureGermanyCloud'
+            {
+                $this.AuthorizationUrl = "https://login.sovcloud-identity.de"
+                $this.GraphEnvironment = 'DelosCloud'
+                $this.ResourceUrl      = 'https://graph.svc.sovcloud.de/'
+                $this.Scope            = 'https://graph.svc.sovcloud.de/.default'
+                $this.TokenUrl         = "https://login.sovcloud-identity.de/$($this.TenantId)/oauth2/v2.0/token"
             }
             'Custom'
             {
@@ -1084,17 +1101,27 @@ class Teams:Workload
         ([Workload]$this).Setup()
         switch ($this.EnvironmentName)
         {
-            "AzureFranceCloud"
+            'AzureFranceCloud'
             {
-                $endPointUriDict = @{
+                $endpointUriDict = @{
                     ActiveDirectory = 'https://login.sovcloud-identity.fr/'
                     MsGraphEndpointResourceId = 'https://graph.svc.sovcloud.fr'
                     TeamsConfigApiEndPoint = 'https://config.teams.sovcloud.fr'
                 }
                 $Script:CustomEnvConfig.CustomEnvironment = $true
-                $Script:CustomEnvConfig.CustomTeamsEndpoints = $endPointUriDict
+                $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
             }
-            "Custom"
+            'AzureGermanyCloud'
+            {
+                $endpointUriDict = @{
+                    ActiveDirectory = 'https://login.sovcloud-identity.de/'
+                    MsGraphEndpointResourceId = 'https://graph.svc.sovcloud.de'
+                    TeamsConfigApiEndPoint = 'https://config.teams.sovcloud.de'
+                }
+                $Script:CustomEnvConfig.CustomEnvironment = $true
+                $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
+            }
+            'Custom'
             {
                 $this.TokenUrl   = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
                 $this.GraphScope = $Script:CustomEnvConfig.CustomGraphScope

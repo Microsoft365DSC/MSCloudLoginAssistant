@@ -105,6 +105,7 @@ function Connect-MSCloudLoginPnP
                         $null -ne $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl)
                     {
                         $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.PnP.Scope `
+                            -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.PnP.AuthorizationUrl `
                             -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.PnP.TokenUrl `
                             -ApplicationId $Script:MSCloudLoginConnectionProfile.PnP.ApplicationId `
                             -TenantId $Script:MSCloudLoginConnectionProfile.PnP.TenantId `

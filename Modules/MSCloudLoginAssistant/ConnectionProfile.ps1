@@ -620,7 +620,7 @@ class Licensing:Workload
 class MicrosoftGraph:Workload
 {
     [string]
-    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany', 'France', 'Custom')]
+    [ValidateSet('China', 'Global', 'USGov', 'USGovDoD', 'Germany', 'France', 'Custom', 'BleuCloud', 'DelosCloud')]
     $GraphEnvironment = 'Global'
 
     [string]

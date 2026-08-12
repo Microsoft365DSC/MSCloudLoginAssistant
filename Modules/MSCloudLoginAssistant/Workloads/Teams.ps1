@@ -40,6 +40,7 @@ function Connect-MSCloudLoginTeams
             $null -eq $Script:CustomEnvConfig.CustomTeamsEndpoints)
         {
             $graphAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.GraphScope `
+                -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.Teams.AuthorizationUrl `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
@@ -47,6 +48,7 @@ function Connect-MSCloudLoginTeams
             $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens += $graphAccessToken
 
             $teamsAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope `
+                -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.Teams.AuthorizationUrl `
                 -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl `
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `

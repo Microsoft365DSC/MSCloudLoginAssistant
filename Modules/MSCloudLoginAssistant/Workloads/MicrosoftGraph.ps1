@@ -56,6 +56,7 @@ function Connect-MSCloudLoginMicrosoftGraph
                     $null -ne $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl)
                 {
                     $accessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Scope `
+                        -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthorizationUrl `
                         -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TokenUrl `
                         -ApplicationId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId `
                         -TenantId $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId `

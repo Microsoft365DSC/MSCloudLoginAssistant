@@ -1084,6 +1084,9 @@ class Tasks:Workload
 class Teams:Workload
 {
     [string]
+    $AuthorizationUrl
+
+    [string]
     $TokenUrl
 
     [string]
@@ -1110,6 +1113,7 @@ class Teams:Workload
                 }
                 $Script:CustomEnvConfig.CustomEnvironment = $true
                 $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
+                $this.AuthorizationUrl = $endpointUriDict.ActiveDirectory
             }
             'AzureGermanyCloud'
             {
@@ -1120,13 +1124,15 @@ class Teams:Workload
                 }
                 $Script:CustomEnvConfig.CustomEnvironment = $true
                 $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
+                $this.AuthorizationUrl = $endpointUriDict.ActiveDirectory
             }
             'Custom'
             {
-                $this.TokenUrl   = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
-                $this.GraphScope = $Script:CustomEnvConfig.CustomGraphScope
-                $this.TeamsScope = $Script:CustomEnvConfig.CustomTeamsScope
-                $this.Endpoints  = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomTeamsTokenUrl
+                $this.TokenUrl         = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
+                $this.GraphScope       = $Script:CustomEnvConfig.CustomGraphScope
+                $this.TeamsScope       = $Script:CustomEnvConfig.CustomTeamsScope
+                $this.Endpoints        = $Script:CustomEnvConfig.CustomTeamsEndpoints
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

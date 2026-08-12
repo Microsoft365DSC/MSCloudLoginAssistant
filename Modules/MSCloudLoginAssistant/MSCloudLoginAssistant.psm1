@@ -1081,6 +1081,10 @@ function Get-MSCloudLoginAccessToken
 
         [Parameter(Mandatory = $True)]
         [System.String]
+        $AuthorizationUrl,
+
+        [Parameter(Mandatory = $True)]
+        [System.String]
         $AzureADAuthorizationEndpointUri,
 
         [Parameter(Mandatory = $True)]
@@ -1101,7 +1105,8 @@ function Get-MSCloudLoginAccessToken
     try
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-        $response = Get-AuthToken -TokenEndpoint $AzureADAuthorizationEndpointUri `
+        $response = Get-AuthToken -AuthorizationUrl $AuthorizationUrl `
+            -TokenEndpoint $AzureADAuthorizationEndpointUri `
             -Scope $ConnectionUri `
             -ClientId $ApplicationId `
             -TenantId $TenantId `

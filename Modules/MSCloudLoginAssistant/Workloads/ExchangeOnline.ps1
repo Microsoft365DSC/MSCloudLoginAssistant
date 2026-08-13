@@ -409,3 +409,15 @@ function Connect-MSCloudLoginExchangeOnlineMFA
         throw
     }
 }
+
+function Disconnect-MSCloudLoginExchangeOnline
+{
+    [CmdletBinding()]
+    param()
+
+    $source = 'Disconnect-MSCloudLoginExchangeOnline'
+    Add-MSCloudLoginAssistantEvent -Message 'Disconnecting from Exchange Online' -Source $source
+
+    Disconnect-ExchangeOnline -Confirm:$false
+    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
+}

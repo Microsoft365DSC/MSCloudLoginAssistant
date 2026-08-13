@@ -37,14 +37,11 @@ function Invoke-TestHarness
     $testsToRun = @()
 
     # Run Unit Tests
-    $versionsPath = Join-Path -Path $repoDir -ChildPath '\Tests\Unit\Stubs\'
+
     # Import the first stub found so that there is a base module loaded before the tests start
     $firstStub = Join-Path -Path $repoDir `
         -ChildPath '\Tests\Unit\Stubs\Stubs.psm1'
     Import-Module $firstStub -WarningAction SilentlyContinue
-
-    $stubPath = Join-Path -Path $repoDir `
-        -ChildPath '\Tests\Unit\Stubs\Stubs.psm1'
 
     # MSCloudLoginAssistant Common Tests
     $getChildItemParameters = @{

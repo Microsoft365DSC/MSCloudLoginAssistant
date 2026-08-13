@@ -1,10 +1,6 @@
 #Requires -Modules Pester
 
 BeforeAll {
-    # Import stubs so that external cmdlets are available as no-ops
-    $stubModule = Join-Path $PSScriptRoot '..\Stubs\Stubs.psm1'
-    Import-Module $stubModule -Force -WarningAction SilentlyContinue
-
     # Ensure the Graph dependency check passes during module import.
     # If the real module is not installed, create a temporary stub manifest.
     $graphModuleName = 'Microsoft.Graph.Beta.Identity.DirectoryManagement'
@@ -278,6 +274,10 @@ Describe 'Connect-M365Tenant' {
             Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
             Mock -CommandName Get-CloudEnvironmentInfo -MockWith {
                 return @{ tenant_region_sub_scope = $null; token_endpoint = 'https://login.microsoftonline.com/tenant/oauth2/v2.0/token' }
+            }
+            Mock -CommandName Get-MSCloudLoginCertificate -MockWith {
+                $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+                return $cert
             }
             Mock -CommandName Connect-MSCloudLoginAdminAPI -MockWith { }
             Mock -CommandName Connect-MSCloudLoginAzure -MockWith { }

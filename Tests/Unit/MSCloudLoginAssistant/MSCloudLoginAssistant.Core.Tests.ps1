@@ -452,7 +452,3 @@ Describe 'Get-MSCloudLoginOrganizationName' {
         }
     }
 }
-
-AfterAll {
-    Remove-Module MSCloudLoginAssistant
-}

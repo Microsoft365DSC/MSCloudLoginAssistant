@@ -543,7 +543,3 @@ Describe 'Disconnect-MSCloudLoginRESTWorkload' {
         }
     }
 }
-
-AfterAll {
-    Remove-Module MSCloudLoginAssistant
-}

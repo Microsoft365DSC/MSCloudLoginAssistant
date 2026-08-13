@@ -1199,7 +1199,3 @@ Describe 'Connect-MSCloudLoginSecurityCompliance' {
         }
     }
 }
-
-AfterAll {
-    Remove-Module MSCloudLoginAssistant
-}

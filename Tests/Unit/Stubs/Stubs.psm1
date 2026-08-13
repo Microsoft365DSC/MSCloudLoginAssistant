@@ -99,19 +99,30 @@ function Connect-PnPOnline
         [Parameter()] [String]       $Url,
         [Parameter()] [PSCredential] $Credentials,
         [Parameter()] [String]       $ClientId,
+        [Parameter()] [String]       $ClientSecret,
         [Parameter()] [String]       $Tenant,
         [Parameter()] [String]       $Thumbprint,
         [Parameter()] [String]       $CertificatePath,
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String]       $AzureEnvironment,
+        [Parameter()] [String]       $AzureADLoginEndPoint,
+        [Parameter()] [String]       $MicrosoftGraphEndPoint,
         [Parameter()] [Switch]       $ManagedIdentity,
         [Parameter()] [String]       $AccessToken,
         [Parameter()] [String]       $Region,
+        [Parameter()] [Switch]       $Interactive,
+        [Parameter()] [Switch]       $UseWebLogin,
         [Parameter()] [Switch]       $ForceAuthentication
     )
 }
 
 function Disconnect-PnPOnline
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Register-PnPManagementShellAccess
 {
     [CmdletBinding()]
     param ()
@@ -138,6 +149,39 @@ function Disconnect-MicrosoftTeams
     param ()
 }
 
+function Get-MgContext
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Invoke-MgGraphRequest
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Uri,
+        [Parameter()] [String] $Method
+    )
+}
+
+function Get-MgEnvironment
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Name
+    )
+}
+
+function Add-MgEnvironment
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Name,
+        [Parameter()] [String] $GraphEndpoint,
+        [Parameter()] [String] $AzureADEndPoint
+    )
+}
+
 function Connect-IPPSSession
 {
     [CmdletBinding()]
@@ -147,12 +191,51 @@ function Connect-IPPSSession
         [Parameter()] [String]       $AzureADAuthorizationEndpointUri,
         [Parameter()] [String]       $AppId,
         [Parameter()] [String]       $Organization,
+        [Parameter()] [String]       $DelegatedOrganization,
+        [Parameter()] [String]       $UserPrincipalName,
         [Parameter()] [String]       $CertificateThumbprint,
         [Parameter()] [String]       $CertificateFilePath,
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String[]]     $CommandName,
+        [Parameter()] [Switch]       $ManagedIdentity,
         [Parameter()] [Switch]       $EnableSearchOnlySession,
         [Parameter()] [Switch]       $ShowBanner
+    )
+}
+
+function Get-AcceptedDomain
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Get-ComplianceSearch
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Import-PSSession
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Position = 0)] [Object] $Session,
+        [Parameter()] [Switch] $DisableNameChecking,
+        [Parameter()] [Switch] $AllowClobber
+    )
+}
+
+function Get-AzContext
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Set-TeamsEnvironmentConfig
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [System.Collections.Hashtable] $EndpointUris
     )
 }
 
@@ -220,35 +303,6 @@ function Get-AuthToken
         [Parameter()] [String] $TokenEndpoint
     )
     return @{ access_token = 'test-token' }
-}
-
-function Connect-PnPOnline
-{
-    [CmdletBinding()]
-    param(
-        [Parameter()] [String] $Url,
-        [Parameter()] [String] $AccessToken,
-        [Parameter()] [String] $AzureEnvironment
-    )
-}
-
-function Disconnect-PnPOnline
-{
-    [CmdletBinding()]
-    param()
-}
-
-function Connect-MicrosoftTeams
-{
-    [CmdletBinding()]
-    param(
-        [Parameter()] [String]       $ApplicationId,
-        [Parameter()] [PSCredential] $Credential,
-        [Parameter()] [Switch]       $Identity,
-        [Parameter()] [String[]]     $AccessTokens,
-        [Parameter()] [System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate,
-        [Parameter()] [String]       $TenantId
-    )
 }
 
 function Get-CsTeamsCallingPolicy

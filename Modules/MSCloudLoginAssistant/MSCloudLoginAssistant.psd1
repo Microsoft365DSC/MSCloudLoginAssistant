@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.2.2'
+    ModuleVersion          = '1.2.3'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,7 +112,8 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Added support for Delos Cloud in Germany.'
+            ReleaseNotes = '* Removed legacy `AzureGermanyCloud` tenant sub scope
+* Fixed an issue where Teams and PnP were missing AuthorizationUrls in the connection profile'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

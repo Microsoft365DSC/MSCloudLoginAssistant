@@ -1,6 +1,15 @@
 # Stubs for MSCloudLoginAssistant unit tests.
 # These stub functions prevent calls to real external modules during testing.
 
+function Start-ThreadJob
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)] [ScriptBlock] $ScriptBlock,
+        [Parameter()] [Object[]] $ArgumentList
+    )
+}
+
 function Connect-AzAccount
 {
     [CmdletBinding()]
@@ -14,7 +23,9 @@ function Connect-AzAccount
         [Parameter()] [String]       $CertificateThumbprint,
         [Parameter()] [String]       $ApplicationId,
         [Parameter()] [SecureString] $CertificatePassword,
-        [Parameter()] [String]       $CertificatePath
+        [Parameter()] [String]       $CertificatePath,
+        [Parameter()] [String]       $AccessToken,
+        [Parameter()] [String]       $AccountId
     )
 }
 
@@ -42,7 +53,12 @@ function Connect-ExchangeOnline
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [Switch]       $ManagedIdentity,
         [Parameter()] [String[]]     $CommandName,
-        [Parameter()] [Switch]       $ShowBanner
+        [Parameter()] [Switch]       $ShowBanner,
+        [Parameter()] [Switch]       $ShowProgress,
+        [Parameter()] [Switch]       $SkipLoadingCmdletHelp,
+        [Parameter()] [String]       $AccessToken,
+        [Parameter()] [String]       $DelegatedOrganization,
+        [Parameter()] [String]       $UserPrincipalName
     )
 }
 
@@ -63,7 +79,10 @@ function Connect-MgGraph
         [Parameter()] [String]       $ClientId,
         [Parameter()] [String]       $CertificateThumbprint,
         [Parameter()] [String]       $Environment,
-        [Parameter()] [SecureString] $AccessToken
+        [Parameter()] [SecureString] $AccessToken,
+        [Parameter()] [PSCredential] $ClientSecretCredential,
+        [Parameter()] [System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate,
+        [Parameter()] [Switch]       $NoWelcome
     )
 }
 
@@ -80,19 +99,30 @@ function Connect-PnPOnline
         [Parameter()] [String]       $Url,
         [Parameter()] [PSCredential] $Credentials,
         [Parameter()] [String]       $ClientId,
+        [Parameter()] [String]       $ClientSecret,
         [Parameter()] [String]       $Tenant,
         [Parameter()] [String]       $Thumbprint,
         [Parameter()] [String]       $CertificatePath,
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String]       $AzureEnvironment,
+        [Parameter()] [String]       $AzureADLoginEndPoint,
+        [Parameter()] [String]       $MicrosoftGraphEndPoint,
         [Parameter()] [Switch]       $ManagedIdentity,
-        [Parameter()] [SecureString] $AccessToken,
+        [Parameter()] [String]       $AccessToken,
         [Parameter()] [String]       $Region,
+        [Parameter()] [Switch]       $Interactive,
+        [Parameter()] [Switch]       $UseWebLogin,
         [Parameter()] [Switch]       $ForceAuthentication
     )
 }
 
 function Disconnect-PnPOnline
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Register-PnPManagementShellAccess
 {
     [CmdletBinding()]
     param ()
@@ -107,7 +137,9 @@ function Connect-MicrosoftTeams
         [Parameter()] [String]       $ApplicationId,
         [Parameter()] [String]       $CertificateThumbprint,
         [Parameter()] [Switch]       $Identity,
-        [Parameter()] [SecureString] $AccessTokens
+        [Parameter()] [String[]]     $AccessTokens,
+        [Parameter()] [System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate,
+        [Parameter()] [String]       $TeamsEnvironmentName
     )
 }
 
@@ -115,6 +147,39 @@ function Disconnect-MicrosoftTeams
 {
     [CmdletBinding()]
     param ()
+}
+
+function Get-MgContext
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Invoke-MgGraphRequest
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Uri,
+        [Parameter()] [String] $Method
+    )
+}
+
+function Get-MgEnvironment
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Name
+    )
+}
+
+function Add-MgEnvironment
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [String] $Name,
+        [Parameter()] [String] $GraphEndpoint,
+        [Parameter()] [String] $AzureADEndPoint
+    )
 }
 
 function Connect-IPPSSession
@@ -126,12 +191,51 @@ function Connect-IPPSSession
         [Parameter()] [String]       $AzureADAuthorizationEndpointUri,
         [Parameter()] [String]       $AppId,
         [Parameter()] [String]       $Organization,
+        [Parameter()] [String]       $DelegatedOrganization,
+        [Parameter()] [String]       $UserPrincipalName,
         [Parameter()] [String]       $CertificateThumbprint,
         [Parameter()] [String]       $CertificateFilePath,
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String[]]     $CommandName,
+        [Parameter()] [Switch]       $ManagedIdentity,
         [Parameter()] [Switch]       $EnableSearchOnlySession,
         [Parameter()] [Switch]       $ShowBanner
+    )
+}
+
+function Get-AcceptedDomain
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Get-ComplianceSearch
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Import-PSSession
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Position = 0)] [Object] $Session,
+        [Parameter()] [Switch] $DisableNameChecking,
+        [Parameter()] [Switch] $AllowClobber
+    )
+}
+
+function Get-AzContext
+{
+    [CmdletBinding()]
+    param ()
+}
+
+function Set-TeamsEnvironmentConfig
+{
+    [CmdletBinding()]
+    param (
+        [Parameter()] [System.Collections.Hashtable] $EndpointUris
     )
 }
 
@@ -143,7 +247,9 @@ function Add-PowerAppsAccount
         [Parameter()] [String] $TenantID,
         [Parameter()] [String] $ApplicationId,
         [Parameter()] [String] $ClientSecret,
-        [Parameter()] [String] $CertificateThumbprint
+        [Parameter()] [String] $CertificateThumbprint,
+        [Parameter()] [String] $Username,
+        [Parameter()] [String] $Password
     )
 }
 
@@ -177,11 +283,30 @@ function Get-MgBetaOrganization
     param ()
 }
 
-function Get-AzAccessToken
+function Get-AuthToken
 {
     [CmdletBinding()]
     param (
-        [Parameter()] [String] $ResourceUrl,
-        [Parameter()] [Switch] $AsSecureString
+        [Parameter()] [String] $AuthorizationUrl,
+        [Parameter()] [PSCredential] $Credentials,
+        [Parameter()] [String] $TenantId,
+        [Parameter()] [String] $ClientId,
+        [Parameter()] [String] $ClientSecret,
+        [Parameter()] [String] $CertificateThumbprint,
+        [Parameter()] [SecureString] $CertificatePassword,
+        [Parameter()] [String] $CertificatePath,
+        [Parameter()] [Switch] $DeviceCode,
+        [Parameter()] [Switch] $Identity,
+        [Parameter()] [String] $RefreshToken,
+        [Parameter()] [String] $Resource,
+        [Parameter()] [String] $Scope,
+        [Parameter()] [String] $TokenEndpoint
     )
+    return @{ access_token = 'test-token' }
+}
+
+function Get-CsTeamsCallingPolicy
+{
+    [CmdletBinding()]
+    param()
 }

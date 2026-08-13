@@ -189,10 +189,6 @@ class Workload : ICloneable
 
         switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
         {
-            'AzureGermanyCloud'
-            {
-                $this.EnvironmentName = 'O365GermanyCloud'
-            }
             'DOD'
             {
                 $this.EnvironmentName = 'AzureDOD'
@@ -233,7 +229,7 @@ class Workload : ICloneable
                 {
                     $this.EnvironmentName = 'Custom'
                 }
-                else
+                elseif ($null -ne $Script:CloudEnvironmentInfo)
                 {
                     $this.EnvironmentName = 'AzureCloud'
                 }
@@ -764,6 +760,9 @@ class O365Portal:Workload
 class PnP:Workload
 {
     [string]
+    $AuthorizationUrl
+
+    [string]
     $Scope
 
     [string]
@@ -803,6 +802,7 @@ class PnP:Workload
         if ($this.EnvironmentName -eq 'Custom')
         {
             $this.PnPAzureEnvironment = 'Custom'
+            $this.AuthorizationUrl    = $Script:CustomEnvConfig.CustomPnPTokenUrl
             $this.Scope               = $Script:CustomEnvConfig.CustomPnPScope
             $this.TokenUrl            = "$($Script:CustomEnvConfig.CustomPnPTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
         }
@@ -1084,6 +1084,9 @@ class Tasks:Workload
 class Teams:Workload
 {
     [string]
+    $AuthorizationUrl
+
+    [string]
     $TokenUrl
 
     [string]
@@ -1110,6 +1113,7 @@ class Teams:Workload
                 }
                 $Script:CustomEnvConfig.CustomEnvironment = $true
                 $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
+                $this.AuthorizationUrl = $endpointUriDict.ActiveDirectory
             }
             'AzureGermanyCloud'
             {
@@ -1120,13 +1124,15 @@ class Teams:Workload
                 }
                 $Script:CustomEnvConfig.CustomEnvironment = $true
                 $Script:CustomEnvConfig.CustomTeamsEndpoints = $endpointUriDict
+                $this.AuthorizationUrl = $endpointUriDict.ActiveDirectory
             }
             'Custom'
             {
-                $this.TokenUrl   = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
-                $this.GraphScope = $Script:CustomEnvConfig.CustomGraphScope
-                $this.TeamsScope = $Script:CustomEnvConfig.CustomTeamsScope
-                $this.Endpoints  = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomTeamsTokenUrl
+                $this.TokenUrl         = "$($Script:CustomEnvConfig.CustomTeamsTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
+                $this.GraphScope       = $Script:CustomEnvConfig.CustomGraphScope
+                $this.TeamsScope       = $Script:CustomEnvConfig.CustomTeamsScope
+                $this.Endpoints        = $Script:CustomEnvConfig.CustomTeamsEndpoints
             }
         }
         $Script:MSCloudLoginConnectionProfile.Teams = $this

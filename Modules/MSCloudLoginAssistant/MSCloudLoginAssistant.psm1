@@ -615,7 +615,7 @@ function Get-MSCloudLoginConnectionProfile
     (
         [Parameter(Mandatory = $true)]
         [ValidateSet('AdminAPI', 'Azure', 'AzureDevOPS', 'EngageHub', 'ExchangeOnline', 'Fabric', 'Licensing', `
-                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatforms', 'PowerPlatformREST', `
+                'O365Portal', 'SecurityComplianceCenter', 'PnP', 'PowerPlatform', 'PowerPlatforms', 'PowerPlatformREST', `
                 'MicrosoftTeams', 'Teams', 'MicrosoftGraph', 'SharePointOnlineREST', 'Tasks', 'DefenderForEndpoint')]
         [System.String]
         $Workload
@@ -624,6 +624,10 @@ function Get-MSCloudLoginConnectionProfile
     if ($Workload -eq 'MicrosoftTeams')
     {
         $Workload = 'Teams'
+    }
+    elseif ($Workload -eq 'PowerPlatforms')
+    {
+        $Workload = 'PowerPlatform'
     }
 
     if ($null -ne $Script:MSCloudLoginConnectionProfile.$Workload)

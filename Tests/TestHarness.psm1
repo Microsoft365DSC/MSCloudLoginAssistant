@@ -28,7 +28,7 @@ function Invoke-TestHarness
     $testCoverageFiles = @()
     if ($IgnoreCodeCoverage.IsPresent -eq $false)
     {
-        Get-ChildItem -Path "$repoDir\Modules\MSCloudLoginAssistant\*.psm1" -Recurse | ForEach-Object {
+        Get-ChildItem -Path "$repoDir\Modules\MSCloudLoginAssistant" -Include '*.psm1', '*.ps1' -Recurse | ForEach-Object {
             $testCoverageFiles += $_.FullName
         }
     }

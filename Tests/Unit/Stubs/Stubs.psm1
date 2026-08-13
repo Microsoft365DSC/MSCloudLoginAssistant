@@ -225,7 +225,11 @@ function Get-AuthToken
 function Connect-PnPOnline
 {
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter()] [String] $Url,
+        [Parameter()] [String] $AccessToken,
+        [Parameter()] [String] $AzureEnvironment
+    )
 }
 
 function Disconnect-PnPOnline

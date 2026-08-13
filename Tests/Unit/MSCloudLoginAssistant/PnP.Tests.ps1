@@ -8,6 +8,7 @@ Describe 'Connect-MSCloudLoginPnP' {
     Context 'When connecting with AccessTokens' {
         It 'Should call Connect-PnPOnline with AccessToken' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-PnPOnline -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
@@ -55,6 +56,7 @@ Describe 'Disconnect-MSCloudLoginPnP' {
     Context 'When PnP is connected' {
         It 'Should call Disconnect-PnPOnline' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Disconnect-PnPOnline -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
@@ -71,6 +73,7 @@ Describe 'Disconnect-MSCloudLoginPnP' {
     Context 'When PnP is not connected' {
         It 'Should not throw and log message' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile

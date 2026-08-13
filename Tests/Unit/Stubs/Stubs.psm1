@@ -237,7 +237,14 @@ function Disconnect-PnPOnline
 function Connect-MicrosoftTeams
 {
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter()] [String]       $ApplicationId,
+        [Parameter()] [PSCredential] $Credential,
+        [Parameter()] [Switch]       $Identity,
+        [Parameter()] [String[]]     $AccessTokens,
+        [Parameter()] [System.Security.Cryptography.X509Certificates.X509Certificate2] $Certificate,
+        [Parameter()] [String]       $TenantId
+    )
 }
 
 function Get-CsTeamsCallingPolicy

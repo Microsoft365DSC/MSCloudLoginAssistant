@@ -8,6 +8,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with ServicePrincipalWithThumbprint' {
         It 'Should call Connect-MicrosoftTeams with AccessTokens' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-MSCloudLoginAccessToken -MockWith { return 'access-token' }
@@ -79,6 +80,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with Credentials' {
         It 'Should call Connect-MicrosoftTeams with Credentials' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
@@ -106,6 +108,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When MFA is required with Credentials' {
         It 'Should call Connect-MSCloudLoginTeamsMFA' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { throw 'MFA required' }
                 Mock -CommandName Connect-MSCloudLoginTeamsMFA -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
@@ -132,6 +135,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with Identity' {
         It 'Should call Connect-MicrosoftTeams with Identity' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
@@ -153,6 +157,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with AccessTokens' {
         It 'Should call Connect-MicrosoftTeams with AccessTokens' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-MSCloudLoginAccessTokenValue -MockWith { return 'token-value' }
@@ -176,6 +181,7 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When unsupported authentication type is provided' {
         It 'Should throw an error' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
                 Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
@@ -194,6 +200,7 @@ Describe 'Disconnect-MSCloudLoginTeams' {
     Context 'When Teams is connected' {
         It 'Should call Disconnect-MicrosoftTeams' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Disconnect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
@@ -210,6 +217,7 @@ Describe 'Disconnect-MSCloudLoginTeams' {
     Context 'When Teams is not connected' {
         It 'Should not throw and log message' {
             InModuleScope 'MSCloudLoginAssistant' {
+                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile

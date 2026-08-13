@@ -221,3 +221,27 @@ function Get-AuthToken
     )
     return @{ access_token = 'test-token' }
 }
+
+function Connect-PnPOnline
+{
+    [CmdletBinding()]
+    param()
+}
+
+function Disconnect-PnPOnline
+{
+    [CmdletBinding()]
+    param()
+}
+
+function Connect-MicrosoftTeams
+{
+    [CmdletBinding()]
+    param()
+}
+
+function Get-CsTeamsCallingPolicy
+{
+    [CmdletBinding()]
+    param()
+}

@@ -183,5 +183,5 @@ Describe 'Disconnect-MSCloudLoginExchangeOnline' {
 }
 
 AfterAll {
-    Remove-Module MSCloudLoginAssistant
+    Remove-Module MSCloudLoginAssistant -Force
 }

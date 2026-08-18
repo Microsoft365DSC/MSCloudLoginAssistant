@@ -18,11 +18,6 @@ function Connect-MSCloudLoginPowerPlatform
             Add-MSCloudLoginAssistantEvent -Message 'Using PowerShell 7 or above. Loading the Microsoft.PowerApps.Administration.PowerShell module using Windows PowerShell.' -Source $source
             Import-Module Microsoft.PowerApps.Administration.PowerShell -UseWindowsPowerShell -Global -DisableNameChecking | Out-Null
         }
-        if ($Script:MSCloudLoginConnectionProfile.PowerPlatform.EnvironmentName -eq 'AzureGermany')
-        {
-            $Script:MSCloudLoginConnectionProfile.PowerPlatform.Connected = $false
-            throw 'Microsoft PowerPlatform is not supported in the Germany Cloud'
-        }
 
         switch ($Script:CloudEnvironmentInfo.tenant_region_sub_scope)
         {

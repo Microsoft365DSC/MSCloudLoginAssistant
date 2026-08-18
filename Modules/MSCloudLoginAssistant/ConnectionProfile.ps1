@@ -818,13 +818,17 @@ class PnP:Workload
         {
             $this.PnPAzureEnvironment = 'USGovernmentDoD'
         }
-        elseif ($this.EnvironmentName -eq 'AzureGermany')
-        {
-            $this.PnPAzureEnvironment = 'Germany'
-        }
         elseif ($this.EnvironmentName -eq 'AzureChinaCloud')
         {
             $this.PnPAzureEnvironment = 'China'
+        }
+        elseif ($this.EnvironmentName -eq 'AzureFranceCloud')
+        {
+            $this.PnPAzureEnvironment = 'BleuCloud'
+        }
+        elseif ($this.EnvironmentName -eq 'AzureGermanyCloud')
+        {
+            $this.PnPAzureEnvironment = 'DelosCloud'
         }
         if ([System.String]::IsNullOrEmpty($this.ApplicationId))
         {

@@ -13,9 +13,7 @@
     #   the sovereign authorization endpoint (login.sovcloud-identity.fr) combined with
     #   the commercial service endpoints unless a dedicated sovereign endpoint is known.
     # - AzureGermanyCloud mirrors AzureFranceCloud one-for-one, with the sovereign
-    #   authorization endpoint login.sovcloud-identity.de instead of .fr. It is distinct
-    #   from the legacy 'AzureGermany' (Microsoft Cloud Deutschland, *.microsoftonline.de)
-    #   entries that only exist for SecurityComplianceCenter.
+    #   authorization endpoint login.sovcloud-identity.de instead of .fr.
 
     AdminAPI              = @{
         AzureDOD          = @{ Scope = '{Resource}/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }
@@ -93,7 +91,6 @@
         AzureCloud        = @{ ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.com/organizations' }
         AzureUSGovernment = @{ ConnectionUrl = 'https://ps.compliance.protection.office365.us/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.us/organizations' }
         AzureDOD          = @{ ConnectionUrl = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.us/organizations' }
-        AzureGermany      = @{ ConnectionUrl = 'https://ps.compliance.protection.outlook.de/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.de/organizations' }
         AzureChinaCloud   = @{ ConnectionUrl = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/'; AuthorizationUrl = 'https://login.chinacloudapi.cn/organizations' }
         AzureFranceCloud  = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.fr/PowerShell-LiveID'; AuthorizationUrl = 'https://login.sovcloud-identity.fr/organizations' }
         AzureGermanyCloud = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.de/PowerShell-LiveID'; AuthorizationUrl = 'https://login.sovcloud-identity.de/organizations' }

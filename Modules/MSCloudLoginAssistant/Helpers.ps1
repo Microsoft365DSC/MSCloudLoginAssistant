@@ -444,6 +444,10 @@ function Get-MSCloudLoginSPOUrlFromTenantId
     {
         $domain = $TenantId.Replace('.onms.', '-admin.spo.')
     }
+    elseif ($TenantId.Contains('.onsovcloud.'))
+    {
+        $domain = $TenantId.Replace('.onsovcloud.', '-admin.sovcloud-sharepoint.')
+    }
     else
     {
         throw 'TenantId must be in format contoso.onmicrosoft.com'

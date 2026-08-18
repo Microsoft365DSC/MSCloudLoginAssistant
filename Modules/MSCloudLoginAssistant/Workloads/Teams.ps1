@@ -118,11 +118,6 @@ function Connect-MSCloudLoginTeams
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'Credentials' -or
         $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'CredentialsWithTenantId')
     {
-        if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureGermany')
-        {
-            $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-            throw 'Microsoft Teams is not supported in the Germany Cloud'
-        }
 
         try
         {

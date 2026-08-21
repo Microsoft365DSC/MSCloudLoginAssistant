@@ -1,3 +1,21 @@
+<#
+.SYNOPSIS
+    Returns the Windows principal of the current user.
+
+.DESCRIPTION
+    Thin wrapper around the Windows identity APIs used to decide whether the
+    current session is elevated. Extracted so that unit tests can substitute
+    the principal without depending on the privileges of the test runner.
+#>
+function Get-MSCloudLoginWindowsPrincipal
+{
+    [CmdletBinding()]
+    [OutputType([System.Security.Principal.WindowsPrincipal])]
+    param()
+
+    return [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+}
+
 function Connect-MSCloudLoginExchangeOnline
 {
     [CmdletBinding()]
@@ -189,7 +207,8 @@ function Connect-MSCloudLoginExchangeOnline
                 $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
             }
 
-            if (($IsWindows -or $PSVersionTable.PSVersion.Major -eq 5) -and -not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+            if (($IsWindows -or $PSVersionTable.PSVersion.Major -eq 5) -and `
+                -not (Get-MSCloudLoginWindowsPrincipal).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
             {
                 throw 'Certificate Path authentication on Windows requires the command to be run as Administrator.'
             }

@@ -2,13 +2,21 @@
 
 Describe 'Connect-MSCloudLoginTeams' {
     BeforeAll {
+        # Plain function stubs keep command resolution off the real SDK modules,
+        # which would otherwise be discovered and imported on first use.
+        Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force -Global -WarningAction SilentlyContinue
         Import-Module ./Modules/MSCloudLoginAssistant/MSCloudLoginAssistant.psd1 -Force
+
+        # Compile and instantiate the workload classes once here so that the cost
+        # does not show up inside the first test of this file.
+        InModuleScope 'MSCloudLoginAssistant' {
+            $null = New-Object MSCloudLoginConnectionProfile
+        }
     }
 
     Context 'When connecting with ServicePrincipalWithThumbprint' {
         It 'Should call Connect-MicrosoftTeams with AccessTokens' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-MSCloudLoginAccessToken -MockWith { return 'access-token' }
@@ -39,10 +47,87 @@ Describe 'Connect-MSCloudLoginTeams' {
         }
     }
 
+    Context 'When connecting with a custom environment' {
+        It 'Should reject custom environment connections outside Windows PowerShell 5' -Skip:($PSVersionTable.PSVersion.Major -eq 5) {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Set-TeamsEnvironmentConfig -MockWith { }
+
+                $originalCustomEnvironment = $Script:CustomEnvConfig.CustomEnvironment
+                $originalCustomTeamsEndpoints = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                try
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $true
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = @{ Teams = 'https://teams.example.test' }
+
+                    $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                    $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
+                    $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'contoso.onmicrosoft.com'
+                    $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                    { Connect-MSCloudLoginTeams } |
+                        Should -Throw '*only supported in PowerShell 5*'
+
+                    Should -Invoke Set-TeamsEnvironmentConfig -Exactly 0
+                    Should -Invoke Connect-MicrosoftTeams -Exactly 0
+                }
+                finally
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $originalCustomEnvironment
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = $originalCustomTeamsEndpoints
+                }
+            }
+        }
+
+        It 'Should configure and connect through the custom endpoints in Windows PowerShell 5' -Skip:($PSVersionTable.PSVersion.Major -gt 5) {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Set-TeamsEnvironmentConfig -MockWith { }
+
+                $originalCustomEnvironment = $Script:CustomEnvConfig.CustomEnvironment
+                $originalCustomTeamsEndpoints = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                try
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $true
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = @{ Teams = 'https://teams.example.test' }
+
+                    $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                    $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
+                    $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'contoso.onmicrosoft.com'
+                    $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                    Connect-MSCloudLoginTeams
+
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeTrue
+                    Should -Invoke Set-TeamsEnvironmentConfig -Exactly 1 -ParameterFilter {
+                        $EndpointUris.Teams -eq 'https://teams.example.test'
+                    }
+                    Should -Invoke Connect-MicrosoftTeams -Exactly 1 -ParameterFilter {
+                        $ApplicationId -eq 'app-id' -and
+                        $TenantId -eq 'contoso.onmicrosoft.com' -and
+                        $CertificateThumbprint -eq 'thumbprint'
+                    }
+                }
+                finally
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $originalCustomEnvironment
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = $originalCustomTeamsEndpoints
+                }
+            }
+        }
+    }
+
     Context 'When connecting with ServicePrincipalWithPath' {
         It 'Should call Connect-MicrosoftTeams with CertificatePath' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 $testCert = [Security.Cryptography.X509Certificates.X509Certificate2]::new()
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
@@ -80,7 +165,6 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with Credentials' {
         It 'Should call Connect-MicrosoftTeams with Credentials' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
@@ -108,7 +192,6 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When MFA is required with Credentials' {
         It 'Should call Connect-MSCloudLoginTeamsMFA' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { throw 'MFA required' }
                 Mock -CommandName Connect-MSCloudLoginTeamsMFA -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
@@ -135,7 +218,6 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with Identity' {
         It 'Should call Connect-MicrosoftTeams with Identity' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
@@ -157,7 +239,6 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When connecting with AccessTokens' {
         It 'Should call Connect-MicrosoftTeams with AccessTokens' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-MSCloudLoginAccessTokenValue -MockWith { return 'token-value' }
@@ -181,7 +262,6 @@ Describe 'Connect-MSCloudLoginTeams' {
     Context 'When unsupported authentication type is provided' {
         It 'Should throw an error' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
                 Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
@@ -200,7 +280,6 @@ Describe 'Disconnect-MSCloudLoginTeams' {
     Context 'When Teams is connected' {
         It 'Should call Disconnect-MicrosoftTeams' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Disconnect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
@@ -217,7 +296,6 @@ Describe 'Disconnect-MSCloudLoginTeams' {
     Context 'When Teams is not connected' {
         It 'Should not throw and log message' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Import-Module ./Tests/Unit/Stubs/Stubs.psm1 -Force
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile

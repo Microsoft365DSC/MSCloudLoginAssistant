@@ -526,13 +526,7 @@ class ExchangeOnline:Workload
 
     [void] Disconnect()
     {
-        $source = 'ExchangeOnline-Disconnect()'
-        Add-MSCloudLoginAssistantEvent -Message 'Disconnecting from Exchange Online Connection' -Source $source
-        Disconnect-ExchangeOnline -Confirm:$false
-        $this.Connected = $false
-        $this.LoadedAllCmdlets = $false
-        $this.LoadedCmdlets = @()
-        $this.CmdletsToLoad = @()
+        Disconnect-MSCloudLoginExchangeOnline
     }
 }
 

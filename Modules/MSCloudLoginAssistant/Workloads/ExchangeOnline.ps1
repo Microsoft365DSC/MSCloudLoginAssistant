@@ -416,8 +416,19 @@ function Disconnect-MSCloudLoginExchangeOnline
     param()
 
     $source = 'Disconnect-MSCloudLoginExchangeOnline'
-    Add-MSCloudLoginAssistantEvent -Message 'Disconnecting from Exchange Online' -Source $source
 
-    Disconnect-ExchangeOnline -Confirm:$false
-    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
+    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Exchange Online' -Source $source
+        Disconnect-ExchangeOnline -Confirm:$false
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $false
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedCmdlets = @()
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad = @()
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Exchange Online' -Source $source
+    }
+    else
+    {
+        Add-MSCloudLoginAssistantEvent -Message 'No connections to Exchange Online were found' -Source $source
+    }
 }

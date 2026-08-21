@@ -775,7 +775,7 @@ class PnP:Workload
     $AdminUrl
 
     [string]
-    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'France', 'Custom')]
+    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'France', 'Custom', 'BleuCloud', 'DelosCloud')]
     $PnPAzureEnvironment
 
     PnP()

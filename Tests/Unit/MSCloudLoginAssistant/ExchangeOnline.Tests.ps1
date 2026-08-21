@@ -247,7 +247,7 @@ Context 'When connecting with AccessTokens' {
                 try
                 {
                     $PSVersionTable['Platform'] = 'Unix'
-                    $PSVersionTable['PSVersion'] = [System.Version]'7.4.0'
+                    $PSVersionTable['PSVersion'] = [System.Version]'7.6.0'
 
                     { Connect-MSCloudLoginExchangeOnline } |
                         Should -Throw '*Certificate Thumbprint authentication is only supported on the Windows platform*'

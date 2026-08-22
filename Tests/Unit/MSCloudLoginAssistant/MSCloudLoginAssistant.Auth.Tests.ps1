@@ -137,6 +137,38 @@ Describe 'Get-AuthToken' {
                     Should -Throw '*Unable to determine the Azure Arc managed identity secret file*'
             }
         }
+
+        It 'Should retrieve the token after obtaining the challenge secret file' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $env:AZUREPS_HOST_ENVIRONMENT = ''
+                $env:IDENTITY_ENDPOINT = 'http://localhost:40342/metadata/identity/oauth2/token'
+                $env:IDENTITY_HEADER = ''
+                $env:IMDS_ENDPOINT = 'http://localhost:40342'
+
+                $script:arcCallCount = 0
+                Mock -CommandName Invoke-WebRequest -MockWith {
+                    $script:arcCallCount++
+                    if ($script:arcCallCount -eq 1)
+                    {
+                        # First request throws with a WWW-Authenticate challenge header
+                        # pointing at the secret file.
+                        $ex = [System.Exception]::new('401 Unauthorized')
+                        $response = [PSCustomObject]@{
+                            Headers = @{ 'WWW-Authenticate' = 'Basic realm=C:\secrets\arc-secret' }
+                        }
+                        $ex | Add-Member -NotePropertyName Response -NotePropertyValue $response -Force
+                        throw $ex
+                    }
+                    return [PSCustomObject]@{
+                        Content = '{ "access_token": "arc-token" }'
+                    }
+                }
+                Mock -CommandName Get-Content -MockWith { return 'arc-secret-value' }
+
+                $result = Get-AuthToken -Identity -Resource 'https://graph.microsoft.com'
+                $result | Should -Be 'arc-token'
+            }
+        }
     }
 
     Context 'When using a client secret' {

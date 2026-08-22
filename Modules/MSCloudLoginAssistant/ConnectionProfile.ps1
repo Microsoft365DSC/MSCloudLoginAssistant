@@ -526,13 +526,7 @@ class ExchangeOnline:Workload
 
     [void] Disconnect()
     {
-        $source = 'ExchangeOnline-Disconnect()'
-        Add-MSCloudLoginAssistantEvent -Message 'Disconnecting from Exchange Online Connection' -Source $source
-        Disconnect-ExchangeOnline -Confirm:$false
-        $this.Connected = $false
-        $this.LoadedAllCmdlets = $false
-        $this.LoadedCmdlets = @()
-        $this.CmdletsToLoad = @()
+        Disconnect-MSCloudLoginExchangeOnline
     }
 }
 
@@ -781,7 +775,7 @@ class PnP:Workload
     $AdminUrl
 
     [string]
-    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'France', 'Custom')]
+    [ValidateSet('Production', 'PPE', 'China', 'Germany', 'USGovernment', 'USGovernmentHigh', 'USGovernmentDoD', 'France', 'Custom', 'BleuCloud', 'DelosCloud')]
     $PnPAzureEnvironment
 
     PnP()

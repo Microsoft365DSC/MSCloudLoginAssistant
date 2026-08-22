@@ -671,7 +671,16 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
     Context 'When a Teams session is still usable' {
         It 'Should reuse the session without calling Connect-MicrosoftTeams' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { return @{ Identity = 'Global' } }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Get-MSCloudLoginAccessToken -MockWith { return 'access-token' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                Connect-M365Tenant -Workload 'MicrosoftTeams' `
+                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
+                    -TenantId 'contoso.onmicrosoft.com' `
+                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $true }
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
 
                 Connect-M365Tenant -Workload 'MicrosoftTeams' `
@@ -680,7 +689,7 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams').Connected | Should -BeTrue
-                Should -Invoke Connect-MicrosoftTeams -Exactly 0
+                Should -Invoke Connect-MicrosoftTeams -Exactly 1
             }
         }
     }

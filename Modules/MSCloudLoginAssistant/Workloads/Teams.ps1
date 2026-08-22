@@ -53,29 +53,13 @@ function Connect-MSCloudLoginTeams
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginTeams'
 
-    Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-CsTeamsCallingPolicy command from within MSCloudLoginAssistant' -Source $source
-    try
+    if (Test-MSCloudLoginConnectionReusable -WorkloadProfile $Script:MSCloudLoginConnectionProfile.Teams `
+            -ProbeScript { Get-CsTeamsCallingPolicy } `
+            -Source $source)
     {
-        $results = Get-CsTeamsCallingPolicy -ErrorAction Stop
-        if ($null -ne $results)
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Succeeded' -Source $source
-            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection($Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication)
-            return
-        }
-    }
-    catch
-    {
-        # Liveness probe: a failure only means that there is no usable Teams session yet.
-        Add-MSCloudLoginAssistantEvent -Message "Probe for existing Microsoft Teams session failed: $($_.Exception.Message)" -Source $source
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-    }
-
-    if ($Script:MSCloudLoginConnectionProfile.Teams.Connected)
-    {
-        Add-MSCloudLoginAssistantEvent -Message 'Already connected to Microsoft Teams. Not attempting to re-connect.' -Source $source
         return
     }
+
     Add-MSCloudLoginAssistantEvent -Message 'No Active Connections to Microsoft Teams were found.' -Source $source
 
     if ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithThumbprint')

@@ -481,7 +481,7 @@ Describe 'Connect-MSCloudLoginTeams failure handling' {
 
     It 'Should keep an existing connection when the session probe returns nothing usable' {
         InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { return $null }
+            Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $true }
             Mock -CommandName Connect-MicrosoftTeams -MockWith { }
 
             $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()

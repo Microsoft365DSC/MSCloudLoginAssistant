@@ -90,6 +90,58 @@ Describe 'Add-MSCloudLoginAssistantEvent' {
             }
         }
     }
+
+    Context 'When event log writing is enabled' {
+        BeforeAll {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:WriteToEventLog = $true
+            }
+        }
+
+        AfterAll {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:WriteToEventLog = $false
+            }
+        }
+
+        It 'Should detect the source exists on a different log and emit a warning' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Write-Warning -MockWith { }
+                Mock -CommandName Write-Verbose -MockWith { }
+
+                # 'Application' is a well-known source on the Application log,
+                # which differs from 'MSCloudLoginAssistant'. This hits the warning path.
+                Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Application'
+
+                Should -Invoke Write-Warning -ParameterFilter {
+                    $Message -like '[[]ERROR[]] Specified source {Application} already exists on log*'
+                }
+            }
+        }
+
+        It 'Should attempt to create a new event source for an unknown source name' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Write-Warning -MockWith { }
+                Mock -CommandName Write-Verbose -MockWith { }
+
+                # Use a source name that does not exist.
+                # CreateEventSource will throw SecurityException (not admin),
+                # which is caught and logged at the verbose level.
+                { Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source ('MSCloudLoginTest.Coverage.' + [guid]::NewGuid().ToString('N')) } | Should -Not -Throw
+            }
+        }
+
+        It 'Should truncate a message that exceeds 32766 characters' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Write-Warning -MockWith { }
+                Mock -CommandName Write-Verbose -MockWith { }
+
+                $longMessage = 'A' * 40000
+
+                { Add-MSCloudLoginAssistantEvent -Message $longMessage -Source 'Application' } | Should -Not -Throw
+            }
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------

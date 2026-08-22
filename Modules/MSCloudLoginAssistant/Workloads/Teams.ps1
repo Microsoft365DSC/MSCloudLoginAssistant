@@ -1,3 +1,50 @@
+function Get-MSCloudLoginTeamsEnvironmentParameters
+{
+    [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
+    param(
+        [Parameter()]
+        [System.String]
+        $EnvironmentName
+    )
+
+    $teamsEnvironmentNames = @{
+        AzureUSGovernment = 'TeamsGCCH'
+        USGovernmentDoD   = 'TeamsDOD'
+        AzureDOD          = 'TeamsDOD'
+        AzureChinaCloud   = 'TeamsChina'
+    }
+
+    if ($teamsEnvironmentNames.ContainsKey($EnvironmentName))
+    {
+        return @{ TeamsEnvironmentName = $teamsEnvironmentNames[$EnvironmentName] }
+    }
+
+    return @{}
+}
+
+function Connect-MSCloudLoginTeamsCustomEnvironment
+{
+    [CmdletBinding()]
+    param()
+
+    if ($null -eq $Script:CustomEnvConfig.CustomTeamsEndpoints -or -not $Script:CustomEnvConfig.CustomEnvironment)
+    {
+        return $false
+    }
+
+    if ($PSVersionTable.PSVersion.Major -gt 5)
+    {
+        throw 'Custom Environment connections to Microsoft Teams are only supported in PowerShell 5. Please run this module in PowerShell 5 to connect to Microsoft Teams in a custom environment.'
+    }
+
+    Set-TeamsEnvironmentConfig -EndpointUris $Script:CustomEnvConfig.CustomTeamsEndpoints
+    Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
+        -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
+        -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
+    return $true
+}
+
 function Connect-MSCloudLoginTeams
 {
     [CmdletBinding()]
@@ -6,29 +53,13 @@ function Connect-MSCloudLoginTeams
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginTeams'
 
-    Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-CsTeamsCallingPolicy command from within MSCloudLoginAssistant' -Source $source
-    try
+    if (Test-MSCloudLoginConnectionReusable -WorkloadProfile $Script:MSCloudLoginConnectionProfile.Teams `
+            -ProbeScript { Get-CsTeamsCallingPolicy } `
+            -Source $source)
     {
-        $results = Get-CsTeamsCallingPolicy -ErrorAction Stop
-        if ($null -ne $results)
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Succeeded' -Source $source
-            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection($Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication)
-            return
-        }
-    }
-    catch
-    {
-        # Liveness probe: a failure only means that there is no usable Teams session yet.
-        Add-MSCloudLoginAssistantEvent -Message "Probe for existing Microsoft Teams session failed: $($_.Exception.Message)" -Source $source
-        $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-    }
-
-    if ($Script:MSCloudLoginConnectionProfile.Teams.Connected)
-    {
-        Add-MSCloudLoginAssistantEvent -Message 'Already connected to Microsoft Teams. Not attempting to re-connect.' -Source $source
         return
     }
+
     Add-MSCloudLoginAssistantEvent -Message 'No Active Connections to Microsoft Teams were found.' -Source $source
 
     if ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
@@ -58,18 +89,7 @@ function Connect-MSCloudLoginTeams
             Connect-MicrosoftTeams -AccessTokens @($graphAccessToken, $teamsAccessToken)
             Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
         }
-        elseif ($null -ne $Script:CustomEnvConfig.CustomTeamsEndpoints -and $Script:CustomEnvConfig.CustomEnvironment)
-        {
-            if ($PSVersionTable.PSVersion.Major -gt 5)
-            {
-                throw 'Custom Environment connections to Microsoft Teams are only supported in PowerShell 5. Please run this module in PowerShell 5 to connect to Microsoft Teams in a custom environment.'
-            }
-            Set-TeamsEnvironmentConfig -EndpointUris $Script:CustomEnvConfig.CustomTeamsEndpoints
-            Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
-                -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
-                -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
-        }
-        else
+        elseif (-not (Connect-MSCloudLoginTeamsCustomEnvironment))
         {
             try
             {
@@ -79,19 +99,8 @@ function Connect-MSCloudLoginTeams
                     CertificateThumbprint = $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
                 }
 
-                if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureUSGovernment')
-                {
-                    $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
-                }
-                elseif ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
-                        $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
-                {
-                    $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
-                }
-                elseif ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureChinaCloud')
-                {
-                    $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsChina')
-                }
+                $ConnectionParams += Get-MSCloudLoginTeamsEnvironmentParameters `
+                    -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
 
                 Connect-MicrosoftTeams @ConnectionParams | Out-Null
             }
@@ -125,26 +134,9 @@ function Connect-MSCloudLoginTeams
                 Credential = $Script:MSCloudLoginConnectionProfile.Teams.Credentials
             }
 
-            if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureUSGovernment')
-            {
-                $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
-            }
-
-            if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
-                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
-            {
-                $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
-            }
-
-            if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureChinaCloud')
-            {
-                $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsChina')
-            }
-
-            if (-not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.Teams.TenantId))
-            {
-                $ConnectionParams.Add('TenantId', $Script:MSCloudLoginConnectionProfile.Teams.TenantId)
-            }
+            $ConnectionParams += Get-MSCloudLoginTeamsEnvironmentParameters `
+                -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
+            $ConnectionParams['TenantId'] = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
 
             Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using credentials.' -Source $source
             Add-MSCloudLoginAssistantEvent -Message "Params: $($ConnectionParams | Out-String)" -Source $source
@@ -212,20 +204,9 @@ function Connect-MSCloudLoginTeamsMFA
 
     try
     {
-        $ConnectionParams = @{}
-        if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureUSGovernment')
-        {
-            $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsGCCH')
-        }
-        if ($Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'USGovernmentDoD' -or `
-                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName -eq 'AzureDOD')
-        {
-            $ConnectionParams.Add('TeamsEnvironmentName', 'TeamsDOD')
-        }
-        if (-not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.Teams.TenantId))
-        {
-            $ConnectionParams.Add('TenantId', $Script:MSCloudLoginConnectionProfile.Teams.TenantId)
-        }
+        $ConnectionParams = Get-MSCloudLoginTeamsEnvironmentParameters `
+            -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
+        $ConnectionParams['TenantId'] = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
         Add-MSCloudLoginAssistantEvent -Message 'Disconnecting from Microsoft Teams' -Source $source
         Disconnect-MicrosoftTeams | Out-Null
 

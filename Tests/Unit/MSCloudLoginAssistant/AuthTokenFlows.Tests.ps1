@@ -173,7 +173,10 @@ Describe 'Get-AuthToken device code flow' {
                 {
                     return @{ device_code = 'device-code'; interval = 0; message = 'Sign in please' }
                 }
-                throw 'the remote name could not be resolved'
+                $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                    [System.Exception]::new('the remote name could not be resolved'), 'ConnectionFailure', 'NotSpecified', $null)
+                $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('the remote name could not be resolved')
+                throw $errorRecord
             }
 
             { Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `

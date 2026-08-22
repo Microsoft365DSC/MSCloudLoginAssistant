@@ -14,8 +14,38 @@ Describe 'Connect-MSCloudLoginTeams' {
         }
     }
 
+    Context 'Get-MSCloudLoginTeamsEnvironmentParameters' {
+        It 'Should return TeamsGCCH for AzureUSGovernment' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $result = Get-MSCloudLoginTeamsEnvironmentParameters -EnvironmentName 'AzureUSGovernment'
+                $result.TeamsEnvironmentName | Should -Be 'TeamsGCCH'
+            }
+        }
+
+        It 'Should return TeamsDOD for USGovernmentDoD' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $result = Get-MSCloudLoginTeamsEnvironmentParameters -EnvironmentName 'USGovernmentDoD'
+                $result.TeamsEnvironmentName | Should -Be 'TeamsDOD'
+            }
+        }
+
+        It 'Should return TeamsDOD for AzureDOD' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $result = Get-MSCloudLoginTeamsEnvironmentParameters -EnvironmentName 'AzureDOD'
+                $result.TeamsEnvironmentName | Should -Be 'TeamsDOD'
+            }
+        }
+
+        It 'Should return TeamsChina for AzureChinaCloud' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $result = Get-MSCloudLoginTeamsEnvironmentParameters -EnvironmentName 'AzureChinaCloud'
+                $result.TeamsEnvironmentName | Should -Be 'TeamsChina'
+            }
+        }
+    }
+
     Context 'When connecting with ServicePrincipalWithThumbprint' {
-        It 'Should call Connect-MicrosoftTeams with AccessTokens' {
+        It 'Should call Connect-MicrosoftTeams with AccessTokens when GraphScope and TeamsScope are set' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
@@ -34,7 +64,7 @@ Describe 'Connect-MSCloudLoginTeams' {
                 $Script:MSCloudLoginConnectionProfile.Teams.AuthorizationUrl = 'https://login.microsoftonline.com'
                 $Script:MSCloudLoginConnectionProfile.Teams.TokenUrl = 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token'
                 $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
-                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'Custom'
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
                 $Script:CustomEnvConfig.CustomEnvironment = $false
                 $Script:CustomEnvConfig.CustomTeamsEndpoints = $null
 
@@ -43,6 +73,57 @@ Describe 'Connect-MSCloudLoginTeams' {
                 Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
                     $AccessTokens -like '*access-token*'
                 }
+            }
+        }
+
+        It 'Should call Connect-MicrosoftTeams with CertificateThumbprint when GraphScope is not set and not custom env' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
+                $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumbprint'
+                # Do NOT set GraphScope, TeamsScope, TokenUrl - they default to $null which makes the condition false
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
+                $Script:CustomEnvConfig.CustomEnvironment = $false
+                $Script:CustomEnvConfig.CustomTeamsEndpoints = $null
+
+                Connect-MSCloudLoginTeams
+
+                Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
+                    $ApplicationId -eq 'app-id' -and
+                    $TenantId -eq 'tenant-id' -and
+                    $CertificateThumbprint -eq 'thumbprint'
+                }
+            }
+        }
+
+        It 'Should handle connection failure for ServicePrincipalWithThumbprint (direct Connect-MicrosoftTeams path)' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { throw 'Connection failed' }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
+                $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumbprint'
+                # Do NOT set GraphScope, TeamsScope, TokenUrl - they default to $null
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
+                $Script:CustomEnvConfig.CustomEnvironment = $false
+                $Script:CustomEnvConfig.CustomTeamsEndpoints = $null
+
+                { Connect-MSCloudLoginTeams } | Should -Throw 'Connection failed'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeFalse
             }
         }
     }
@@ -123,6 +204,43 @@ Describe 'Connect-MSCloudLoginTeams' {
                 }
             }
         }
+
+        It 'Should call Connect-MicrosoftTeams with CertificateThumbprint in custom environment' -Skip:($PSVersionTable.PSVersion.Major -gt 5) {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Set-TeamsEnvironmentConfig -MockWith { }
+
+                $originalCustomEnvironment = $Script:CustomEnvConfig.CustomEnvironment
+                $originalCustomTeamsEndpoints = $Script:CustomEnvConfig.CustomTeamsEndpoints
+                try
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $true
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = @{ Teams = 'https://teams.example.test' }
+
+                    $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                    $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
+                    $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'contoso.onmicrosoft.com'
+                    $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumbprint'
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                    Connect-MSCloudLoginTeams
+
+                    Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
+                        $ApplicationId -eq 'app-id' -and
+                        $TenantId -eq 'contoso.onmicrosoft.com' -and
+                        $CertificateThumbprint -eq 'thumbprint'
+                    }
+                }
+                finally
+                {
+                    $Script:CustomEnvConfig.CustomEnvironment = $originalCustomEnvironment
+                    $Script:CustomEnvConfig.CustomTeamsEndpoints = $originalCustomTeamsEndpoints
+                }
+            }
+        }
     }
 
     Context 'When connecting with ServicePrincipalWithPath' {
@@ -187,6 +305,28 @@ Describe 'Connect-MSCloudLoginTeams' {
                 }
             }
         }
+
+        It 'Should handle connection failure for Credentials' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { throw 'Invalid credentials' }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                $secPwd = ConvertTo-SecureString 'password' -AsPlainText -Force
+                $cred = New-Object PSCredential ('user@contoso.com', $secPwd)
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'Credentials'
+                $Script:MSCloudLoginConnectionProfile.Teams.Credentials = $cred
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
+                $Script:CustomEnvConfig.CustomEnvironment = $false
+
+                { Connect-MSCloudLoginTeams } | Should -Throw 'Invalid credentials'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeFalse
+            }
+        }
     }
 
     Context 'When MFA is required with Credentials' {
@@ -211,6 +351,48 @@ Describe 'Connect-MSCloudLoginTeams' {
                 Connect-MSCloudLoginTeams
 
                 Should -Invoke Connect-MSCloudLoginTeamsMFA
+            }
+        }
+    }
+
+    Context 'Connect-MSCloudLoginTeamsMFA' {
+        It 'Should disconnect existing session and connect with MFA' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Get-MSCloudLoginTeamsEnvironmentParameters -MockWith { return @{} }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Disconnect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                Connect-MSCloudLoginTeamsMFA
+
+                Should -Invoke Disconnect-MicrosoftTeams -Exactly 1
+                Should -Invoke Connect-MicrosoftTeams -Exactly 1
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeTrue
+                $Script:MSCloudLoginConnectionProfile.Teams.MultiFactorAuthentication | Should -BeTrue
+            }
+        }
+
+        It 'Should handle error in MFA path' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Get-MSCloudLoginTeamsEnvironmentParameters -MockWith { return @{} }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Disconnect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { throw 'MFA failed' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureCloud'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                { Connect-MSCloudLoginTeamsMFA } | Should -Throw 'MFA failed'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeFalse
             }
         }
     }
@@ -271,6 +453,23 @@ Describe 'Connect-MSCloudLoginTeams' {
                 $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
 
                 { Connect-MSCloudLoginTeams } | Should -Throw '*not supported for workload*'
+            }
+        }
+    }
+
+    Context 'When session is already usable' {
+        It 'Should reuse existing connection without reconnecting' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $true }
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
+
+                Connect-MSCloudLoginTeams
+
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected | Should -BeTrue
+                Should -Invoke Connect-MicrosoftTeams -Exactly 0
             }
         }
     }

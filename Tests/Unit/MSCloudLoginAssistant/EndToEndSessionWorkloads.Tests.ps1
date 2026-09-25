@@ -745,15 +745,26 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
             }
         }
 
-        It 'Should connect with a managed identity' {
+        It 'Should connect with a managed identity and the tenant GUID of the tenant name' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'no session' }
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Invoke-WebRequest -MockWith {
+                    return @{ Content = '{ "tenant_region_scope": "EU", "token_endpoint": "https://login.microsoftonline.com/22222222-2222-2222-2222-222222222222/oauth2/v2.0/token" }' }
+                }
+                $Script:MSCloudLoginTriedGetEnvironment = $false
+                $Script:MSCloudLoginTenantGuidCache = @{}
 
                 Connect-M365Tenant -Workload 'MicrosoftTeams' -Identity -TenantId 'contoso.onmicrosoft.com'
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams').Connected | Should -BeTrue
-                Should -Invoke Connect-MicrosoftTeams -Exactly 1 -ParameterFilter { $Identity.IsPresent }
+                (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams').TenantId | Should -Be 'contoso.onmicrosoft.com'
+                Should -Invoke Invoke-WebRequest -Exactly 1 -ParameterFilter {
+                    $Uri -eq 'https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0/.well-known/openid-configuration'
+                }
+                Should -Invoke Connect-MicrosoftTeams -Exactly 1 -ParameterFilter {
+                    $Identity.IsPresent -and $TenantId -eq '22222222-2222-2222-2222-222222222222'
+                }
             }
         }
 

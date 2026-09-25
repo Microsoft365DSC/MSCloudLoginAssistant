@@ -1039,6 +1039,8 @@ Describe 'Get-MSCloudLoginEndpointInfo' {
             @{ Workload = 'DefenderForEndpoint'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://api-gcc.securitycenter.microsoft.us' }
             @{ Workload = 'Fabric'; Environment = 'AzureCloud'; Property = 'Scope'; Expected = 'https://api.fabric.microsoft.com/.default' }
             @{ Workload = 'Licensing'; Environment = 'AzureCloud'; Property = 'HostUrl'; Expected = 'https://licensing.m365.microsoft.com' }
+            @{ Workload = 'MicrosoftGraph'; Environment = 'AzureCloud'; Property = 'ResourceUrl'; Expected = 'https://graph.microsoft.com/' }
+            @{ Workload = 'MicrosoftGraph'; Environment = 'AzureGermanyCloud'; Property = 'GraphEnvironment'; Expected = 'DelosCloud' }
             @{ Workload = 'O365Portal'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
             @{ Workload = 'PowerPlatformREST'; Environment = 'AzureDOD'; Property = 'BapEndpoint'; Expected = 'api.bap.appsplatform.us' }
             @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureChinaCloud'; Property = 'ConnectionUrl'; Expected = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/' }

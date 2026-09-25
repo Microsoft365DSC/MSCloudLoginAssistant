@@ -13,7 +13,9 @@ function Connect-MSCloudLoginAzure
         return
     }
 
-    $additionalParameters = @{}
+    $additionalParameters = @{
+        Scope = 'Process'
+    }
     if ($workloadProfile.SubscriptionId)
     {
         $additionalParameters['Subscription'] = $workloadProfile.SubscriptionId
@@ -142,7 +144,7 @@ function Disconnect-MSCloudLoginAzure
     if ($Script:MSCloudLoginConnectionProfile.Azure.Connected)
     {
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Azure' -Source $source
-        Disconnect-AzAccount | Out-Null
+        Disconnect-AzAccount -Scope Process | Out-Null
         $Script:MSCloudLoginConnectionProfile.Azure.Connected = $false
         Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Azure' -Source $source
     }

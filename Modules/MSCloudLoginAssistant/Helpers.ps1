@@ -89,6 +89,80 @@ function Get-MSCloudLoginAccessTokenValue
 
 <#
 .SYNOPSIS
+    Reads the claims of a JSON Web Token.
+
+.PARAMETER Token
+    The access token, with or without the 'Bearer ' prefix.
+
+.OUTPUTS
+    System.Management.Automation.PSCustomObject. The claims, or $null when the token is not a JSON Web Token.
+#>
+function Get-MSCloudLoginAccessTokenClaims
+{
+    [CmdletBinding()]
+    [OutputType([System.Management.Automation.PSCustomObject])]
+    param
+    (
+        [Parameter()]
+        [System.String]
+        $Token
+    )
+
+    if ([System.String]::IsNullOrEmpty($Token))
+    {
+        return $null
+    }
+
+    $segments = ($Token -replace '^Bearer\s+', '').Split('.')
+    if ($segments.Count -ne 3)
+    {
+        return $null
+    }
+
+    try
+    {
+        $payload = $segments[1].Replace('-', '+').Replace('_', '/')
+        $payload = $payload.PadRight($payload.Length + (4 - $payload.Length % 4) % 4, '=')
+        return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($payload)) | ConvertFrom-Json
+    }
+    catch
+    {
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Reads the expiry time from the exp claim of a JSON Web Token.
+
+.PARAMETER Token
+    The access token, with or without the 'Bearer ' prefix.
+
+.OUTPUTS
+    System.DateTime. The local expiry time, or $null when the token is not a JSON Web Token with an exp claim.
+#>
+function Get-MSCloudLoginAccessTokenExpiry
+{
+    [CmdletBinding()]
+    [OutputType([System.DateTime])]
+    param
+    (
+        [Parameter()]
+        [System.String]
+        $Token
+    )
+
+    $claims = Get-MSCloudLoginAccessTokenClaims -Token $Token
+    if ($null -eq $claims -or $null -eq $claims.exp)
+    {
+        return $null
+    }
+
+    return [System.DateTimeOffset]::FromUnixTimeSeconds([System.Int64]$claims.exp).LocalDateTime
+}
+
+<#
+.SYNOPSIS
     Extracts the tenant domain from the UserName of a credential.
 
 .DESCRIPTION
@@ -118,6 +192,44 @@ function Get-MSCloudLoginTenantDomainFromCredentials
     }
 
     return $Credentials.UserName.Split('@')[1]
+}
+
+<#
+.SYNOPSIS
+    Resolves the tenant GUID.
+
+.DESCRIPTION
+    Returns a GUID TenantId as is. Otherwise, reads the GUID from the cache or the OpenID configuration.
+
+.PARAMETER TenantId
+    Tenant GUID or tenant name, e.g. contoso.onmicrosoft.com.
+
+.OUTPUTS
+    System.String. Tenant GUID, or $null if not resolvable.
+#>
+function Get-MSCloudLoginTenantGuid
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $TenantId
+    )
+
+    $tenantGuid = [System.Guid]::Empty
+    if ([System.Guid]::TryParse($TenantId, [ref]$tenantGuid))
+    {
+        return $TenantId
+    }
+
+    if (-not $Script:MSCloudLoginTenantGuidCache.ContainsKey($TenantId))
+    {
+        $null = Get-CloudEnvironmentInfo -TenantId $TenantId
+    }
+
+    return $Script:MSCloudLoginTenantGuidCache[$TenantId]
 }
 
 <#
@@ -169,6 +281,168 @@ function Remove-MSCloudLoginProxyModule
 
 <#
 .SYNOPSIS
+    Re-imports the loaded proxy modules that export the specified command into the global scope.
+
+.DESCRIPTION
+    The re-imported commands take precedence over commands with the same name from other modules.
+    The modules are not reloaded.
+
+.PARAMETER ProbeCommand
+    A command name that identifies the proxy module (e.g. 'Get-AcceptedDomain').
+
+.PARAMETER Source
+    The event source to use for logging.
+
+.OUTPUTS
+    System.Boolean. $true when the proxy module was found and re-imported, $false otherwise.
+#>
+function Restore-MSCloudLoginProxyModule
+{
+    [CmdletBinding()]
+    [OutputType([System.Boolean])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $ProbeCommand,
+
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Source
+    )
+
+    [array]$proxyModules = Get-Module | Where-Object -FilterScript {
+        $_.ExportedCommands.Keys.Contains($ProbeCommand)
+    }
+
+    if ($proxyModules.Count -eq 0)
+    {
+        Add-MSCloudLoginAssistantEvent -Message "No loaded proxy module exports {$ProbeCommand}" -Source $Source
+        return $false
+    }
+
+    foreach ($proxyModule in $proxyModules)
+    {
+        try
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Restoring command precedence of proxy module {$($proxyModule.Name)}" -Source $Source
+            # No -Force: re-imports the commands without reloading the module.
+            Import-Module -ModuleInfo $proxyModule -Global -DisableNameChecking -Verbose:$false -ErrorAction Stop
+        }
+        catch
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Failed to restore proxy module {$($proxyModule.Name)}: $($_.Exception.Message)" -Source $Source
+            return $false
+        }
+    }
+
+    return $true
+}
+
+<#
+.SYNOPSIS
+    Disconnects either the Exchange Online or the Security & Compliance connections.
+
+.DESCRIPTION
+    Connections of the ExchangeOnlineManagement module are shared by all runspaces of the process.
+    Only connections of the requested kind are disconnected.
+
+.PARAMETER SecurityCompliance
+    Disconnects the Security & Compliance connections instead of the Exchange Online connections.
+
+.PARAMETER Source
+    The event source to use for logging.
+#>
+function Disconnect-MSCloudLoginExchangeConnection
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter()]
+        [switch]
+        $SecurityCompliance,
+
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Source
+    )
+
+    # IsEopSession marks Security & Compliance connections.
+    [array]$connectionIds = Get-ConnectionInformation | Where-Object -FilterScript {
+        $null -ne $_.ConnectionId -and [System.Boolean]$_.IsEopSession -eq $SecurityCompliance.IsPresent
+    } | ForEach-Object -Process { $_.ConnectionId.ToString() }
+
+    if ($connectionIds.Count -eq 0)
+    {
+        return
+    }
+
+    Add-MSCloudLoginAssistantEvent -Message "Disconnecting connection(s) {$($connectionIds -join ', ')}" -Source $Source
+    Disconnect-ExchangeOnline -ConnectionId $connectionIds -Confirm:$false
+}
+
+<#
+.SYNOPSIS
+    Finds a certificate by thumbprint in the My store of a store location.
+
+.DESCRIPTION
+    Reads the store through X509Store instead of the Cert: drive. An object returned by the
+    Cert: drive carries PowerShell properties that reference the session state of the calling
+    runspace, and the Microsoft Graph SDK keeps the certificate in a static client.
+
+.PARAMETER StoreLocation
+    The store location to search.
+
+.PARAMETER CertificateThumbprint
+    The thumbprint of the certificate.
+
+.OUTPUTS
+    System.Security.Cryptography.X509Certificates.X509Certificate2. The certificate, or $null when it is not found.
+#>
+function Find-MSCloudLoginStoreCertificate
+{
+    [CmdletBinding()]
+    [OutputType([System.Security.Cryptography.X509Certificates.X509Certificate2])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Security.Cryptography.X509Certificates.StoreLocation]
+        $StoreLocation,
+
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $CertificateThumbprint
+    )
+
+    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+        [System.Security.Cryptography.X509Certificates.StoreName]::My,
+        $StoreLocation)
+    try
+    {
+        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]'ReadOnly, OpenExistingOnly')
+        $found = $store.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $CertificateThumbprint,
+            $false)
+        if ($found.Count -gt 0)
+        {
+            return $found[0]
+        }
+    }
+    catch [System.Security.Cryptography.CryptographicException]
+    {
+        return $null
+    }
+    finally
+    {
+        $store.Close()
+    }
+
+    return $null
+}
+
+<#
+.SYNOPSIS
     Resolves a certificate either by thumbprint from the certificate stores or from a PFX file.
 
 .DESCRIPTION
@@ -210,10 +484,10 @@ function Get-MSCloudLoginCertificate
 
     if ($PSCmdlet.ParameterSetName -eq 'Thumbprint')
     {
-        $certificate = Get-Item -Path "Cert:\CurrentUser\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+        $certificate = Find-MSCloudLoginStoreCertificate -StoreLocation 'CurrentUser' -CertificateThumbprint $CertificateThumbprint
         if ($null -eq $certificate)
         {
-            $certificate = Get-Item -Path "Cert:\LocalMachine\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+            $certificate = Find-MSCloudLoginStoreCertificate -StoreLocation 'LocalMachine' -CertificateThumbprint $CertificateThumbprint
         }
         if ($null -eq $certificate)
         {
@@ -461,24 +735,115 @@ function Get-MSCloudLoginSPOUrlFromTenantId
 
 <#
 .SYNOPSIS
+    Returns the identity a workload profile connects with.
+
+.PARAMETER WorkloadProfile
+    The workload connection profile.
+
+.OUTPUTS
+    System.String. Authentication type, tenant, application id and user name of the profile. For access
+    tokens, the application and object id of the first token.
+#>
+function Get-MSCloudLoginConnectionIdentity
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Object]
+        $WorkloadProfile
+    )
+
+    $identity = '{0}|{1}|{2}|{3}' -f $WorkloadProfile.AuthenticationType, $WorkloadProfile.TenantId, $WorkloadProfile.ApplicationId, $WorkloadProfile.Credentials.UserName
+    if ($WorkloadProfile.AuthenticationType -eq 'AccessTokens' -and $WorkloadProfile.AccessTokens.Count -gt 0)
+    {
+        $claims = Get-MSCloudLoginAccessTokenClaims -Token (Get-MSCloudLoginAccessTokenValue -Token $WorkloadProfile.AccessTokens[0])
+        $identity += '|{0}{1}|{2}' -f $claims.appid, $claims.azp, $claims.oid
+    }
+    return $identity
+}
+
+<#
+.SYNOPSIS
+    Gets the identity a process-wide SDK session was last connected with.
+
+.DESCRIPTION
+    Stored as AppDomain data, which Windows PowerShell and PowerShell 7 share across all runspaces
+    of the process.
+
+.PARAMETER Workload
+    The workload name.
+
+.OUTPUTS
+    System.String. $null when no connection is recorded.
+#>
+function Get-MSCloudLoginProcessConnectionIdentity
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Workload
+    )
+
+    return [System.AppDomain]::CurrentDomain.GetData("MSCloudLoginAssistant.ConnectionIdentity.$Workload")
+}
+
+<#
+.SYNOPSIS
+    Records the identity a process-wide SDK session is connected with.
+
+.PARAMETER Workload
+    The workload name.
+
+.PARAMETER Identity
+    The identity from Get-MSCloudLoginConnectionIdentity. Omitted after a disconnect.
+#>
+function Set-MSCloudLoginProcessConnectionIdentity
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Workload,
+
+        [Parameter()]
+        [System.String]
+        $Identity
+    )
+
+    [System.AppDomain]::CurrentDomain.SetData("MSCloudLoginAssistant.ConnectionIdentity.$Workload", $Identity)
+}
+
+<#
+.SYNOPSIS
     Determines whether an existing workload connection can be reused.
 
 .DESCRIPTION
     Central connection-freshness check for all workloads. The connection is NOT
     reusable when the profile is not connected, when the connection timestamp is
-    missing, when a token-based authentication type has exceeded its expiration
-    window or when the optional probe script indicates that the underlying SDK
-    context is gone. In all of those cases the profile is marked as disconnected
-    so that a reconnect is performed.
+    missing, when the access token expires within the renewal window, when a
+    token-based authentication type without a known token expiry has exceeded its
+    expiration window or when the optional probe script indicates that the
+    underlying SDK context is gone. In all of those cases the profile is marked as
+    disconnected so that a reconnect is performed.
 
 .PARAMETER WorkloadProfile
     The workload connection profile to check.
 
 .PARAMETER TokenExpirationMinutes
-    The number of minutes after which a token-based connection is considered expired.
+    The number of minutes after which a token-based connection without a known token expiry is considered expired.
+
+.PARAMETER TokenRenewalMinutes
+    The number of minutes before the known token expiry at which the connection is renewed.
+    Not applied to the AccessTokens authentication type, whose tokens cannot be renewed.
 
 .PARAMETER TokenBasedAuthTypes
-    The authentication types whose tokens expire and require renewal.
+    The authentication types whose tokens expire and require renewal when the token expiry is unknown.
 
 .PARAMETER ProbeScript
     Optional script block that returns the SDK context (e.g. { Get-MgContext }).
@@ -505,6 +870,10 @@ function Test-MSCloudLoginConnectionReusable
         $TokenExpirationMinutes = 50,
 
         [Parameter()]
+        [System.Int32]
+        $TokenRenewalMinutes = 5,
+
+        [Parameter()]
         [System.String[]]
         $TokenBasedAuthTypes = @('ServicePrincipalWithSecret', 'Identity'),
 
@@ -529,7 +898,22 @@ function Test-MSCloudLoginConnectionReusable
         return $false
     }
 
-    if ($WorkloadProfile.AuthenticationType -in $TokenBasedAuthTypes -and `
+    if ($null -ne $WorkloadProfile.TokenExpiresOn)
+    {
+        $renewalMinutes = $TokenRenewalMinutes
+        if ($WorkloadProfile.AuthenticationType -eq 'AccessTokens')
+        {
+            $renewalMinutes = 0
+        }
+
+        if ($WorkloadProfile.TokenExpiresOn -le [System.DateTime]::Now.AddMinutes($renewalMinutes))
+        {
+            Add-MSCloudLoginAssistantEvent -Message "Token expires at {$($WorkloadProfile.TokenExpiresOn)}, renewing" -Source $Source
+            $WorkloadProfile.Connected = $false
+            return $false
+        }
+    }
+    elseif ($WorkloadProfile.AuthenticationType -in $TokenBasedAuthTypes -and `
         (Get-Date -Date $WorkloadProfile.ConnectedDateTime) -lt [System.DateTime]::Now.AddMinutes(-$TokenExpirationMinutes))
     {
         Add-MSCloudLoginAssistantEvent -Message 'Token is about to expire, renewing' -Source $Source
@@ -542,7 +926,7 @@ function Test-MSCloudLoginConnectionReusable
         $probeResult = $null
         try
         {
-            $probeResult = & $ProbeScript
+            $probeResult = & $ProbeScript $WorkloadProfile
         }
         catch
         {

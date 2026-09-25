@@ -68,11 +68,22 @@ function Connect-MSCloudLoginExchangeOnline
 
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
-        Add-MSCloudLoginAssistantEvent -Message 'Exchange Online is already connected' -Source $source
-        return
+        # Shared commands such as Get-Group must resolve to the Exchange Online proxy module.
+        if (Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source $source)
+        {
+            $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+            Add-MSCloudLoginAssistantEvent -Message 'Exchange Online is already connected' -Source $source
+            return
+        }
+
+        Add-MSCloudLoginAssistantEvent -Message 'Exchange Online proxy module is no longer loaded, reconnecting' -Source $source
+        $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
     }
 
-    [array]$currentSessions = Get-ConnectionInformation | Where-Object -Property Name -Like 'ExchangeOnline_*'
+    # IsEopSession marks Security & Compliance connections.
+    [array]$currentSessions = Get-ConnectionInformation | Where-Object -FilterScript {
+        $_.Name -like 'ExchangeOnline_*' -and $_.IsEopSession -ne $true
+    }
     if ($null -ne $currentSessions -and $currentSessions.Count -gt 0)
     {
         Add-MSCloudLoginAssistantEvent -Message "Found {$($currentSessions.Count)} active Exchange Online session(s) but not connected" -Source $source
@@ -113,8 +124,8 @@ function Connect-MSCloudLoginExchangeOnline
     Add-MSCloudLoginAssistantEvent -Message "Loaded Modules: $(Get-Module | Select-Object -ExpandProperty Name)" -Source $source
     Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source $source
 
-    # Make sure we disconnect from any existing connections
-    Disconnect-ExchangeOnline -Confirm:$false
+    # Security & Compliance connections of other runspaces stay connected.
+    Disconnect-MSCloudLoginExchangeConnection -Source $source
     $CommandName = @{}
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad.Count -gt 0)
     {
@@ -439,7 +450,7 @@ function Disconnect-MSCloudLoginExchangeOnline
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Exchange Online' -Source $source
-        Disconnect-ExchangeOnline -Confirm:$false
+        Disconnect-MSCloudLoginExchangeConnection -Source $source
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $false
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedCmdlets = @()

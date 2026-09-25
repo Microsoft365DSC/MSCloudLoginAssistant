@@ -76,7 +76,6 @@ function Connect-MSCloudLoginTeams
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
                 -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
-            $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens += $graphAccessToken
 
             $teamsAccessToken = Get-MSCloudLoginAccessToken -ConnectionUri $Script:MSCloudLoginConnectionProfile.Teams.TeamsScope `
                 -AuthorizationUrl $Script:MSCloudLoginConnectionProfile.Teams.AuthorizationUrl `
@@ -84,25 +83,11 @@ function Connect-MSCloudLoginTeams
                 -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
                 -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
                 -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
-            $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens += $teamsAccessToken
+            $Script:MSCloudLoginConnectionProfile.Teams.AccessTokens = @($graphAccessToken, $teamsAccessToken)
 
-            Connect-MicrosoftTeams -AccessTokens @($graphAccessToken, $teamsAccessToken)
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
-        }
-        elseif (-not (Connect-MSCloudLoginTeamsCustomEnvironment))
-        {
             try
             {
-                $ConnectionParams = @{
-                    ApplicationId         = $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId
-                    TenantId              = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
-                    CertificateThumbprint = $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
-                }
-
-                $ConnectionParams += Get-MSCloudLoginTeamsEnvironmentParameters `
-                    -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
-
-                Connect-MicrosoftTeams @ConnectionParams | Out-Null
+                Connect-MicrosoftTeams -AccessTokens @($graphAccessToken, $teamsAccessToken) -ErrorAction Stop | Out-Null
             }
             catch
             {
@@ -110,18 +95,57 @@ function Connect-MSCloudLoginTeams
                 Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Microsoft Teams with Certificate Thumbprint: $($_.Exception.Message)" -Source $source -EntryType 'Error'
                 throw
             }
-        }
+            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to the Microsoft Graph API using Certificate Thumbprint' -Source $source
 
-        $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
+            $tokenExpiresOn = @($graphAccessToken, $teamsAccessToken | ForEach-Object { Get-MSCloudLoginAccessTokenExpiry -Token $_ } | Where-Object { $null -ne $_ } | Sort-Object)[0]
+            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection($false, $tokenExpiresOn)
+        }
+        else
+        {
+            if (-not (Connect-MSCloudLoginTeamsCustomEnvironment))
+            {
+                try
+                {
+                    $ConnectionParams = @{
+                        ApplicationId         = $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId
+                        TenantId              = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
+                        CertificateThumbprint = $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint
+                    }
+
+                    $ConnectionParams += Get-MSCloudLoginTeamsEnvironmentParameters `
+                        -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
+
+                    Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop | Out-Null
+                }
+                catch
+                {
+                    $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+                    Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Microsoft Teams with Certificate Thumbprint: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+                    throw
+                }
+            }
+
+            $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
+        }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'ServicePrincipalWithPath')
     {
         Add-MSCloudLoginAssistantEvent -Message "Connecting to Microsoft Teams using AzureAD Application {$($Script:MSCloudLoginConnectionProfile.Teams.ApplicationId)}" -Source $source
-        $certificate = Get-MSCloudLoginCertificate -CertificatePath $Script:MSCloudLoginConnectionProfile.Teams.CertificatePath `
-            -CertificatePassword $Script:MSCloudLoginConnectionProfile.Teams.CertificatePassword
-        Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
-            -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
-            -Certificate $certificate
+        try
+        {
+            $certificate = Get-MSCloudLoginCertificate -CertificatePath $Script:MSCloudLoginConnectionProfile.Teams.CertificatePath `
+                -CertificatePassword $Script:MSCloudLoginConnectionProfile.Teams.CertificatePassword
+            Connect-MicrosoftTeams -ApplicationId $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId `
+                -TenantId $Script:MSCloudLoginConnectionProfile.Teams.TenantId `
+                -Certificate $certificate `
+                -ErrorAction Stop | Out-Null
+        }
+        catch
+        {
+            $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Microsoft Teams with Certificate Path: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
         $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
     }
     elseif ($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType -eq 'Credentials' -or
@@ -166,6 +190,33 @@ function Connect-MSCloudLoginTeams
         $ConnectionParams = @{
             Identity = $true
         }
+
+        # Without TenantId, the tenant is read from the token, which fails on PowerShell 5.1.
+        $tenantId = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
+        if ([System.String]::IsNullOrEmpty($tenantId))
+        {
+            try
+            {
+                $graphEndpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'MicrosoftGraph' -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
+                $managedIdentityToken = Get-AuthToken -Identity -Resource $graphEndpointInfo.ResourceUrl.TrimEnd('/')
+                $tenantId = (Get-MSCloudLoginAccessTokenClaims -Token $managedIdentityToken).tid
+            }
+            catch
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Could not read the tenant from the managed identity token: $($_.Exception.Message)" -Source $source -EntryType 'Warning'
+            }
+        }
+
+        if (-not [System.String]::IsNullOrEmpty($tenantId))
+        {
+            $tenantGuid = Get-MSCloudLoginTenantGuid -TenantId $tenantId
+            if ([System.String]::IsNullOrEmpty($tenantGuid))
+            {
+                $tenantGuid = $tenantId
+            }
+            $ConnectionParams.TenantId = $tenantGuid
+        }
+
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using Managed Identity' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
         $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()
@@ -192,6 +243,9 @@ function Connect-MSCloudLoginTeams
         throw "Authentication type '$($Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType)' is not supported for workload 'MicrosoftTeams'."
     }
 
+    Set-MSCloudLoginProcessConnectionIdentity -Workload 'Teams' `
+        -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $Script:MSCloudLoginConnectionProfile.Teams)
+    $Script:MSCloudLoginTeamsVerifiedTime = [System.DateTime]::UtcNow
     return
 }
 
@@ -234,6 +288,8 @@ function Disconnect-MSCloudLoginTeams
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Microsoft Teams' -Source $source
         Disconnect-MicrosoftTeams | Out-Null
         $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+        Set-MSCloudLoginProcessConnectionIdentity -Workload 'Teams'
+        $Script:MSCloudLoginTeamsVerifiedTime = $null
         Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Microsoft Teams' -Source $source
     }
     else

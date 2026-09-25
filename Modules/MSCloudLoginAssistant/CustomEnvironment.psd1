@@ -55,6 +55,7 @@
     CustomSCCConnectionUrl = "https://ps.compliance.protection.outlook.com/powershell-liveid/"
     CustomSCCAuthorizationUrl = "https://login.microsoftonline.com/organizations"
     CustomSCCAzureADAuthorizationEndpointUri = "https://login.microsoftonline.com/common"
+    CustomSCCResourceUrl = "https://ps.compliance.protection.outlook.com"
 
     CustomSharePointOnlineRESTHostUrl = "https://customdomain.sharepoint.com" # No trailing slash!
     CustomSharePointOnlineRESTAuthorizationUrl = "https://login.microsoftonline.com"

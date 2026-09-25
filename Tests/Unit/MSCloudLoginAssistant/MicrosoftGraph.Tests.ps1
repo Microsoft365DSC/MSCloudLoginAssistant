@@ -174,6 +174,8 @@ Describe 'Connect-MSCloudLoginMicrosoftGraph' {
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType = 'Credentials'
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $true
                 $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' `
+                    -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $Script:MSCloudLoginConnectionProfile.MicrosoftGraph)
 
                 Connect-MSCloudLoginMicrosoftGraph
 

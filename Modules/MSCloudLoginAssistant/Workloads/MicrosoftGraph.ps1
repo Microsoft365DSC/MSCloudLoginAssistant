@@ -40,9 +40,10 @@ function Connect-MSCloudLoginMicrosoftGraph
         $resourceEndpoint = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ResourceUrl.TrimEnd('/')
         $accessToken = Get-AuthToken -Resource $resourceEndpoint -Identity
 
+        $tokenExpiresOn = Get-MSCloudLoginAccessTokenExpiry -Token $accessToken
         $accessToken = $accessToken | ConvertTo-SecureString -AsPlainText -Force
         Connect-MgGraph -AccessToken $accessToken -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment -NoWelcome
-        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection()
+        $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.CompleteConnection($false, $tokenExpiresOn)
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId = (Get-MgContext).TenantId
     }
     else
@@ -125,6 +126,9 @@ function Connect-MSCloudLoginMicrosoftGraph
             throw
         }
     }
+
+    Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' `
+        -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $Script:MSCloudLoginConnectionProfile.MicrosoftGraph)
 }
 
 function Connect-MSCloudLoginMSGraphWithUser
@@ -321,6 +325,7 @@ function Disconnect-MSCloudLoginMicrosoftGraph
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Microsoft Graph' -Source $source
         Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Connected = $false
+        Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph'
         Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Microsoft Graph' -Source $source
     }
     else

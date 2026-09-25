@@ -548,7 +548,7 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
         It 'Should reuse the session instead of connecting again' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Connect-MgGraph -MockWith { }
-                Mock -CommandName Get-MgContext -MockWith { return @{ TenantId = 'contoso.onmicrosoft.com' } }
+                Mock -CommandName Get-MgContext -MockWith { return @{ TenantId = 'contoso.onmicrosoft.com'; ClientId = '11111111-1111-1111-1111-111111111111' } }
 
                 $parameters = @{
                     Workload          = 'MicrosoftGraph'

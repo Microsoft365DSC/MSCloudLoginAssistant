@@ -305,13 +305,20 @@ Describe 'Disconnect-MSCloudLoginExchangeOnline' {
                 Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-Module -MockWith { return @() }
+                Mock -CommandName Get-ConnectionInformation -MockWith {
+                    return @(
+                        [PSCustomObject]@{ ConnectionId = 'exo-connection'; IsEopSession = $false }
+                        [PSCustomObject]@{ ConnectionId = 'sc-connection'; IsEopSession = $true }
+                    )
+                }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $true
 
                 Disconnect-MSCloudLoginExchangeOnline
 
-                Should -Invoke Disconnect-ExchangeOnline
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1 -ParameterFilter { ($ConnectionId -join ',') -eq 'exo-connection' }
             }
         }
     }

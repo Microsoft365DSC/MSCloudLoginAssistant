@@ -206,12 +206,90 @@ Describe 'Connect-MSCloudLoginExchangeOnline failure handling' {
         InModuleScope 'MSCloudLoginAssistant' {
             Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
             Mock -CommandName Connect-ExchangeOnline -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $true }
 
             $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
+            $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
 
             Connect-MSCloudLoginExchangeOnline
 
             Should -Invoke Connect-ExchangeOnline -Exactly 0
+            Should -Invoke Restore-MSCloudLoginProxyModule -Exactly 0
+        }
+    }
+
+    It 'Should restore the Exchange Online proxy module after a Security & Compliance connection' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
+            Mock -CommandName Connect-ExchangeOnline -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $true }
+
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
+            $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+
+            Connect-MSCloudLoginExchangeOnline
+
+            $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'EXO'
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected | Should -BeTrue
+            Should -Invoke Restore-MSCloudLoginProxyModule -Exactly 1 -ParameterFilter { $ProbeCommand -eq 'Get-AcceptedDomain' }
+            Should -Invoke Connect-ExchangeOnline -Exactly 0
+        }
+    }
+
+    It 'Should reconnect when the Exchange Online proxy module is no longer loaded and <CurrentLoadedModule> was loaded last' -TestCases @(
+        @{ CurrentLoadedModule = 'SC' }
+        @{ CurrentLoadedModule = 'EXO' }
+    ) {
+        param ($CurrentLoadedModule)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CurrentLoadedModule = $CurrentLoadedModule } {
+            param ($CurrentLoadedModule)
+
+            Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
+            Mock -CommandName Connect-ExchangeOnline -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $false }
+
+            $workloadProfile = $Script:MSCloudLoginConnectionProfile.ExchangeOnline
+            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
+            $workloadProfile.ApplicationId = 'app-id'
+            $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+            $workloadProfile.CertificateThumbprint = 'thumbprint'
+            $workloadProfile.CompleteConnection()
+            $Script:MSCloudLoginCurrentLoadedModule = $CurrentLoadedModule
+
+            Connect-MSCloudLoginExchangeOnline
+
+            $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'EXO'
+            $workloadProfile.Connected | Should -BeTrue
+            Should -Invoke Connect-ExchangeOnline -Exactly 1
+        }
+    }
+
+    It 'Should not adopt the proxy module of a Security & Compliance session' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-ExchangeOnline -MockWith { }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Get-ConnectionInformation -MockWith {
+                return @([PSCustomObject]@{
+                        Name         = 'ExchangeOnline_2'
+                        AppId        = 'app-id'
+                        Organization = 'contoso.onmicrosoft.com'
+                        ModuleName   = 'tmpEXO_compliance'
+                        IsEopSession = $true
+                    })
+            }
+
+            $workloadProfile = $Script:MSCloudLoginConnectionProfile.ExchangeOnline
+            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
+            $workloadProfile.ApplicationId = 'app-id'
+            $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+            $workloadProfile.CertificateThumbprint = 'thumbprint'
+
+            Connect-MSCloudLoginExchangeOnline
+
+            Should -Invoke Import-Module -Exactly 0 -ParameterFilter { $Name -eq 'tmpEXO_compliance' }
+            Should -Invoke Disconnect-ExchangeOnline -Exactly 0
+            Should -Invoke Connect-ExchangeOnline -Exactly 1
         }
     }
 
@@ -441,19 +519,203 @@ Describe 'Connect-MSCloudLoginSecurityCompliance failure handling' {
         }
     }
 
-    It 'Should reuse the Exchange Online connection when access tokens are supplied' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Connect-M365Tenant -MockWith { }
+    Context 'When connecting with an access token' {
+        BeforeAll {
+            # Unsigned JSON Web Token that only carries the exp claim.
+            function New-TestAccessToken([System.DateTime]$ExpiresOn)
+            {
+                $encode = { param ($Value) [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(($Value | ConvertTo-Json -Compress))).TrimEnd('=').Replace('+', '-').Replace('/', '_') }
+                return '{0}.{1}.signature' -f (& $encode @{ alg = 'none' }), (& $encode @{ exp = [System.DateTimeOffset]::new($ExpiresOn).ToUnixTimeSeconds() })
+            }
+            $script:validToken = New-TestAccessToken -ExpiresOn ([System.DateTime]::Now.AddMinutes(60))
+            $script:shortLivedToken = New-TestAccessToken -ExpiresOn ([System.DateTime]::Now.AddMinutes(2))
+            $script:expiredToken = New-TestAccessToken -ExpiresOn ([System.DateTime]::Now.AddMinutes(-2))
+        }
 
-            $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
-            $workloadProfile.AuthenticationType = 'AccessTokens'
-            $workloadProfile.AccessTokens = @('caller-supplied-token')
-            $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+        BeforeEach {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-IPPSSession -MockWith { }
+                Mock -CommandName Connect-M365Tenant -MockWith { }
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+                $workloadProfile.ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+                $workloadProfile.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.com/organizations'
+                $workloadProfile.ResourceUrl = 'https://ps.compliance.protection.outlook.com'
+                $workloadProfile.EnableSearchOnlySession = $true
+                $Script:MSCloudLoginCurrentLoadedModule = $null
+            }
+        }
 
-            Connect-MSCloudLoginSecurityCompliance
+        It 'Should connect through Connect-IPPSSession with the supplied access token' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:validToken } {
+                param ($Token)
 
-            $workloadProfile.Connected | Should -BeTrue
-            Should -Invoke Connect-M365Tenant -Exactly 1 -ParameterFilter { $Workload -eq 'ExchangeOnline' }
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @("Bearer $Token")
+
+                Connect-MSCloudLoginSecurityCompliance
+
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.TokenExpiresOn | Should -Be (Get-MSCloudLoginAccessTokenExpiry -Token $Token)
+                Should -Invoke Connect-M365Tenant -Exactly 0
+                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
+                    $AccessToken -eq $Token -and
+                    $Organization -eq 'contoso.onmicrosoft.com' -and
+                    $ConnectionUri -eq 'https://ps.compliance.protection.outlook.com/powershell-liveid/' -and
+                    $AzureADAuthorizationEndpointUri -eq 'https://login.microsoftonline.com/organizations' -and
+                    $EnableSearchOnlySession.IsPresent
+                }
+            }
+        }
+
+        It 'Should acquire a managed identity token for the resource of the environment' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:validToken } {
+                param ($Token)
+
+                Mock -CommandName Get-AuthToken -MockWith { return $Token }.GetNewClosure()
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'Identity'
+
+                Connect-MSCloudLoginSecurityCompliance
+
+                $workloadProfile.Connected | Should -BeTrue
+                Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter {
+                    $Resource -eq 'https://ps.compliance.protection.outlook.com' -and $Identity.IsPresent
+                }
+                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
+                    $AccessToken -eq $Token -and $Organization -eq 'contoso.onmicrosoft.com'
+                }
+            }
+        }
+
+        It 'Should refuse a managed identity connection without a resource URL' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Get-AuthToken -MockWith { }
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'Identity'
+                $workloadProfile.EnvironmentName = 'Custom'
+                $workloadProfile.ResourceUrl = $null
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*No Security & Compliance resource URL*'
+
+                $workloadProfile.Connected | Should -BeFalse
+                Should -Invoke Get-AuthToken -Exactly 0
+                Should -Invoke Connect-IPPSSession -Exactly 0
+            }
+        }
+
+        It 'Should refuse a tenant GUID as organization for <AuthenticationType>' -TestCases @(
+            @{ AuthenticationType = 'AccessTokens' }
+            @{ AuthenticationType = 'Identity' }
+        ) {
+            param ($AuthenticationType)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthenticationType = $AuthenticationType; Token = $script:validToken } {
+                param ($AuthenticationType, $Token)
+
+                Mock -CommandName Get-AuthToken -MockWith { return $Token }.GetNewClosure()
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = $AuthenticationType
+                $workloadProfile.AccessTokens = @($Token)
+                $workloadProfile.TenantId = '588132a0-32ad-4a63-b89f-0e7f2e003683'
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*TenantId must be the initial domain*'
+
+                $workloadProfile.Connected | Should -BeFalse
+                Should -Invoke Connect-IPPSSession -Exactly 0
+            }
+        }
+
+        It 'Should refuse an expired supplied access token' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:expiredToken } {
+                param ($Token)
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @($Token)
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*expired*Provide a new access token*'
+
+                $workloadProfile.Connected | Should -BeFalse
+                Should -Invoke Connect-IPPSSession -Exactly 0
+            }
+        }
+
+        It 'Should stay disconnected when Connect-IPPSSession fails' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:validToken } {
+                param ($Token)
+
+                Mock -CommandName Connect-IPPSSession -MockWith { throw 'the token was rejected' }
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @($Token)
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*the token was rejected*'
+
+                $workloadProfile.Connected | Should -BeFalse
+                Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter {
+                    $EntryType -eq 'Error' -and $Message -like '*Failed to connect to Security & Compliance with Access Token*'
+                }
+            }
+        }
+
+        It 'Should acquire a new managed identity token when the current one expires within five minutes' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:validToken; ShortLivedToken = $script:shortLivedToken } {
+                param ($Token, $ShortLivedToken)
+
+                Mock -CommandName Get-AuthToken -MockWith { return $Token }.GetNewClosure()
+                Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $true }
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'Identity'
+                $workloadProfile.CompleteConnection($false, (Get-MSCloudLoginAccessTokenExpiry -Token $ShortLivedToken))
+                $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+
+                Connect-MSCloudLoginSecurityCompliance
+
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.TokenExpiresOn | Should -Be (Get-MSCloudLoginAccessTokenExpiry -Token $Token)
+                Should -Invoke Get-AuthToken -Exactly 1
+                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter { $AccessToken -eq $Token }
+            }
+        }
+
+        It 'Should keep a supplied access token connection until the token expires' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ShortLivedToken = $script:shortLivedToken } {
+                param ($ShortLivedToken)
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @($ShortLivedToken)
+                $workloadProfile.CompleteConnection($false, (Get-MSCloudLoginAccessTokenExpiry -Token $ShortLivedToken))
+                $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+
+                Connect-MSCloudLoginSecurityCompliance
+
+                $workloadProfile.Connected | Should -BeTrue
+                Should -Invoke Connect-IPPSSession -Exactly 0
+            }
+        }
+
+        It 'Should report an expired supplied access token instead of reusing the connection' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $script:expiredToken } {
+                param ($Token)
+
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @($Token)
+                $workloadProfile.CompleteConnection($false, (Get-MSCloudLoginAccessTokenExpiry -Token $Token))
+                $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*expired*'
+
+                $workloadProfile.Connected | Should -BeFalse
+                Should -Invoke Connect-IPPSSession -Exactly 0
+            }
         }
     }
 
@@ -466,6 +728,76 @@ Describe 'Connect-MSCloudLoginSecurityCompliance failure handling' {
 
             { Connect-MSCloudLoginSecurityComplianceMFA } | Should -Throw '*the sign-in window was closed*'
             $workloadProfile.Connected | Should -BeFalse
+        }
+    }
+
+    It 'Should return immediately when the compliance proxy module is the current one' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-IPPSSession -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $true }
+
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
+            $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+
+            Connect-MSCloudLoginSecurityCompliance
+
+            Should -Invoke Connect-IPPSSession -Exactly 0
+            Should -Invoke Restore-MSCloudLoginProxyModule -Exactly 0
+        }
+    }
+
+    It 'Should restore the compliance proxy module after an Exchange Online connection' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-IPPSSession -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $true }
+
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
+            $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+
+            Connect-MSCloudLoginSecurityCompliance
+
+            $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'SC'
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected | Should -BeTrue
+            Should -Invoke Restore-MSCloudLoginProxyModule -Exactly 1 -ParameterFilter { $ProbeCommand -eq 'Get-ComplianceSearch' }
+            Should -Invoke Connect-IPPSSession -Exactly 0
+        }
+    }
+
+    It 'Should reconnect when the compliance proxy module is no longer loaded' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-IPPSSession -MockWith { }
+            Mock -CommandName Restore-MSCloudLoginProxyModule -MockWith { return $false }
+
+            $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
+            $workloadProfile.ApplicationId = 'app-id'
+            $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+            $workloadProfile.CertificateThumbprint = 'thumbprint'
+            $workloadProfile.CompleteConnection()
+            $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+
+            Connect-MSCloudLoginSecurityCompliance
+
+            $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'SC'
+            $workloadProfile.Connected | Should -BeTrue
+            Should -Invoke Connect-IPPSSession -Exactly 1
+        }
+    }
+
+    It 'Should mark the compliance proxy module as current after re-importing an open session' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-IPPSSession -MockWith { }
+            Mock -CommandName Import-PSSession -MockWith { return 'tmpSCC_abcdefgh' }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Get-PSSession -MockWith {
+                return @([PSCustomObject]@{ ComputerName = 'ps.compliance.protection.outlook.com'; State = 'Opened' })
+            }
+            $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+
+            Connect-MSCloudLoginSecurityCompliance
+
+            $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'SC'
+            Should -Invoke Connect-IPPSSession -Exactly 0
         }
     }
 }
@@ -636,16 +968,41 @@ Describe 'Connect-MSCloudLoginAzure failure handling' {
         InModuleScope 'MSCloudLoginAssistant' {
             Mock -CommandName Connect-AzAccount -MockWith { }
             Mock -CommandName Get-AzContext -MockWith {
-                return @{ Environment = @{ ResourceManagerUrl = 'https://management.azure.com/' } }
+                return @{
+                    Account     = @{ Id = '00000000-0000-0000-0000-000000000001'; Type = 'ServicePrincipal' }
+                    Environment = @{ ResourceManagerUrl = 'https://management.azure.com/' }
+                }
             }
 
             $workloadProfile = $Script:MSCloudLoginConnectionProfile.Azure
             $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
+            $workloadProfile.ApplicationId = '00000000-0000-0000-0000-000000000001'
             $workloadProfile.CompleteConnection()
 
             Connect-MSCloudLoginAzure
 
             Should -Invoke Connect-AzAccount -Exactly 0
+        }
+    }
+
+    It 'Should reconnect when another application connected the Azure context' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Connect-AzAccount -MockWith { }
+            Mock -CommandName Get-AzContext -MockWith {
+                return @{
+                    Account     = @{ Id = '00000000-0000-0000-0000-000000000002'; Type = 'ServicePrincipal' }
+                    Environment = @{ ResourceManagerUrl = 'https://management.azure.com/' }
+                }
+            }
+
+            $workloadProfile = $Script:MSCloudLoginConnectionProfile.Azure
+            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
+            $workloadProfile.ApplicationId = '00000000-0000-0000-0000-000000000001'
+            $workloadProfile.CompleteConnection()
+
+            Connect-MSCloudLoginAzure
+
+            Should -Invoke Connect-AzAccount -Exactly 1
         }
     }
 

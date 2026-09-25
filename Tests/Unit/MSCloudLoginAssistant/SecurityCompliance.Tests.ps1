@@ -151,12 +151,20 @@ Describe 'Disconnect-MSCloudLoginSecurityCompliance' {
                 Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
 
+                Mock -CommandName Get-ConnectionInformation -MockWith {
+                    return @(
+                        [PSCustomObject]@{ ConnectionId = 'exo-connection'; IsEopSession = $false }
+                        [PSCustomObject]@{ ConnectionId = 'sc-connection'; IsEopSession = $true }
+                    )
+                }
+
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $true
 
                 Disconnect-MSCloudLoginSecurityCompliance
 
-                Should -Invoke Disconnect-ExchangeOnline
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1 -ParameterFilter { ($ConnectionId -join ',') -eq 'sc-connection' }
             }
         }
     }

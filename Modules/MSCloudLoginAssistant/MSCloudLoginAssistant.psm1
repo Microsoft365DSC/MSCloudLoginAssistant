@@ -12,12 +12,85 @@ foreach ($module in $privateModules)
     Write-Verbose "Importing workload $($module.FullName)"
     . $module.FullName
 }
+# The Azure, Microsoft Graph and Teams sessions are shared by every runspace of the process, so another
+# runspace may have connected them with a different application or account than this runspace's profile.
 $Script:MSCloudLoginConnectionProbes = @{
-    Azure          = { Get-AzContext }
-    MicrosoftGraph = { Get-MgContext }
-    Teams          = { Get-CsTeamsCallingPolicy }
+    Azure          = {
+        param ($WorkloadProfile)
+
+        $context = Get-AzContext
+        if ($null -eq $context -or $null -eq $context.Account)
+        {
+            return $null
+        }
+        $expectedAccountId = switch -Wildcard ($WorkloadProfile.AuthenticationType)
+        {
+            'ServicePrincipal*' { $WorkloadProfile.ApplicationId }
+            'Credentials*' { $WorkloadProfile.Credentials.UserName }
+            'AccessTokens' { 'MSCloudLoginAssistant' }
+        }
+        if (-not [System.String]::IsNullOrEmpty($expectedAccountId) -and $context.Account.Id -ne $expectedAccountId)
+        {
+            return $null
+        }
+        if ($WorkloadProfile.AuthenticationType -eq 'Identity' -and $context.Account.Type -ne 'ManagedService')
+        {
+            return $null
+        }
+        if (-not [System.String]::IsNullOrEmpty($WorkloadProfile.SubscriptionId) -and $context.Subscription.Id -ne $WorkloadProfile.SubscriptionId)
+        {
+            return $null
+        }
+        return $context
+    }
+    MicrosoftGraph = {
+        param ($WorkloadProfile)
+
+        $context = Get-MgContext
+        if ($null -eq $context)
+        {
+            return $null
+        }
+        if ((Get-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph') -ne (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $WorkloadProfile))
+        {
+            return $null
+        }
+        if (-not [System.String]::IsNullOrEmpty($WorkloadProfile.ApplicationId) -and $context.ClientId -ne $WorkloadProfile.ApplicationId)
+        {
+            return $null
+        }
+        if ($null -ne $WorkloadProfile.Credentials -and $context.Account -ne $WorkloadProfile.Credentials.UserName)
+        {
+            return $null
+        }
+        return $context
+    }
+    Teams          = {
+        param ($WorkloadProfile)
+
+        # The Teams module exposes no identity of its session
+        # Comparison happens against the one recorded on connect.
+        if ((Get-MSCloudLoginProcessConnectionIdentity -Workload 'Teams') -ne (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $WorkloadProfile))
+        {
+            return $null
+        }
+        if ($null -ne $Script:MSCloudLoginTeamsVerifiedTime -and
+            $Script:MSCloudLoginTeamsVerifiedTime -gt [System.DateTime]::UtcNow.AddMinutes(-$Script:MSCloudLoginTeamsVerificationMinutes))
+        {
+            return $Script:MSCloudLoginTeamsVerifiedTime
+        }
+        $policies = Get-CsTeamsCallingPolicy
+        if ($null -ne $policies)
+        {
+            $Script:MSCloudLoginTeamsVerifiedTime = [System.DateTime]::UtcNow
+        }
+        return $policies
+    }
 }
 
+$Script:MSCloudLoginTeamsVerifiedTime = $null
+$Script:MSCloudLoginTeamsVerificationMinutes = 3
+$Script:MSCloudLoginTenantGuidCache = @{}
 $Script:MSCloudLoginWorkloadsWithoutSessionState = @('MicrosoftGraph', 'Teams', 'PowerPlatform')
 
 <#
@@ -926,6 +999,10 @@ function Compare-InputParametersForChange
     {
         $active[$key] = $workloadProfile.$key
     }
+    if ($workloadProfile.AuthenticationType -ne 'AccessTokens')
+    {
+        $active.Remove('AccessTokens')
+    }
     switch ($workloadInternalName)
     {
         'Azure'
@@ -1229,6 +1306,13 @@ function Get-CloudEnvironmentInfo
 
     $content = $response.Content
     $result = ConvertFrom-Json $content
+
+    # Format: https://<login endpoint>/<tenant GUID>/oauth2/v2.0/token
+    $tenantGuid = [System.Guid]::Empty
+    if ($null -ne $result.token_endpoint -and [System.Guid]::TryParse($result.token_endpoint.Split('/')[3], [ref]$tenantGuid))
+    {
+        $Script:MSCloudLoginTenantGuidCache[$tenantName] = $tenantGuid.ToString()
+    }
     return $result
 }
 
@@ -1862,7 +1946,7 @@ function Connect-MSCloudLoginRESTWorkload
 
         # Set the access token and connection state
         $workloadProfile.AccessToken = $accessToken
-        $workloadProfile.CompleteConnection($useMFA)
+        $workloadProfile.CompleteConnection($useMFA, (Get-MSCloudLoginAccessTokenExpiry -Token $accessToken))
 
         Add-MSCloudLoginAssistantEvent -Message "Successfully connected to $WorkloadName" -Source $source
     }

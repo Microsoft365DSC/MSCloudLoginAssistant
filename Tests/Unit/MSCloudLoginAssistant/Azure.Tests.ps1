@@ -27,7 +27,8 @@ Describe 'Connect-MSCloudLoginAzure' {
                     $ApplicationId -eq 'app-id' -and
                     $TenantId -eq 'tenant-id' -and
                     $CertificateThumbprint -eq 'thumbprint' -and
-                    $Environment -eq 'AzureCloud'
+                    $Environment -eq 'AzureCloud' -and
+                    $Scope -eq 'Process'
                 }
             }
         }
@@ -296,7 +297,7 @@ Describe 'Disconnect-MSCloudLoginAzure' {
 
                 Disconnect-MSCloudLoginAzure
 
-                Should -Invoke Disconnect-AzAccount
+                Should -Invoke Disconnect-AzAccount -ParameterFilter { $Scope -eq 'Process' }
             }
         }
     }

@@ -25,7 +25,8 @@ function Connect-AzAccount
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String]       $CertificatePath,
         [Parameter()] [String]       $AccessToken,
-        [Parameter()] [String]       $AccountId
+        [Parameter()] [String]       $AccountId,
+        [Parameter()] [String]       $Scope
     )
 }
 
@@ -34,7 +35,8 @@ function Disconnect-AzAccount
     [CmdletBinding()]
     param (
         [Parameter()] [String] $Username,
-        [Parameter()] [String] $TenantId
+        [Parameter()] [String] $TenantId,
+        [Parameter()] [String] $Scope
     )
 }
 
@@ -66,6 +68,7 @@ function Disconnect-ExchangeOnline
 {
     [CmdletBinding()]
     param (
+        [Parameter()] [String[]] $ConnectionId,
         [Parameter()] [Switch] $Confirm
     )
 }
@@ -197,7 +200,7 @@ function Connect-IPPSSession
         [Parameter()] [String]       $CertificateFilePath,
         [Parameter()] [SecureString] $CertificatePassword,
         [Parameter()] [String[]]     $CommandName,
-        [Parameter()] [Switch]       $ManagedIdentity,
+        [Parameter()] [String]       $AccessToken,
         [Parameter()] [Switch]       $EnableSearchOnlySession,
         [Parameter()] [Switch]       $ShowBanner
     )

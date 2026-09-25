@@ -8,9 +8,32 @@ function Connect-MSCloudLoginSecurityCompliance
     $source = 'Connect-MSCloudLoginSecurityCompliance'
 
     Add-MSCloudLoginAssistantEvent -Message "Connection Profile: $($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter | Out-String)" -Source $source
+
+    # Only a known token expiry ends the connection, certificate and credential sessions renew their tokens.
     if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
     {
-        return
+        $null = Test-MSCloudLoginConnectionReusable -WorkloadProfile $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter `
+            -TokenBasedAuthTypes @() `
+            -Source $source
+    }
+
+    if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
+    {
+        if ($Script:MSCloudLoginCurrentLoadedModule -eq 'SC' -and
+            $null -ne (Get-Command -Name 'Get-ComplianceSearch' -ErrorAction SilentlyContinue))
+        {
+            return
+        }
+
+        # Shared commands such as Get-Group must resolve to the Security & Compliance proxy module.
+        if (Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-ComplianceSearch' -Source $source)
+        {
+            $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+            return
+        }
+
+        Add-MSCloudLoginAssistantEvent -Message 'Security & Compliance proxy module is no longer loaded, reconnecting' -Source $source
+        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
     }
 
     $loadedModules = Get-Module
@@ -31,6 +54,7 @@ function Connect-MSCloudLoginSecurityCompliance
         Import-Module $ProxyModule -Global `
             -Verbose:$false | Out-Null
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.MultiFactorAuthentication)
+        $Script:MSCloudLoginCurrentLoadedModule = 'SC'
         Add-MSCloudLoginAssistantEvent -Message 'Reloaded the Security & Compliance Module' -Source $source
         return
     }
@@ -117,22 +141,37 @@ function Connect-MSCloudLoginSecurityCompliance
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'AccessTokens')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Access Token' -Source $source
-        Connect-M365Tenant -Workload 'ExchangeOnline' `
-            -AccessTokens $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AccessTokens `
-            -TenantId $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.TenantId `
-            -ErrorAction Stop
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
+        try
+        {
+            $accessToken = Get-MSCloudLoginAccessTokenValue -Token $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AccessTokens[0]
+            Connect-MSCloudLoginSecurityComplianceWithAccessToken -AccessToken $accessToken
+        }
+        catch
+        {
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Access Token: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Identity')
     {
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with Managed Identity' -Source $source
-        Connect-IPPSSession -ManagedIdentity `
-            -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
-            -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-            -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
-            -ShowBanner:$false `
-            -ErrorAction Stop | Out-Null
-        $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection()
+        try
+        {
+            if ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ResourceUrl))
+            {
+                throw "No Security & Compliance resource URL is defined for environment '$($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnvironmentName)'."
+            }
+
+            $accessToken = Get-AuthToken -Resource $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ResourceUrl -Identity
+            Connect-MSCloudLoginSecurityComplianceWithAccessToken -AccessToken $accessToken
+        }
+        catch
+        {
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with Managed Identity: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
     }
     elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -in @('Credentials', 'CredentialsWithApplicationId'))
     {
@@ -168,6 +207,52 @@ function Connect-MSCloudLoginSecurityCompliance
     }
 
     $Script:MSCloudLoginCurrentLoadedModule = 'SC'
+}
+
+<#
+.SYNOPSIS
+    Connects to Security & Compliance with an access token.
+
+.DESCRIPTION
+    Uses the TenantId of the workload as the organization. The workload is marked as
+    connected with the expiry of the token only after Connect-IPPSSession succeeds.
+
+.PARAMETER AccessToken
+    The access token for the Security & Compliance resource, with or without the 'Bearer ' prefix.
+#>
+function Connect-MSCloudLoginSecurityComplianceWithAccessToken
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $AccessToken
+    )
+
+    $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+
+    $tenantGuid = [System.Guid]::Empty
+    if ([System.String]::IsNullOrEmpty($workloadProfile.TenantId) -or [System.Guid]::TryParse($workloadProfile.TenantId, [ref]$tenantGuid))
+    {
+        throw "TenantId must be the initial domain of the tenant (e.g. contoso.onmicrosoft.com) to connect to Security & Compliance with an access token."
+    }
+
+    $AccessToken = $AccessToken -replace '^Bearer\s+', ''
+    $tokenExpiresOn = Get-MSCloudLoginAccessTokenExpiry -Token $AccessToken
+    if ($null -ne $tokenExpiresOn -and $tokenExpiresOn -le [System.DateTime]::Now)
+    {
+        throw "The access token for Security & Compliance expired at {$tokenExpiresOn}. Provide a new access token."
+    }
+
+    Connect-IPPSSession -AccessToken $AccessToken `
+        -Organization $workloadProfile.TenantId `
+        -ConnectionUri $workloadProfile.ConnectionUrl `
+        -AzureADAuthorizationEndpointUri $workloadProfile.AzureADAuthorizationEndpointUri `
+        -EnableSearchOnlySession:$workloadProfile.EnableSearchOnlySession `
+        -ShowBanner:$false `
+        -ErrorAction Stop | Out-Null
+    $workloadProfile.CompleteConnection($false, $tokenExpiresOn)
 }
 
 function Connect-MSCloudLoginSecurityComplianceMFA
@@ -226,7 +311,7 @@ function Disconnect-MSCloudLoginSecurityCompliance
     if ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected)
     {
         Add-MSCloudLoginAssistantEvent -Message 'Attempting to disconnect from Security & Compliance Center' -Source $source
-        Disconnect-ExchangeOnline -Confirm:$false
+        Disconnect-MSCloudLoginExchangeConnection -SecurityCompliance -Source $source
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
         Add-MSCloudLoginAssistantEvent -Message 'Successfully disconnected from Security & Compliance Center' -Source $source
     }

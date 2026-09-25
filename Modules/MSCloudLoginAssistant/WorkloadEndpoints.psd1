@@ -69,6 +69,16 @@
         default           = @{ HostUrl = 'https://licensing.m365.microsoft.com'; Scope = '{Resource}/.default'; AuthorizationUrl = 'https://login.microsoftonline.com' }
     }
 
+    MicrosoftGraph        = @{
+        AzureDOD          = @{ GraphEnvironment = 'USGovDoD'; ResourceUrl = 'https://dod-graph.microsoft.us/'; Scope = 'https://dod-graph.microsoft.us/.default'; AuthorizationUrl = 'https://login.microsoftonline.us'; TokenUrl = 'https://login.microsoftonline.us/{TenantId}/oauth2/v2.0/token' }
+        AzureUSGovernment = @{ GraphEnvironment = 'USGov'; ResourceUrl = 'https://graph.microsoft.us/'; Scope = 'https://graph.microsoft.us/.default'; AuthorizationUrl = 'https://login.microsoftonline.us'; TokenUrl = 'https://login.microsoftonline.us/{TenantId}/oauth2/v2.0/token' }
+        AzureChinaCloud   = @{ GraphEnvironment = 'China'; ResourceUrl = 'https://microsoftgraph.chinacloudapi.cn/'; Scope = 'https://microsoftgraph.chinacloudapi.cn/.default'; AuthorizationUrl = 'https://login.chinacloudapi.cn'; TokenUrl = 'https://login.chinacloudapi.cn/{TenantId}/oauth2/v2.0/token' }
+        AzureFranceCloud  = @{ GraphEnvironment = 'BleuCloud'; ResourceUrl = 'https://graph.svc.sovcloud.fr/'; Scope = 'https://graph.svc.sovcloud.fr/.default'; AuthorizationUrl = 'https://login.sovcloud-identity.fr'; TokenUrl = 'https://login.sovcloud-identity.fr/{TenantId}/oauth2/v2.0/token' }
+        AzureGermanyCloud = @{ GraphEnvironment = 'DelosCloud'; ResourceUrl = 'https://graph.svc.sovcloud.de/'; Scope = 'https://graph.svc.sovcloud.de/.default'; AuthorizationUrl = 'https://login.sovcloud-identity.de'; TokenUrl = 'https://login.sovcloud-identity.de/{TenantId}/oauth2/v2.0/token' }
+        Custom            = @{ ResourceUrl = 'CustomGraphResourceUrl'; Scope = 'CustomGraphScope'; AuthorizationUrl = 'CustomGraphAuthorizationUrl' }
+        default           = @{ GraphEnvironment = 'Global'; ResourceUrl = 'https://graph.microsoft.com/'; Scope = 'https://graph.microsoft.com/.default'; AuthorizationUrl = 'https://login.microsoftonline.com'; TokenUrl = 'https://login.microsoftonline.com/{TenantId}/oauth2/v2.0/token' }
+    }
+
     O365Portal            = @{
         AzureDOD          = @{ HostUrl = 'https://portal.apps.mil'; Scope = 'https://portal.apps.mil/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }
         AzureUSGovernment = @{ HostUrl = 'https://portal.office365.us'; Scope = 'https://portal.office365.us/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }

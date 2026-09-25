@@ -190,6 +190,33 @@ function Connect-MSCloudLoginTeams
         $ConnectionParams = @{
             Identity = $true
         }
+
+        # Without TenantId, the tenant is read from the token, which fails on PowerShell 5.1.
+        $tenantId = $Script:MSCloudLoginConnectionProfile.Teams.TenantId
+        if ([System.String]::IsNullOrEmpty($tenantId))
+        {
+            try
+            {
+                $graphEndpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'MicrosoftGraph' -EnvironmentName $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName
+                $managedIdentityToken = Get-AuthToken -Identity -Resource $graphEndpointInfo.ResourceUrl.TrimEnd('/')
+                $tenantId = (Get-MSCloudLoginAccessTokenClaims -Token $managedIdentityToken).tid
+            }
+            catch
+            {
+                Add-MSCloudLoginAssistantEvent -Message "Could not read the tenant from the managed identity token: $($_.Exception.Message)" -Source $source -EntryType 'Warning'
+            }
+        }
+
+        if (-not [System.String]::IsNullOrEmpty($tenantId))
+        {
+            $tenantGuid = Get-MSCloudLoginTenantGuid -TenantId $tenantId
+            if ([System.String]::IsNullOrEmpty($tenantGuid))
+            {
+                $tenantGuid = $tenantId
+            }
+            $ConnectionParams.TenantId = $tenantGuid
+        }
+
         Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Teams using Managed Identity' -Source $source
         Connect-MicrosoftTeams @ConnectionParams -ErrorAction Stop
         $Script:MSCloudLoginConnectionProfile.Teams.CompleteConnection()

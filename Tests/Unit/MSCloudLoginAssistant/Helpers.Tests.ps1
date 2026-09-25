@@ -553,6 +553,61 @@ Describe 'Get-MSCloudLoginConnectionIdentity' {
     }
 }
 
+Describe 'Get-MSCloudLoginTenantGuid' {
+
+    BeforeEach {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $Script:MSCloudLoginTenantGuidCache = @{}
+        }
+    }
+
+    It 'Should return a TenantId that already is a GUID without a discovery request' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Invoke-WebRequest -MockWith { throw 'Unexpected discovery request' }
+
+            Get-MSCloudLoginTenantGuid -TenantId '22222222-2222-2222-2222-222222222222' | Should -Be '22222222-2222-2222-2222-222222222222'
+            Should -Invoke Invoke-WebRequest -Exactly 0
+        }
+    }
+
+    It 'Should resolve the GUID from the token endpoint once and reuse the cached value' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            Mock -CommandName Invoke-WebRequest -MockWith {
+                return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/22222222-2222-2222-2222-222222222222/oauth2/v2.0/token" }' }
+            }
+
+            Get-MSCloudLoginTenantGuid -TenantId 'contoso.onmicrosoft.com' | Should -Be '22222222-2222-2222-2222-222222222222'
+            Get-MSCloudLoginTenantGuid -TenantId 'contoso.onmicrosoft.com' | Should -Be '22222222-2222-2222-2222-222222222222'
+            Should -Invoke Invoke-WebRequest -Exactly 1
+        }
+    }
+
+    It 'Should reuse the GUID captured by the environment detection' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            Mock -CommandName Invoke-WebRequest -MockWith {
+                return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/22222222-2222-2222-2222-222222222222/oauth2/v2.0/token" }' }
+            }
+
+            $null = Get-CloudEnvironmentInfo -TenantId 'contoso.onmicrosoft.com'
+            Get-MSCloudLoginTenantGuid -TenantId 'contoso.onmicrosoft.com' | Should -Be '22222222-2222-2222-2222-222222222222'
+            Should -Invoke Invoke-WebRequest -Exactly 1
+        }
+    }
+
+    It 'Should return $null when the token endpoint contains no GUID' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            Mock -CommandName Invoke-WebRequest -MockWith {
+                return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/t/oauth2/v2.0/token" }' }
+            }
+
+            Get-MSCloudLoginTenantGuid -TenantId 'contoso.onmicrosoft.com' | Should -BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'Compare-InputParametersForChange with stored access tokens' {
 
     It 'Should ignore the token a <AuthenticationType> connection acquired itself' -TestCases @(

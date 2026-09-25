@@ -446,12 +446,40 @@ Describe 'Connect-MSCloudLoginTeams' {
     }
 
     Context 'When connecting with Identity' {
-        It 'Should call Connect-MicrosoftTeams with Identity' {
+        It 'Should read the tenant from the managed identity token when no TenantId is set' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
                 Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+                Mock -CommandName Get-AuthToken -MockWith {
+                    $encode = { param ($Text) [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Text)).TrimEnd('=').Replace('+', '-').Replace('/', '_') }
+                    return '{0}.{1}.signature' -f (& $encode '{"alg":"none"}'), (& $encode '{"tid":"33333333-3333-3333-3333-333333333333"}')
+                }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'Identity'
+                $Script:MSCloudLoginConnectionProfile.Teams.EnvironmentName = 'AzureUSGovernment'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                Connect-MSCloudLoginTeams
+
+                Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter {
+                    $Identity -and $Resource -eq 'https://graph.microsoft.us'
+                }
+                Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
+                    $Identity -eq $true -and $TenantId -eq '33333333-3333-3333-3333-333333333333'
+                }
+            }
+        }
+
+        It 'Should connect without TenantId when the managed identity token cannot be acquired' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+                Mock -CommandName Get-AuthToken -MockWith { throw 'No managed identity endpoint' }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'Identity'
@@ -459,8 +487,54 @@ Describe 'Connect-MSCloudLoginTeams' {
 
                 Connect-MSCloudLoginTeams
 
+                Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter { $EntryType -eq 'Warning' }
                 Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
-                    $Identity -eq $true
+                    $Identity -eq $true -and [System.String]::IsNullOrEmpty($TenantId)
+                }
+            }
+        }
+
+        It 'Should pass the resolved tenant GUID when a TenantId is set' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+                Mock -CommandName Get-MSCloudLoginTenantGuid -MockWith { return '22222222-2222-2222-2222-222222222222' }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'Identity'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'contoso.onmicrosoft.com'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                Connect-MSCloudLoginTeams
+
+                Should -Invoke Get-MSCloudLoginTenantGuid -Exactly 1 -ParameterFilter {
+                    $TenantId -eq 'contoso.onmicrosoft.com'
+                }
+                Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
+                    $Identity -eq $true -and $TenantId -eq '22222222-2222-2222-2222-222222222222'
+                }
+            }
+        }
+
+        It 'Should fall back to the TenantId when the tenant GUID cannot be resolved' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Connect-MicrosoftTeams -MockWith { }
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'No session' }
+                Mock -CommandName Test-MSCloudLoginConnectionReusable -MockWith { return $false }
+                Mock -CommandName Get-MSCloudLoginTenantGuid -MockWith { return $null }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'Identity'
+                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'contoso.onmicrosoft.com'
+                $Script:MSCloudLoginConnectionProfile.Teams.Connected = $false
+
+                Connect-MSCloudLoginTeams
+
+                Should -Invoke Connect-MicrosoftTeams -ParameterFilter {
+                    $Identity -eq $true -and $TenantId -eq 'contoso.onmicrosoft.com'
                 }
             }
         }

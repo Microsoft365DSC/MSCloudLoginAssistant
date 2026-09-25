@@ -196,6 +196,44 @@ function Get-MSCloudLoginTenantDomainFromCredentials
 
 <#
 .SYNOPSIS
+    Resolves the tenant GUID.
+
+.DESCRIPTION
+    Returns a GUID TenantId as is. Otherwise, reads the GUID from the cache or the OpenID configuration.
+
+.PARAMETER TenantId
+    Tenant GUID or tenant name, e.g. contoso.onmicrosoft.com.
+
+.OUTPUTS
+    System.String. Tenant GUID, or $null if not resolvable.
+#>
+function Get-MSCloudLoginTenantGuid
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $TenantId
+    )
+
+    $tenantGuid = [System.Guid]::Empty
+    if ([System.Guid]::TryParse($TenantId, [ref]$tenantGuid))
+    {
+        return $TenantId
+    }
+
+    if (-not $Script:MSCloudLoginTenantGuidCache.ContainsKey($TenantId))
+    {
+        $null = Get-CloudEnvironmentInfo -TenantId $TenantId
+    }
+
+    return $Script:MSCloudLoginTenantGuidCache[$TenantId]
+}
+
+<#
+.SYNOPSIS
     Removes a loaded implicit remoting proxy module that exports the specified command.
 
 .DESCRIPTION

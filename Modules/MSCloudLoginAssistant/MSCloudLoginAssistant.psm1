@@ -90,7 +90,7 @@ $Script:MSCloudLoginConnectionProbes = @{
 
 $Script:MSCloudLoginTeamsVerifiedTime = $null
 $Script:MSCloudLoginTeamsVerificationMinutes = 3
-
+$Script:MSCloudLoginTenantGuidCache = @{}
 $Script:MSCloudLoginWorkloadsWithoutSessionState = @('MicrosoftGraph', 'Teams', 'PowerPlatform')
 
 <#
@@ -1306,6 +1306,13 @@ function Get-CloudEnvironmentInfo
 
     $content = $response.Content
     $result = ConvertFrom-Json $content
+
+    # Format: https://<login endpoint>/<tenant GUID>/oauth2/v2.0/token
+    $tenantGuid = [System.Guid]::Empty
+    if ($null -ne $result.token_endpoint -and [System.Guid]::TryParse($result.token_endpoint.Split('/')[3], [ref]$tenantGuid))
+    {
+        $Script:MSCloudLoginTenantGuidCache[$tenantName] = $tenantGuid.ToString()
+    }
     return $result
 }
 

@@ -121,6 +121,7 @@
 * Fixed an issue where Microsoft Graph and Teams reconnected on every call after storing their own access tokens.
 * Fixed an issue where Azure connections were saved to the Azure context file of the user.
 * Fixed an issue where a failed Teams connection was reported as connected.
+* Fixed an issue where connecting to Teams would fail when using Managed Identity under Windows PowerShell.
 * Changed the Teams connection check to run at most every 3 minutes per runspace.'
 
             # Prerelease string of this module

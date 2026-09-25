@@ -662,64 +662,20 @@ class MicrosoftGraph:Workload
             $this.TenantId = Get-MSCloudLoginTenantDomainFromCredentials -Credentials $this.Credentials
         }
 
-        switch ($this.EnvironmentName)
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'MicrosoftGraph' -EnvironmentName $this.EnvironmentName `
+            -Replacements @{ TenantId = $this.TenantId }
+        $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
+        $this.ResourceUrl      = $endpointInfo.ResourceUrl
+        $this.Scope            = $endpointInfo.Scope
+        if ($this.EnvironmentName -eq 'Custom')
         {
-            'AzureCloud'
-            {
-                $this.AuthorizationUrl = "https://login.microsoftonline.com"
-                $this.GraphEnvironment = 'Global'
-                $this.ResourceUrl      = 'https://graph.microsoft.com/'
-                $this.Scope            = 'https://graph.microsoft.com/.default'
-                $this.TokenUrl         = "https://login.microsoftonline.com/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'AzureUSGovernment'
-            {
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.GraphEnvironment = 'USGov'
-                $this.ResourceUrl      = 'https://graph.microsoft.us/'
-                $this.Scope            = 'https://graph.microsoft.us/.default'
-                $this.TokenUrl         = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'AzureDOD'
-            {
-                $this.AuthorizationUrl = "https://login.microsoftonline.us"
-                $this.GraphEnvironment = 'USGovDoD'
-                $this.ResourceUrl      = 'https://dod-graph.microsoft.us/'
-                $this.Scope            = 'https://dod-graph.microsoft.us/.default'
-                $this.TokenUrl         = "https://login.microsoftonline.us/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'AzureChinaCloud'
-            {
-                $this.AuthorizationUrl = "https://login.chinacloudapi.cn"
-                $this.GraphEnvironment = 'China'
-                $this.ResourceUrl      = 'https://microsoftgraph.chinacloudapi.cn/'
-                $this.Scope            = 'https://microsoftgraph.chinacloudapi.cn/.default'
-                $this.TokenUrl         = "https://login.chinacloudapi.cn/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'AzureFranceCloud'
-            {
-                $this.AuthorizationUrl = "https://login.sovcloud-identity.fr"
-                $this.GraphEnvironment = 'BleuCloud'
-                $this.ResourceUrl      = 'https://graph.svc.sovcloud.fr/'
-                $this.Scope            = 'https://graph.svc.sovcloud.fr/.default'
-                $this.TokenUrl         = "https://login.sovcloud-identity.fr/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'AzureGermanyCloud'
-            {
-                $this.AuthorizationUrl = "https://login.sovcloud-identity.de"
-                $this.GraphEnvironment = 'DelosCloud'
-                $this.ResourceUrl      = 'https://graph.svc.sovcloud.de/'
-                $this.Scope            = 'https://graph.svc.sovcloud.de/.default'
-                $this.TokenUrl         = "https://login.sovcloud-identity.de/$($this.TenantId)/oauth2/v2.0/token"
-            }
-            'Custom'
-            {
-                $this.AuthorizationUrl = $Script:CustomEnvConfig.CustomGraphAuthorizationUrl
-                $this.GraphEnvironment = 'Custom'
-                $this.ResourceUrl      = $Script:CustomEnvConfig.CustomGraphResourceUrl
-                $this.Scope            = $Script:CustomEnvConfig.CustomGraphScope
-                $this.TokenUrl         = "$($Script:CustomEnvConfig.CustomGraphTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
-            }
+            $this.GraphEnvironment = 'Custom'
+            $this.TokenUrl         = "$($Script:CustomEnvConfig.CustomGraphTokenUrl)/$($this.TenantId)/oauth2/v2.0/token"
+        }
+        else
+        {
+            $this.GraphEnvironment = $endpointInfo.GraphEnvironment
+            $this.TokenUrl         = $endpointInfo.TokenUrl
         }
         $Script:MSCloudLoginConnectionProfile.MicrosoftGraph = $this
         Connect-MSCloudLoginMicrosoftGraph

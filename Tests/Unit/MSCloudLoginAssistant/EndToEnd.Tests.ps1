@@ -41,7 +41,7 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
     }
 
     Context 'When connecting with a service principal and an application secret' {
-        It 'Should acquire a bearer token and expose the commercial <Workload> endpoints on the connection profile' -TestCases @(
+        It 'Should acquire a bearer token, expose the commercial <Workload> endpoints on the connection profile and clear the token on reset' -TestCases @(
             @{ Workload = 'AdminAPI'; ExpectedScope = '6a8b4b39-c021-437c-b060-5a14a3fd65f3/.default'; ExpectedHostProperty = ''; ExpectedHostUrl = '' }
             @{ Workload = 'AzureDevOPS'; ExpectedScope = '499b84ac-1321-427f-aa17-267ca6975798/.default'; ExpectedHostProperty = 'HostUrl'; ExpectedHostUrl = 'https://dev.azure.com' }
             @{ Workload = 'DefenderForEndpoint'; ExpectedScope = 'https://api.securitycenter.microsoft.com/.default'; ExpectedHostProperty = 'HostUrl'; ExpectedHostUrl = 'https://api.securitycenter.microsoft.com/' }
@@ -92,13 +92,25 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                     $Body.client_id -eq '11111111-1111-1111-1111-111111111111' -and
                     $Body.client_secret -eq 'super-secret'
                 }
+
+                Reset-MSCloudLoginConnectionProfileContext -Workload $Workload
+                Reset-MSCloudLoginConnectionProfileContext -Workload $Workload
+
+                $connection = Get-MSCloudLoginConnectionProfile -Workload $Workload
+                $connection.Connected | Should -BeFalse
+                $connection.AccessToken | Should -BeNullOrEmpty
             }
         }
 
-        It 'Should target the US Government endpoints when the tenant reports the USGov region' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should target the <ExpectedEnvironment> endpoints when the tenant reports the <Region> region' -TestCases @(
+            @{ Region = 'USGov'; ExpectedEnvironment = 'AzureUSGovernment'; ExpectedHostUrl = 'https://tasks.office365.us' }
+            @{ Region = 'DOD'; ExpectedEnvironment = 'AzureDOD'; ExpectedHostUrl = 'https://tasks.osi.apps.mil' }
+        ) {
+            param ($Region, $ExpectedEnvironment, $ExpectedHostUrl)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Region = $Region; ExpectedEnvironment = $ExpectedEnvironment; ExpectedHostUrl = $ExpectedHostUrl } {
+                param ($Region, $ExpectedEnvironment, $ExpectedHostUrl)
                 Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "tenant_region_sub_scope": "USGov", "token_endpoint": "https://login.microsoftonline.us/t/oauth2/v2.0/token" }' }
+                    return @{ Content = "{ `"tenant_region_sub_scope`": `"$Region`", `"token_endpoint`": `"https://login.microsoftonline.us/t/oauth2/v2.0/token`" }" }
                 }
                 Mock -CommandName Invoke-RestMethod -MockWith {
                     return @{ token_type = 'Bearer'; access_token = 'e2e-token' }
@@ -111,32 +123,12 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'Tasks'
 
-                $connection.EnvironmentName | Should -Be 'AzureUSGovernment'
-                $connection.HostUrl | Should -Be 'https://tasks.office365.us'
-                $connection.Scope | Should -Be 'https://tasks.office365.us/.default'
+                $connection.EnvironmentName | Should -Be $ExpectedEnvironment
+                $connection.HostUrl | Should -Be $ExpectedHostUrl
+                $connection.Scope | Should -Be "$ExpectedHostUrl/.default"
                 Should -Invoke Invoke-RestMethod -ParameterFilter {
                     $Uri -eq 'https://login.microsoftonline.us/contoso.onmicrosoft.com/oauth2/v2.0/token'
                 }
-            }
-        }
-
-        It 'Should target the DoD endpoints when the tenant reports the DOD region' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "tenant_region_sub_scope": "DOD", "token_endpoint": "https://login.microsoftonline.us/t/oauth2/v2.0/token" }' }
-                }
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ token_type = 'Bearer'; access_token = 'e2e-token' }
-                }
-
-                Connect-M365Tenant -Workload 'Tasks' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -ApplicationSecret 'super-secret'
-
-                $connection = Get-MSCloudLoginConnectionProfile -Workload 'Tasks'
-                $connection.EnvironmentName | Should -Be 'AzureDOD'
-                $connection.HostUrl | Should -Be 'https://tasks.osi.apps.mil'
             }
         }
     }
@@ -181,8 +173,13 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
     }
 
     Context 'When connecting with a pre-acquired access token' {
-        It 'Should reuse the supplied token without contacting the token endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should reuse the supplied token <Token> as a Bearer token without contacting the token endpoint' -TestCases @(
+            @{ Token = 'Bearer caller-supplied-token' }
+            @{ Token = 'caller-supplied-token' }
+        ) {
+            param ($Token)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Token = $Token } {
+                param ($Token)
                 Mock -CommandName Invoke-WebRequest -MockWith {
                     return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token" }' }
                 }
@@ -190,7 +187,7 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
 
                 Connect-M365Tenant -Workload 'Licensing' `
                     -TenantId 'contoso.onmicrosoft.com' `
-                    -AccessTokens @('Bearer caller-supplied-token')
+                    -AccessTokens @($Token)
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'Licensing'
 
@@ -198,20 +195,6 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                 $connection.AuthenticationType | Should -Be 'AccessTokens'
                 $connection.AccessToken | Should -Be 'Bearer caller-supplied-token'
                 Should -Invoke Invoke-RestMethod -Exactly 0
-            }
-        }
-
-        It 'Should add the Bearer prefix to a token that was supplied without one' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token" }' }
-                }
-
-                Connect-M365Tenant -Workload 'Licensing' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -AccessTokens @('caller-supplied-token')
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'Licensing').AccessToken | Should -Be 'Bearer caller-supplied-token'
             }
         }
     }
@@ -267,6 +250,7 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                     -TenantId 'contoso.onmicrosoft.com' `
                     -ApplicationSecret 'super-secret' } |
                     Should -Throw "*'ServicePrincipalWithSecret' is not supported for workload 'O365Portal'*"
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'O365Portal'
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'O365Portal').Connected | Should -BeFalse
             }
@@ -274,7 +258,7 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
     }
 
     Context 'When the same workload is connected more than once' {
-        It 'Should reuse the existing session for identical parameters' {
+        It 'Should reuse the session for identical parameters and reconnect when the secret is rotated or a managed identity is requested' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Invoke-WebRequest -MockWith {
                     return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token" }' }
@@ -287,42 +271,18 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                     Workload          = 'AdminAPI'
                     ApplicationId     = '11111111-1111-1111-1111-111111111111'
                     TenantId          = 'contoso.onmicrosoft.com'
-                    ApplicationSecret = 'super-secret'
+                    ApplicationSecret = 'old-secret'
                 }
                 Connect-M365Tenant @parameters
                 Connect-M365Tenant @parameters
 
                 Should -Invoke Invoke-RestMethod -Exactly 1
-            }
-        }
 
-        It 'Should acquire a new token when the application secret was rotated' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token" }' }
-                }
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ token_type = 'Bearer'; access_token = 'e2e-token' }
-                }
-
-                Connect-M365Tenant -Workload 'AdminAPI' -ApplicationId '11111111-1111-1111-1111-111111111111' -TenantId 'contoso.onmicrosoft.com' -ApplicationSecret 'old-secret'
-                Connect-M365Tenant -Workload 'AdminAPI' -ApplicationId '11111111-1111-1111-1111-111111111111' -TenantId 'contoso.onmicrosoft.com' -ApplicationSecret 'new-secret'
+                $parameters.ApplicationSecret = 'new-secret'
+                Connect-M365Tenant @parameters
 
                 Should -Invoke Invoke-RestMethod -Exactly 2
                 Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter { $Body.client_secret -eq 'new-secret' }
-            }
-        }
-
-        It 'Should reconnect when switching from an application secret to a managed identity' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/tenant/oauth2/v2.0/token" }' }
-                }
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ token_type = 'Bearer'; access_token = 'e2e-token' }
-                }
-
-                Connect-M365Tenant -Workload 'AdminAPI' -ApplicationId '11111111-1111-1111-1111-111111111111' -TenantId 'contoso.onmicrosoft.com' -ApplicationSecret 'super-secret'
                 (Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI').AuthenticationType | Should -Be 'ServicePrincipalWithSecret'
 
                 $savedIdentityEndpoint = $env:IDENTITY_ENDPOINT
@@ -343,7 +303,7 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                 }
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI').AuthenticationType | Should -Be 'Identity'
-                Should -Invoke Invoke-RestMethod -Exactly 2
+                Should -Invoke Invoke-RestMethod -Exactly 3
             }
         }
     }
@@ -369,6 +329,10 @@ Describe 'Connect-M365Tenant end-to-end for REST workloads' {
                 $connection.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.com'
                 $connection.HostUrl | Should -Be 'https://contoso-admin.sharepoint.com'
                 $connection.Scope | Should -Be 'https://contoso-admin.sharepoint.com/.default'
+
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'SharePointOnlineREST'
+
+                (Get-MSCloudLoginConnectionProfile -Workload 'SharePointOnlineREST').Connected | Should -BeFalse
             }
         }
     }
@@ -487,8 +451,13 @@ Describe 'Cloud environment detection during Workload.Setup()' {
     }
 
     Context 'When the cloud could not be determined' {
-        It 'Should fall back to AzureCloud and skip a second discovery attempt' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should fall back to <ExpectedEnvironment> for the <TenantId> tenant and skip a second discovery attempt' -TestCases @(
+            @{ TenantId = 'contoso.onmicrosoft.com'; ExpectedEnvironment = 'AzureCloud' }
+            @{ TenantId = 'contoso.partner.onmschina.cn'; ExpectedEnvironment = 'AzureChinaCloud' }
+        ) {
+            param ($TenantId, $ExpectedEnvironment)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ TenantId = $TenantId; ExpectedEnvironment = $ExpectedEnvironment } {
+                param ($TenantId, $ExpectedEnvironment)
                 $Script:MSCloudLoginTriedGetEnvironment = $true
                 Mock -CommandName Invoke-WebRequest -MockWith { throw 'discovery must not be attempted again' }
                 Mock -CommandName Invoke-RestMethod -MockWith {
@@ -497,28 +466,11 @@ Describe 'Cloud environment detection during Workload.Setup()' {
 
                 Connect-M365Tenant -Workload 'AdminAPI' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
+                    -TenantId $TenantId `
                     -ApplicationSecret 'super-secret'
 
-                (Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI').EnvironmentName | Should -Be 'AzureCloud'
+                (Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI').EnvironmentName | Should -Be $ExpectedEnvironment
                 Should -Invoke Invoke-WebRequest -Exactly 0
-            }
-        }
-
-        It 'Should fall back to AzureChinaCloud for a tenant id that ends in .cn' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginTriedGetEnvironment = $true
-                Mock -CommandName Invoke-WebRequest -MockWith { throw 'discovery must not be attempted again' }
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ token_type = 'Bearer'; access_token = 'e2e-token' }
-                }
-
-                Connect-M365Tenant -Workload 'AdminAPI' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.partner.onmschina.cn' `
-                    -ApplicationSecret 'super-secret'
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'AdminAPI').EnvironmentName | Should -Be 'AzureChinaCloud'
             }
         }
     }

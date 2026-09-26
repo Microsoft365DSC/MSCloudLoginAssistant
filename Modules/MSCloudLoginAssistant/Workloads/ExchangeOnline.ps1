@@ -25,7 +25,7 @@ function Connect-MSCloudLoginExchangeOnline
     $ProgressPreference = 'SilentlyContinue'
     $source = 'Connect-MSCloudLoginExchangeOnline'
 
-    Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-AcceptedDomain command from within MSCloudLoginAssistant' -Source $source
+    Add-MSCloudLoginAssistantEvent -Message 'Trying to get the Get-OrganizationConfig command from within MSCloudLoginAssistant' -Source $source
 
     $loadAllCmdlets = $false
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad.Count -eq 0)
@@ -38,7 +38,17 @@ function Connect-MSCloudLoginExchangeOnline
     {
         try
         {
-            $null = Get-Command -Name Get-AcceptedDomain -ErrorAction Stop
+            $probe = Get-Command -Name Get-OrganizationConfig -ErrorAction Stop
+            $liveConnection = Get-ConnectionInformation | Where-Object -FilterScript {
+                $_.ModuleName -eq $probe.Module.ModuleBase -and $_.IsEopSession -ne $true -and
+                ([System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId) -or
+                    $_.AppId -eq $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)
+            }
+
+            if ($null -eq $liveConnection)
+            {
+                throw 'The loaded Exchange Online proxy module has no live connection for this profile.'
+            }
 
             if (-not $loadAllCmdlets)
             {
@@ -69,7 +79,7 @@ function Connect-MSCloudLoginExchangeOnline
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected)
     {
         # Shared commands such as Get-Group must resolve to the Exchange Online proxy module.
-        if (Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source $source)
+        if (Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source $source)
         {
             $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
             Add-MSCloudLoginAssistantEvent -Message 'Exchange Online is already connected' -Source $source
@@ -96,11 +106,22 @@ function Connect-MSCloudLoginExchangeOnline
             if ($filteredSessions.Count -gt 0)
             {
                 Add-MSCloudLoginAssistantEvent -Message "Found an active Exchange Online session for ApplicationId {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)} and TenantId {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)}" -Source $source
-                Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication)
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
-                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
-                return
+                try
+                {
+                    Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking -ErrorAction Stop
+                }
+                catch
+                {
+                    Add-MSCloudLoginAssistantEvent -Message "Could not import the module of the active session: $($_.Exception.Message)" -Source $source
+                    $filteredSessions = $null
+                }
+                if ($null -ne $filteredSessions)
+                {
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication)
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
+                    $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+                    return
+                }
             }
         }
 
@@ -111,28 +132,38 @@ function Connect-MSCloudLoginExchangeOnline
             if ($filteredSessions.Count -gt 0)
             {
                 Add-MSCloudLoginAssistantEvent -Message "Found an active Exchange Online session for UserPrincipalName {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName)}" -Source $source
-                Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication)
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
-                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
-                return
+                try
+                {
+                    Import-Module $filteredSessions.ModuleName -Force -Global -DisableNameChecking -ErrorAction Stop
+                }
+                catch
+                {
+                    Add-MSCloudLoginAssistantEvent -Message "Could not import the module of the active session: $($_.Exception.Message)" -Source $source
+                    $filteredSessions = $null
+                }
+                if ($null -ne $filteredSessions)
+                {
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($Script:MSCloudLoginConnectionProfile.ExchangeOnline.MultiFactorAuthentication)
+                    $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
+                    $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
+                    return
+                }
             }
         }
     }
     Add-MSCloudLoginAssistantEvent -Message 'No active Exchange Online session found.' -Source $source
 
     Add-MSCloudLoginAssistantEvent -Message "Loaded Modules: $(Get-Module | Select-Object -ExpandProperty Name)" -Source $source
-    Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source $source
-
     # Security & Compliance connections of other runspaces stay connected.
     Disconnect-MSCloudLoginExchangeConnection -Source $source
+    Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source $source
     $CommandName = @{}
     if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad.Count -gt 0)
     {
-        # Make sure we have the Get-AcceptedDomain command available
-        if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad -notcontains 'Get-AcceptedDomain')
+        # Make sure we have the Get-OrganizationConfig command available
+        if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad -notcontains 'Get-OrganizationConfig')
         {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad += 'Get-AcceptedDomain'
+            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad += 'Get-OrganizationConfig'
         }
         # Include the previously loaded commands, if available
         $combinedCmdlets = ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad + $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedCmdlets) | Select-Object -Unique
@@ -374,7 +405,7 @@ function Connect-MSCloudLoginExchangeOnline
     $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
 
     # Usually the tmpEXO* modules, but it might also be from another PSSession
-    $loadedEXOProxyModule = Get-Module | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-AcceptedDomain') }
+    $loadedEXOProxyModule = Get-Module | Where-Object -FilterScript { $_.ExportedCommands.Keys.Contains('Get-OrganizationConfig') }
     $loadedEXOModule = Get-Module -Name 'ExchangeOnlineManagement'
     $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedCmdlets = $loadedEXOProxyModule.ExportedCommands.Keys + $loadedEXOModule.ExportedCommands.Keys
     if ($loadAllCmdlets)

@@ -243,7 +243,7 @@ function Get-MSCloudLoginTenantGuid
     can be created.
 
 .PARAMETER ProbeCommand
-    A command name that identifies the proxy module (e.g. 'Get-AcceptedDomain').
+    A command name that identifies the proxy module (e.g. 'Get-OrganizationConfig').
 
 .PARAMETER Source
     The event source to use for logging.
@@ -288,7 +288,7 @@ function Remove-MSCloudLoginProxyModule
     The modules are not reloaded.
 
 .PARAMETER ProbeCommand
-    A command name that identifies the proxy module (e.g. 'Get-AcceptedDomain').
+    A command name that identifies the proxy module (e.g. 'Get-OrganizationConfig').
 
 .PARAMETER Source
     The event source to use for logging.
@@ -311,8 +311,9 @@ function Restore-MSCloudLoginProxyModule
         $Source
     )
 
+    [array]$liveModuleBases = Get-ConnectionInformation | ForEach-Object -Process { $_.ModuleName }
     [array]$proxyModules = Get-Module | Where-Object -FilterScript {
-        $_.ExportedCommands.Keys.Contains($ProbeCommand)
+        $_.ExportedCommands.Keys.Contains($ProbeCommand) -and $liveModuleBases -contains $_.ModuleBase
     }
 
     if ($proxyModules.Count -eq 0)
@@ -368,8 +369,10 @@ function Disconnect-MSCloudLoginExchangeConnection
     )
 
     # IsEopSession marks Security & Compliance connections.
+    [array]$loadedModuleBases = @(Get-Module).ModuleBase
     [array]$connectionIds = Get-ConnectionInformation | Where-Object -FilterScript {
-        $null -ne $_.ConnectionId -and [System.Boolean]$_.IsEopSession -eq $SecurityCompliance.IsPresent
+        $null -ne $_.ConnectionId -and [System.Boolean]$_.IsEopSession -eq $SecurityCompliance.IsPresent -and
+        $loadedModuleBases -contains $_.ModuleName
     } | ForEach-Object -Process { $_.ConnectionId.ToString() }
 
     if ($connectionIds.Count -eq 0)

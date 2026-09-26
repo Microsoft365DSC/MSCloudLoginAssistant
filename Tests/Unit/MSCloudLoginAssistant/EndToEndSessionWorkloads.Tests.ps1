@@ -119,27 +119,38 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
             }
         }
 
-        It 'Should connect the German sovereign cloud through its dedicated endpoint URIs' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should connect the <EnvironmentName> sovereign cloud through its dedicated endpoint URIs' -TestCases @(
+            @{ EnvironmentName = 'AzureGermanyCloud'; TenantId = 'contoso.onsovcloud.de'; ExpectedConnectionUri = 'https://outlook.sovcloud.de/PowerShell-LiveID'; Discovery = '{ "tenant_region_scope": "GG2", "token_endpoint": "https://login.sovcloud-identity.de/t/oauth2/v2.0/token" }' }
+            @{ EnvironmentName = 'AzureFranceCloud'; TenantId = 'contoso.onsovcloud.fr'; ExpectedConnectionUri = 'https://outlook.sovcloud.fr/PowerShell-LiveID'; Discovery = '{ "tenant_region_scope": "FG", "token_endpoint": "https://login.sovcloud-identity.fr/t/oauth2/v2.0/token" }' }
+        ) {
+            param ($EnvironmentName, $TenantId, $ExpectedConnectionUri, $Discovery)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                EnvironmentName       = $EnvironmentName
+                TenantId              = $TenantId
+                ExpectedConnectionUri = $ExpectedConnectionUri
+                Discovery             = $Discovery
+            } {
+                param ($EnvironmentName, $TenantId, $ExpectedConnectionUri, $Discovery)
+
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
                 Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
                 Mock -CommandName Connect-ExchangeOnline -MockWith { }
 
-                $Script:CloudEnvironmentInfo = ConvertFrom-Json '{ "tenant_region_scope": "GG2", "token_endpoint": "https://login.sovcloud-identity.de/t/oauth2/v2.0/token" }'
+                $Script:CloudEnvironmentInfo = ConvertFrom-Json $Discovery
 
                 Connect-M365Tenant -Workload 'ExchangeOnline' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onsovcloud.de' `
+                    -TenantId $TenantId `
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline'
-                $connection.EnvironmentName | Should -Be 'AzureGermanyCloud'
+                $connection.EnvironmentName | Should -Be $EnvironmentName
                 $connection.ExchangeEnvironmentName | Should -Be 'Custom'
-                $connection.ConnectionUri | Should -Be 'https://outlook.sovcloud.de/PowerShell-LiveID'
+                $connection.ConnectionUri | Should -Be $ExpectedConnectionUri
 
                 Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                    $ConnectionUri -eq 'https://outlook.sovcloud.de/PowerShell-LiveID'
+                    $ConnectionUri -eq $ExpectedConnectionUri
                 }
             }
         }
@@ -164,54 +175,55 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
             }
         }
 
-        It 'Should flag the managed identity connection as multi-factor authenticated' {
+        It 'Should connect the managed identity to the tenant organization and flag it as multi-factor authenticated' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
                 Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
                 Mock -CommandName Connect-ExchangeOnline -MockWith { }
 
-                Connect-M365Tenant -Workload 'ExchangeOnline' -Identity -TenantId 'contoso.onmicrosoft.com'
+                Connect-M365Tenant -Workload 'ExchangeOnline' -Identity `
+                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
+                    -TenantId 'contoso.onmicrosoft.com'
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline'
                 $connection.Connected | Should -BeTrue
                 $connection.MultiFactorAuthentication | Should -BeTrue
-                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter { $ManagedIdentity.IsPresent }
+                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
+                    $ManagedIdentity.IsPresent -and
+                    $AppId -eq '11111111-1111-1111-1111-111111111111' -and
+                    $Organization -eq 'contoso.onmicrosoft.com'
+                }
             }
         }
     }
 
     Context 'When connecting with user credentials' {
-        It 'Should connect without a delegated organization' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should connect <Description>' -TestCases @(
+            @{ Description = 'without a delegated organization'; TenantId = $null }
+            @{ Description = 'and pass the tenant as delegated organization when a tenant id is supplied'; TenantId = 'fabrikam.onmicrosoft.com' }
+        ) {
+            param ($Description, $TenantId)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ TenantId = $TenantId } {
+                param ($TenantId)
+
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
                 Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
                 Mock -CommandName Connect-ExchangeOnline -MockWith { }
 
-                Connect-M365Tenant -Workload 'ExchangeOnline' `
+                $tenantParameter = @{}
+                if ($TenantId)
+                {
+                    $tenantParameter.TenantId = $TenantId
+                }
+
+                Connect-M365Tenant -Workload 'ExchangeOnline' @tenantParameter `
                     -Credential (New-Object PSCredential ('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force)))
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline').Connected | Should -BeTrue
                 Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                    $null -ne $Credential -and [System.String]::IsNullOrEmpty($DelegatedOrganization)
-                }
-            }
-        }
-
-        It 'Should pass the tenant as delegated organization when a tenant id is supplied' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
-                Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
-                Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
-                Mock -CommandName Connect-ExchangeOnline -MockWith { }
-
-                Connect-M365Tenant -Workload 'ExchangeOnline' `
-                    -TenantId 'fabrikam.onmicrosoft.com' `
-                    -Credential (New-Object PSCredential ('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force)))
-
-                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                    $DelegatedOrganization -eq 'fabrikam.onmicrosoft.com'
+                    $Credential.UserName -eq 'admin@contoso.onmicrosoft.com' -and "$DelegatedOrganization" -eq "$TenantId"
                 }
             }
         }
@@ -242,34 +254,19 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
         }
     }
 
-    Context 'When only a subset of the cmdlets is requested' {
-        It 'Should always add Get-AcceptedDomain to the requested cmdlets' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
-                Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
-                Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
-                Mock -CommandName Connect-ExchangeOnline -MockWith { }
-
-                Connect-M365Tenant -Workload 'ExchangeOnline' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
-                    -ExchangeOnlineCmdlets @('Get-Mailbox')
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline').LoadedAllCmdlets | Should -BeFalse
-                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                    $CommandName -contains 'Get-Mailbox' -and $CommandName -contains 'Get-AcceptedDomain'
-                }
-            }
-        }
-    }
-
     Context 'When an Exchange Online session already exists' {
         It 'Should reuse the loaded proxy module instead of connecting again' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Connect-ExchangeOnline -MockWith { }
-                Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
+                Mock -CommandName Get-ConnectionInformation -MockWith {
+                    return @([PSCustomObject]@{
+                        Name         = 'ExchangeOnline_1'
+                        AppId        = '11111111-1111-1111-1111-111111111111'
+                        Organization = 'contoso.onmicrosoft.com'
+                        ModuleName   = (Get-Command -Name Get-OrganizationConfig).Module.ModuleBase
+                    })
+                }
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
@@ -285,7 +282,7 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
             }
         }
 
-        It 'Should adopt an existing session that matches the application and the tenant' {
+        It 'Should adopt an existing session that matches the application and the tenant when the loaded proxy module has no live connection' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Connect-ExchangeOnline -MockWith { }
@@ -298,6 +295,8 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
                         ModuleName   = 'tmpEXO_abcdefgh'
                     })
                 }
+
+                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
 
                 Connect-M365Tenant -Workload 'ExchangeOnline' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
@@ -313,8 +312,8 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
         }
     }
 
-    Context 'When Exchange Online is reset' {
-        It 'Should disconnect the session and drop the loaded cmdlets' {
+    Context 'When only a subset of the cmdlets is requested and Exchange Online is reset' {
+        It 'Should add Get-OrganizationConfig to the requested cmdlets and drop them after disconnecting only the Exchange Online session' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
@@ -327,8 +326,23 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
                     -ExchangeOnlineCmdlets @('Get-Mailbox')
 
+                (Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline').LoadedAllCmdlets | Should -BeFalse
+                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
+                    $CommandName -contains 'Get-Mailbox' -and $CommandName -contains 'Get-OrganizationConfig'
+                }
+
+                Mock -CommandName Get-ConnectionInformation -MockWith {
+                    return @(
+                        [PSCustomObject]@{ ConnectionId = 'exo-connection'; IsEopSession = $false; ModuleName = (Get-Command -Name Get-OrganizationConfig).Module.ModuleBase }
+                        [PSCustomObject]@{ ConnectionId = 'sc-connection'; IsEopSession = $true; ModuleName = (Get-Command -Name Get-ComplianceSearch).Module.ModuleBase }
+                    )
+                }
+
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'ExchangeOnline'
                 Reset-MSCloudLoginConnectionProfileContext -Workload 'ExchangeOnline'
 
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1
+                Should -Invoke Disconnect-ExchangeOnline -Exactly 1 -ParameterFilter { ($ConnectionId -join ',') -eq 'exo-connection' }
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline'
                 $connection.Connected | Should -BeFalse
                 $connection.LoadedAllCmdlets | Should -BeFalse
@@ -350,7 +364,7 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
     }
 
     Context 'When connecting with a service principal' {
-        It 'Should target the commercial compliance endpoint with the certificate thumbprint' {
+        It 'Should target the commercial compliance endpoint with the certificate thumbprint and forward the search only switch' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return $null }
@@ -360,17 +374,21 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
                 Connect-M365Tenant -Workload 'SecurityComplianceCenter' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
                     -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
+                    -EnableSearchOnlySession
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'SecurityComplianceCenter'
                 $connection.Connected | Should -BeTrue
+                $connection.EnableSearchOnlySession | Should -BeTrue
                 $connection.ConnectionUrl | Should -Be 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
                 $connection.AzureADAuthorizationEndpointUri | Should -Be 'https://login.microsoftonline.com/organizations'
 
                 Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
                     $AppId -eq '11111111-1111-1111-1111-111111111111' -and
                     $Organization -eq 'contoso.onmicrosoft.com' -and
-                    $ConnectionUri -eq 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+                    $CertificateThumbprint -eq 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' -and
+                    $ConnectionUri -eq 'https://ps.compliance.protection.outlook.com/powershell-liveid/' -and
+                    $EnableSearchOnlySession.IsPresent
                 }
             }
         }
@@ -389,28 +407,10 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
                     -CertificatePassword (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force)
 
                 Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
-                    $CertificateFilePath -eq 'C:\certificates\contoso.pfx'
+                    $AppId -eq '11111111-1111-1111-1111-111111111111' -and
+                    $CertificateFilePath -eq 'C:\certificates\contoso.pfx' -and
+                    $CertificatePassword -is [System.Security.SecureString]
                 }
-            }
-        }
-    }
-
-    Context 'When a search only session is requested' {
-        It 'Should forward the search only switch and keep it on the connection profile' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
-                Mock -CommandName Get-ConnectionInformation -MockWith { return $null }
-                Mock -CommandName Get-PSSession -MockWith { return @() }
-                Mock -CommandName Connect-IPPSSession -MockWith { }
-
-                Connect-M365Tenant -Workload 'SecurityComplianceCenter' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
-                    -EnableSearchOnlySession
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'SecurityComplianceCenter').EnableSearchOnlySession | Should -BeTrue
-                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter { $EnableSearchOnlySession.IsPresent }
             }
         }
     }
@@ -536,6 +536,7 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
                 Mock -CommandName Get-PSSession -MockWith {
                     return @([PSCustomObject]@{ ComputerName = 'ps.compliance.protection.outlook.com'; State = 'Opened' })
                 }
+                $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
 
                 Connect-M365Tenant -Workload 'SecurityComplianceCenter' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
@@ -543,6 +544,7 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'SecurityComplianceCenter').Connected | Should -BeTrue
+                $Script:MSCloudLoginCurrentLoadedModule | Should -Be 'SC'
                 Should -Invoke Import-PSSession -Exactly 1
                 Should -Invoke Connect-IPPSSession -Exactly 0
             }
@@ -550,7 +552,7 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
     }
 
     Context 'When the Security and Compliance Center is reset' {
-        It 'Should disconnect the underlying Exchange session' {
+        It 'Should disconnect only the compliance connection of the underlying Exchange session once' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
                 Mock -CommandName Get-ConnectionInformation -MockWith { return $null }
@@ -565,11 +567,12 @@ Describe 'Connect-M365Tenant end-to-end for the Security and Compliance Center' 
 
                 Mock -CommandName Get-ConnectionInformation -MockWith {
                     return @(
-                        [PSCustomObject]@{ ConnectionId = 'exo-connection'; IsEopSession = $false }
-                        [PSCustomObject]@{ ConnectionId = 'sc-connection'; IsEopSession = $true }
+                        [PSCustomObject]@{ ConnectionId = 'exo-connection'; IsEopSession = $false; ModuleName = (Get-Command -Name Get-OrganizationConfig).Module.ModuleBase }
+                        [PSCustomObject]@{ ConnectionId = 'sc-connection'; IsEopSession = $true; ModuleName = (Get-Command -Name Get-ComplianceSearch).Module.ModuleBase }
                     )
                 }
 
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'SecurityComplianceCenter'
                 Reset-MSCloudLoginConnectionProfileContext -Workload 'SecurityComplianceCenter'
 
                 Should -Invoke Disconnect-ExchangeOnline -Exactly 1
@@ -588,8 +591,8 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online and Security and Com
             tmpEXO_sharedexo = @'
 $global:MSCLASharedExoLoads = 1 + [int]$global:MSCLASharedExoLoads
 function Get-MSCLASharedGroup { 'ExchangeOnline' }
-function Get-AcceptedDomain { }
-Export-ModuleMember -Function Get-MSCLASharedGroup, Get-AcceptedDomain
+function Get-OrganizationConfig { }
+Export-ModuleMember -Function Get-MSCLASharedGroup, Get-OrganizationConfig
 '@
             tmpEXO_sharedsc  = @'
 $global:MSCLASharedScLoads = 1 + [int]$global:MSCLASharedScLoads
@@ -631,7 +634,16 @@ Export-ModuleMember -Function Get-MSCLASharedGroup, Get-ComplianceSearch
     It 'Should resolve the shared cmdlets to the workload that was connected last on every switch' {
         InModuleScope 'MSCloudLoginAssistant' {
             Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
-            Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
+            Mock -CommandName Get-ConnectionInformation -MockWith {
+                Get-Module -Name 'tmpEXO_sharedexo', 'tmpEXO_sharedsc' | ForEach-Object -Process {
+                    [PSCustomObject]@{
+                        ConnectionId = $_.Name
+                        ModuleName   = $_.ModuleBase
+                        IsEopSession = $_.Name -eq 'tmpEXO_sharedsc'
+                        AppId        = '11111111-1111-1111-1111-111111111111'
+                    }
+                }
+            }
             Mock -CommandName Get-PSSession -MockWith { return @() }
             Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
             Mock -CommandName Connect-ExchangeOnline -MockWith {
@@ -768,19 +780,20 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
             }
         }
 
-        It 'Should forward every supplied access token' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should connect with <Description>' -TestCases @(
+            @{ Description = 'every supplied access token'; ConnectionParameters = @{ AccessTokens = @('graph-token', 'teams-token'); TenantId = 'contoso.onmicrosoft.com' }; ExpectedParameters = '$AccessTokens.Count -eq 2 -and $AccessTokens[0] -eq ''graph-token''' }
+            @{ Description = 'user credentials'; ConnectionParameters = @{ Credential = (New-Object PSCredential ('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))) }; ExpectedParameters = '$Credential.UserName -eq ''admin@contoso.onmicrosoft.com''' }
+        ) {
+            param ($ConnectionParameters, $ExpectedParameters)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ConnectionParameters = $ConnectionParameters; ExpectedParameters = $ExpectedParameters } {
+                param ($ConnectionParameters, $ExpectedParameters)
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'no session' }
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
 
-                Connect-M365Tenant -Workload 'MicrosoftTeams' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -AccessTokens @('graph-token', 'teams-token')
+                Connect-M365Tenant -Workload 'MicrosoftTeams' @ConnectionParameters
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams').Connected | Should -BeTrue
-                Should -Invoke Connect-MicrosoftTeams -Exactly 1 -ParameterFilter {
-                    $AccessTokens.Count -eq 2 -and $AccessTokens[0] -eq 'graph-token'
-                }
+                Should -Invoke Connect-MicrosoftTeams -Exactly 1 -ParameterFilter ([scriptblock]::Create($ExpectedParameters))
             }
         }
 
@@ -848,7 +861,7 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
     }
 
     Context 'When Microsoft Teams is reset' {
-        It 'Should disconnect the Teams session' {
+        It 'Should disconnect the Teams session only once' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'no session' }
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
@@ -859,6 +872,7 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Teams' {
                     -TenantId 'contoso.onmicrosoft.com' `
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
 
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'MicrosoftTeams'
                 Reset-MSCloudLoginConnectionProfileContext -Workload 'MicrosoftTeams'
 
                 Should -Invoke Disconnect-MicrosoftTeams -Exactly 1
@@ -907,25 +921,10 @@ Describe 'Connect-M365Tenant end-to-end for the Power Platform' {
                 }
             }
         }
-
-        It 'Should pass the application secret through to Add-PowerAppsAccount' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Add-PowerAppsAccount -MockWith { }
-
-                Connect-M365Tenant -Workload 'PowerPlatforms' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -ApplicationSecret 'super-secret'
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'PowerPlatforms').Connected | Should -BeTrue
-                Should -Invoke Add-PowerAppsAccount -Exactly 1 -ParameterFilter { $ClientSecret -eq 'super-secret' }
-            }
-        }
     }
 
     Context 'When the tenant lives in a government cloud' {
-        It 'Should select the <ExpectedEndpoint> PowerApps endpoint for the <SubScope> sub scope' -TestCases @(
+        It 'Should pass the application secret to the <ExpectedEndpoint> PowerApps endpoint for the <SubScope> sub scope' -TestCases @(
             @{ SubScope = 'DODCON'; ExpectedEndpoint = 'usgovhigh' }
             @{ SubScope = 'DOD'; ExpectedEndpoint = 'dod' }
             @{ SubScope = 'GCC'; ExpectedEndpoint = 'usgov' }
@@ -947,8 +946,12 @@ Describe 'Connect-M365Tenant end-to-end for the Power Platform' {
                     -TenantId 'contoso.onmicrosoft.com' `
                     -ApplicationSecret 'super-secret'
 
-                (Get-MSCloudLoginConnectionProfile -Workload 'PowerPlatforms').Endpoint | Should -Be $ExpectedEndpoint
-                Should -Invoke Add-PowerAppsAccount -Exactly 1 -ParameterFilter { $Endpoint -eq $ExpectedEndpoint }
+                $connection = Get-MSCloudLoginConnectionProfile -Workload 'PowerPlatforms'
+                $connection.Connected | Should -BeTrue
+                $connection.Endpoint | Should -Be $ExpectedEndpoint
+                Should -Invoke Add-PowerAppsAccount -Exactly 1 -ParameterFilter {
+                    $Endpoint -eq $ExpectedEndpoint -and $ClientSecret -eq 'super-secret'
+                }
             }
         }
     }
@@ -964,7 +967,9 @@ Describe 'Connect-M365Tenant end-to-end for the Power Platform' {
 
                 (Get-MSCloudLoginConnectionProfile -Workload 'PowerPlatforms').Connected | Should -BeTrue
                 Should -Invoke Add-PowerAppsAccount -Exactly 1 -ParameterFilter {
-                    $Username -eq 'admin@contoso.onmicrosoft.com'
+                    $Username -eq 'admin@contoso.onmicrosoft.com' -and
+                    -not [System.String]::IsNullOrEmpty($Password) -and
+                    $Endpoint -eq 'prod'
                 }
             }
         }
@@ -978,6 +983,9 @@ Describe 'Connect-M365Tenant end-to-end for the Power Platform' {
                     -TenantId 'contoso.onmicrosoft.com' `
                     -Credential (New-Object PSCredential ('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))) } |
                     Should -Throw '*cannot specify TenantId with Credentials*'
+
+                (Get-MSCloudLoginConnectionProfile -Workload 'PowerPlatforms').Connected | Should -BeFalse
+                Should -Invoke Add-PowerAppsAccount -Exactly 0
             }
         }
 
@@ -1052,8 +1060,13 @@ Describe 'Connect-M365Tenant end-to-end for Azure' {
     }
 
     Context 'When connecting with a service principal' {
-        It 'Should sign in as a service principal and record the management URL' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should sign in as a service principal with the <Description> and record the management URL' -TestCases @(
+            @{ Description = 'certificate thumbprint'; CertificateParameters = @{ CertificateThumbprint = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' }; ExpectedCertificate = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' }
+            @{ Description = 'certificate path'; CertificateParameters = @{ CertificatePath = 'C:\certificates\contoso.pfx'; CertificatePassword = (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force) }; ExpectedCertificate = 'C:\certificates\contoso.pfx' }
+        ) {
+            param ($CertificateParameters, $ExpectedCertificate)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CertificateParameters = $CertificateParameters; ExpectedCertificate = $ExpectedCertificate } {
+                param ($CertificateParameters, $ExpectedCertificate)
                 Mock -CommandName Invoke-WebRequest -MockWith {
                     return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/t/oauth2/v2.0/token" }' }
                 }
@@ -1065,7 +1078,7 @@ Describe 'Connect-M365Tenant end-to-end for Azure' {
                 Connect-M365Tenant -Workload 'Azure' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
                     -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+                    @CertificateParameters
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'Azure'
                 $connection.Connected | Should -BeTrue
@@ -1073,8 +1086,10 @@ Describe 'Connect-M365Tenant end-to-end for Azure' {
 
                 Should -Invoke Connect-AzAccount -Exactly 1 -ParameterFilter {
                     $ServicePrincipal.IsPresent -and
-                    $CertificateThumbprint -eq 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' -and
-                    $Environment -eq 'AzureCloud'
+                    $ApplicationId -eq '11111111-1111-1111-1111-111111111111' -and
+                    @($CertificateThumbprint, $CertificatePath) -contains $ExpectedCertificate -and
+                    $Environment -eq 'AzureCloud' -and
+                    $Scope -eq 'Process'
                 }
             }
         }
@@ -1187,12 +1202,17 @@ Describe 'Connect-M365Tenant end-to-end for Azure' {
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'Azure'
                 $connection.Connected | Should -BeTrue
                 $connection.MultiFactorAuthentication | Should -BeTrue
+                Should -Invoke Connect-AzAccount -Exactly 1 -ParameterFilter {
+                    $null -eq $Credential -and
+                    $TenantId -eq 'contoso.onmicrosoft.com' -and
+                    $Environment -eq 'AzureCloud'
+                }
             }
         }
     }
 
     Context 'When Azure is reset' {
-        It 'Should sign out of the Azure account' {
+        It 'Should sign out of the Azure account only once' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Invoke-WebRequest -MockWith {
                     return @{ Content = '{ "token_endpoint": "https://login.microsoftonline.com/t/oauth2/v2.0/token" }' }
@@ -1209,8 +1229,9 @@ Describe 'Connect-M365Tenant end-to-end for Azure' {
                     -ApplicationSecret 'super-secret'
 
                 Reset-MSCloudLoginConnectionProfileContext -Workload 'Azure'
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'Azure'
 
-                Should -Invoke Disconnect-AzAccount -Exactly 1
+                Should -Invoke Disconnect-AzAccount -Exactly 1 -ParameterFilter { $Scope -eq 'Process' }
                 (Get-MSCloudLoginConnectionProfile -Workload 'Azure').Connected | Should -BeFalse
             }
         }

@@ -87,12 +87,27 @@ Describe 'Connect-M365Tenant in a custom environment' {
     }
 
     Context 'Microsoft Graph' {
-        It 'Should register the custom Graph environment and connect with a locally issued token' {
-            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CustomEnvironmentFile = $script:customEnvironmentFile } {
-                param ($CustomEnvironmentFile)
+        It 'Should connect with a locally issued token and register the custom Graph environment <ExpectedRegistrations> time(s) when <Scenario>' -TestCases @(
+            @{ Scenario = 'it is not registered yet'; ExistingEnvironment = $null; ExpectedRegistrations = 1 }
+            @{ Scenario = 'it is already registered'; ExistingEnvironment = 'Custom'; ExpectedRegistrations = 0 }
+        ) {
+            param ($Scenario, $ExistingEnvironment, $ExpectedRegistrations)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                CustomEnvironmentFile = $script:customEnvironmentFile
+                ExistingEnvironment   = $ExistingEnvironment
+                ExpectedRegistrations = $ExpectedRegistrations
+            } {
+                param ($CustomEnvironmentFile, $ExistingEnvironment, $ExpectedRegistrations)
 
                 Mock -CommandName Get-MgContext -MockWith { return $null }
-                Mock -CommandName Get-MgEnvironment -MockWith { return $null }
+                if ($ExistingEnvironment)
+                {
+                    Mock -CommandName Get-MgEnvironment -MockWith { return @([PSCustomObject]@{ Name = 'Custom' }) }
+                }
+                else
+                {
+                    Mock -CommandName Get-MgEnvironment -MockWith { return $null }
+                }
                 Mock -CommandName Add-MgEnvironment -MockWith { }
                 Mock -CommandName Connect-MgGraph -MockWith { }
                 Mock -CommandName Get-AuthToken -MockWith { return @{ access_token = 'custom-graph-token' } }
@@ -110,32 +125,13 @@ Describe 'Connect-M365Tenant in a custom environment' {
                 $connection.ResourceUrl | Should -Be 'https://graph.contoso.local/'
                 $connection.TokenUrl | Should -Be 'https://login.contoso.local/contoso.local/oauth2/v2.0/token'
 
-                Should -Invoke Add-MgEnvironment -Exactly 1 -ParameterFilter {
+                Should -Invoke Add-MgEnvironment -Exactly $ExpectedRegistrations
+                Should -Invoke Add-MgEnvironment -Exactly $ExpectedRegistrations -ParameterFilter {
                     $Name -eq 'Custom' -and $GraphEndpoint -eq 'https://graph.contoso.local/'
                 }
                 Should -Invoke Connect-MgGraph -Exactly 1 -ParameterFilter {
                     $AccessToken -is [System.Security.SecureString] -and $Environment -eq 'Custom'
                 }
-            }
-        }
-
-        It 'Should not register the custom environment twice' {
-            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CustomEnvironmentFile = $script:customEnvironmentFile } {
-                param ($CustomEnvironmentFile)
-
-                Mock -CommandName Get-MgContext -MockWith { return $null }
-                Mock -CommandName Get-MgEnvironment -MockWith { return @([PSCustomObject]@{ Name = 'Custom' }) }
-                Mock -CommandName Add-MgEnvironment -MockWith { }
-                Mock -CommandName Connect-MgGraph -MockWith { }
-                Mock -CommandName Get-AuthToken -MockWith { return @{ access_token = 'custom-graph-token' } }
-
-                Connect-M365Tenant -Workload 'MicrosoftGraph' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.local' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
-                    -CustomEnvironmentFileName $CustomEnvironmentFile
-
-                Should -Invoke Add-MgEnvironment -Exactly 0
             }
         }
     }
@@ -233,83 +229,70 @@ Describe 'Connect-M365Tenant in a custom environment' {
     }
 
     Context 'Microsoft Teams' {
-        It 'Should refuse a custom environment connection outside of Windows PowerShell 5' {
-            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CustomEnvironmentFile = $script:customEnvironmentFile } {
-                param ($CustomEnvironmentFile)
+        It 'Should prepare the <Scenario> Teams endpoints and refuse the connection outside of Windows PowerShell 5' -Skip:($PSVersionTable.PSVersion.Major -eq 5) -TestCases @(
+            @{
+                Scenario                       = 'custom environment'
+                UseCustomEnvironmentFile       = $true
+                TenantId                       = 'contoso.local'
+                Discovery                      = $null
+                ExpectedEnvironmentName        = 'Custom'
+                ExpectedAuthorizationUrl       = 'https://login.contoso.local'
+                ExpectedTokenUrl               = 'https://login.contoso.local/contoso.local/oauth2/v2.0/token'
+                ExpectedTeamsConfigApiEndpoint = 'https://config.teams.contoso.local'
+            }
+            @{
+                Scenario                       = 'French sovereign cloud'
+                UseCustomEnvironmentFile       = $false
+                TenantId                       = 'contoso.onsovcloud.fr'
+                Discovery                      = '{ "tenant_region_scope": "FG", "token_endpoint": "https://login.sovcloud-identity.fr/t/oauth2/v2.0/token" }'
+                ExpectedEnvironmentName        = 'AzureFranceCloud'
+                ExpectedAuthorizationUrl       = 'https://login.sovcloud-identity.fr/'
+                ExpectedTokenUrl               = ''
+                ExpectedTeamsConfigApiEndpoint = 'https://config.teams.sovcloud.fr'
+            }
+        ) {
+            param ($UseCustomEnvironmentFile, $TenantId, $Discovery, $ExpectedEnvironmentName, $ExpectedAuthorizationUrl, $ExpectedTokenUrl, $ExpectedTeamsConfigApiEndpoint)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                CustomEnvironmentFile          = $script:customEnvironmentFile
+                UseCustomEnvironmentFile       = $UseCustomEnvironmentFile
+                TenantId                       = $TenantId
+                Discovery                      = $Discovery
+                ExpectedEnvironmentName        = $ExpectedEnvironmentName
+                ExpectedAuthorizationUrl       = $ExpectedAuthorizationUrl
+                ExpectedTokenUrl               = $ExpectedTokenUrl
+                ExpectedTeamsConfigApiEndpoint = $ExpectedTeamsConfigApiEndpoint
+            } {
+                param ($CustomEnvironmentFile, $UseCustomEnvironmentFile, $TenantId, $Discovery, $ExpectedEnvironmentName, $ExpectedAuthorizationUrl, $ExpectedTokenUrl, $ExpectedTeamsConfigApiEndpoint)
 
                 Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'no session' }
                 Mock -CommandName Connect-MicrosoftTeams -MockWith { }
                 Mock -CommandName Set-TeamsEnvironmentConfig -MockWith { }
 
+                $environmentParameters = @{}
+                if ($UseCustomEnvironmentFile)
+                {
+                    $environmentParameters.CustomEnvironmentFileName = $CustomEnvironmentFile
+                }
+                if ($Discovery)
+                {
+                    $Script:CloudEnvironmentInfo = ConvertFrom-Json $Discovery
+                }
+
                 { Connect-M365Tenant -Workload 'MicrosoftTeams' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.local' `
+                    -TenantId $TenantId `
                     -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' `
-                    -CustomEnvironmentFileName $CustomEnvironmentFile } |
+                    @environmentParameters } |
                     Should -Throw '*only supported in PowerShell 5*'
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams'
-                $connection.EnvironmentName | Should -Be 'Custom'
-                $connection.TokenUrl | Should -Be 'https://login.contoso.local/contoso.local/oauth2/v2.0/token'
-                $connection.TeamsScope | Should -Be 'https://teams.contoso.local/.default'
+                $connection.EnvironmentName | Should -Be $ExpectedEnvironmentName
+                $connection.AuthorizationUrl | Should -Be $ExpectedAuthorizationUrl
+                "$($connection.TokenUrl)" | Should -Be $ExpectedTokenUrl
+                $Script:CustomEnvConfig.CustomTeamsEndpoints.TeamsConfigApiEndpoint | Should -Be $ExpectedTeamsConfigApiEndpoint
+                Should -Invoke Set-TeamsEnvironmentConfig -Exactly 0
+                Should -Invoke Connect-MicrosoftTeams -Exactly 0
             }
-        }
-    }
-}
-
-Describe 'Connect-M365Tenant in the French sovereign cloud' {
-
-    BeforeEach {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $Script:MSCloudLoginConnectionProfile = $null
-            $Script:MSCloudLoginTriedGetEnvironment = $true
-            $Script:CloudEnvironmentInfo = ConvertFrom-Json '{ "tenant_region_scope": "FG", "token_endpoint": "https://login.sovcloud-identity.fr/t/oauth2/v2.0/token" }'
-        }
-    }
-
-    AfterEach {
-        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ModuleRoot = $script:moduleRoot } {
-            param ($ModuleRoot)
-            $Script:CustomEnvConfig = Import-PowerShellDataFile -Path (Join-Path $ModuleRoot 'CustomEnvironment.psd1')
-            $Script:LoadedCustomEnvFileName = 'CustomEnvironment.psd1'
-        }
-    }
-
-    It 'Should connect Exchange Online through the French sovereign endpoints' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
-            Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
-            Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
-            Mock -CommandName Connect-ExchangeOnline -MockWith { }
-
-            Connect-M365Tenant -Workload 'ExchangeOnline' `
-                -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                -TenantId 'contoso.onsovcloud.fr' `
-                -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
-
-            $connection = Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline'
-            $connection.EnvironmentName | Should -Be 'AzureFranceCloud'
-            $connection.ExchangeEnvironmentName | Should -Be 'Custom'
-            $connection.ConnectionUri | Should -Be 'https://outlook.sovcloud.fr/PowerShell-LiveID'
-        }
-    }
-
-    It 'Should register the French Teams endpoints and refuse the connection outside of Windows PowerShell 5' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { throw 'no session' }
-            Mock -CommandName Connect-MicrosoftTeams -MockWith { }
-            Mock -CommandName Set-TeamsEnvironmentConfig -MockWith { }
-
-            { Connect-M365Tenant -Workload 'MicrosoftTeams' `
-                -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                -TenantId 'contoso.onsovcloud.fr' `
-                -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' } |
-                Should -Throw '*only supported in PowerShell 5*'
-
-            $connection = Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftTeams'
-            $connection.EnvironmentName | Should -Be 'AzureFranceCloud'
-            $connection.AuthorizationUrl | Should -Be 'https://login.sovcloud-identity.fr/'
-            $Script:CustomEnvConfig.CustomTeamsEndpoints.TeamsConfigApiEndPoint | Should -Be 'https://config.teams.sovcloud.fr'
         }
     }
 }

@@ -32,40 +32,31 @@ AfterAll {
 Describe 'Get-MSCloudLoginCertificate' {
 
     Context 'When a thumbprint is provided' {
-        It 'Should return the certificate from the current user store' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should return the certificate from the <Store> store after <Lookups> lookup(s)' -TestCases @(
+            @{ Store = 'CurrentUser'; Lookups = 1 }
+            @{ Store = 'LocalMachine'; Lookups = 2 }
+        ) {
+            param ($Store, $Lookups)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Store = $Store; Lookups = $Lookups } {
+                param ($Store, $Lookups)
                 Mock -CommandName Find-MSCloudLoginStoreCertificate -MockWith {
-                    if ($StoreLocation -eq 'CurrentUser')
+                    if ($StoreLocation -eq $Store)
                     {
-                        return [PSCustomObject]@{ Thumbprint = 'AA11'; Store = 'CurrentUser' }
+                        return [PSCustomObject]@{ Thumbprint = 'AA11'; Store = $Store }
                     }
                     return $null
                 }
 
                 $certificate = Get-MSCloudLoginCertificate -CertificateThumbprint 'AA11'
-                $certificate.Store | Should -Be 'CurrentUser'
-                Should -Invoke Find-MSCloudLoginStoreCertificate -Exactly 1
+                $certificate.Store | Should -Be $Store
+                Should -Invoke Find-MSCloudLoginStoreCertificate -Exactly $Lookups
             }
         }
 
-        It 'Should fall back to the local machine store' {
+        It 'Should return a store certificate without Cert: drive properties and $null for an unknown thumbprint' {
             InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Find-MSCloudLoginStoreCertificate -MockWith {
-                    if ($StoreLocation -eq 'LocalMachine')
-                    {
-                        return [PSCustomObject]@{ Thumbprint = 'AA11'; Store = 'LocalMachine' }
-                    }
-                    return $null
-                }
+                Find-MSCloudLoginStoreCertificate -StoreLocation 'CurrentUser' -CertificateThumbprint '0000000000000000000000000000000000000000' | Should -BeNullOrEmpty
 
-                $certificate = Get-MSCloudLoginCertificate -CertificateThumbprint 'AA11'
-                $certificate.Store | Should -Be 'LocalMachine'
-                Should -Invoke Find-MSCloudLoginStoreCertificate -Exactly 2
-            }
-        }
-
-        It 'Should return a store certificate without Cert: drive properties' {
-            InModuleScope 'MSCloudLoginAssistant' {
                 $thumbprint = (Get-ChildItem -Path 'Cert:\CurrentUser\My' | Select-Object -First 1).Thumbprint
                 if ($null -eq $thumbprint)
                 {
@@ -76,12 +67,6 @@ Describe 'Get-MSCloudLoginCertificate' {
                 $certificate = Find-MSCloudLoginStoreCertificate -StoreLocation 'CurrentUser' -CertificateThumbprint $thumbprint
                 $certificate.Thumbprint | Should -Be $thumbprint
                 $certificate.PSObject.Properties['PSDrive'] | Should -BeNullOrEmpty
-            }
-        }
-
-        It 'Should return $null for an unknown thumbprint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Find-MSCloudLoginStoreCertificate -StoreLocation 'CurrentUser' -CertificateThumbprint '0000000000000000000000000000000000000000' | Should -BeNullOrEmpty
             }
         }
 
@@ -114,16 +99,12 @@ Describe 'Get-MSCloudLoginCertificate' {
             Remove-Item -Path $script:unprotectedPfxPath -Force -ErrorAction SilentlyContinue
         }
 
-        It 'Should load a PFX file that has no password' {
+        It 'Should load a PFX file that has no password and throw for a file that does not exist' {
             InModuleScope 'MSCloudLoginAssistant' -Parameters @{ PfxPath = $script:unprotectedPfxPath } {
                 param ($PfxPath)
                 $certificate = Get-MSCloudLoginCertificate -CertificatePath $PfxPath
                 $certificate.Subject | Should -Be 'CN=MSCloudLoginAssistantHelperTest'
-            }
-        }
 
-        It 'Should throw when the file does not exist' {
-            InModuleScope 'MSCloudLoginAssistant' {
                 { Get-MSCloudLoginCertificate -CertificatePath 'C:\does\not\exist.pfx' } |
                     Should -Throw "*'C:\does\not\exist.pfx' was not found*"
             }
@@ -133,7 +114,7 @@ Describe 'Get-MSCloudLoginCertificate' {
 
 Describe 'Remove-MSCloudLoginProxyModule' {
 
-    It 'Should remove every loaded module that exports the probe command' {
+    It 'Should remove only the loaded modules that export the probe command' {
         InModuleScope 'MSCloudLoginAssistant' {
             Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
             Mock -CommandName Remove-Module -MockWith { }
@@ -152,22 +133,10 @@ Describe 'Remove-MSCloudLoginProxyModule' {
 
             Should -Invoke Remove-Module -Exactly 1
             Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter { $Message -like '*tmpEXO_abc*' }
-        }
-    }
 
-    It 'Should do nothing when no module exports the probe command' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-            Mock -CommandName Remove-Module -MockWith { }
-            Mock -CommandName Get-Module -MockWith {
-                $otherCommands = [System.Collections.Generic.Dictionary[string, object]]::new()
-                $otherCommands.Add('Get-Something', $null)
-                return @([PSCustomObject]@{ Name = 'SomethingElse'; ExportedCommands = $otherCommands })
-            }
+            Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source 'Test'
 
-            Remove-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source 'Test'
-
-            Should -Invoke Remove-Module -Exactly 0
+            Should -Invoke Remove-Module -Exactly 1
         }
     }
 }
@@ -207,30 +176,24 @@ Export-ModuleMember -Function Get-MSCLARestoreShared, Get-MSCLARestoreScProbe
             Remove-Variable -Name 'MSCLARestoreExoLoads', 'MSCLARestoreScLoads' -Scope Global -ErrorAction SilentlyContinue
         }
 
-        It 'Should give the module that exports the probe command precedence again' {
+        It 'Should give the module that exports the probe command precedence, back and forth, without reloading either module' {
             Get-MSCLARestoreShared | Should -Be 'SecurityCompliance'
 
-            InModuleScope 'MSCloudLoginAssistant' {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ProxyDirectory = $TestDrive } {
+                param ($ProxyDirectory)
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                Mock -CommandName Get-ConnectionInformation -MockWith { [PSCustomObject]@{ ModuleName = $ProxyDirectory } }
 
                 Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-MSCLARestoreExoProbe' -Source 'Test' | Should -BeTrue
-            }
-
-            Get-MSCLARestoreShared | Should -Be 'ExchangeOnline'
-            (Get-Command -Name 'Get-MSCLARestoreShared').Module.Name | Should -Be 'tmpEXO_restoreexo'
-        }
-
-        It 'Should switch the precedence back and forth without reloading either module' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+                (Get-Command -Name 'Get-MSCLARestoreShared').Module.Name | Should -Be 'tmpEXO_restoreexo'
 
                 foreach ($iteration in 1..3)
                 {
-                    Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-MSCLARestoreExoProbe' -Source 'Test' | Should -BeTrue
-                    Get-MSCLARestoreShared | Should -Be 'ExchangeOnline'
-
                     Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-MSCLARestoreScProbe' -Source 'Test' | Should -BeTrue
                     Get-MSCLARestoreShared | Should -Be 'SecurityCompliance'
+
+                    Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-MSCLARestoreExoProbe' -Source 'Test' | Should -BeTrue
+                    Get-MSCLARestoreShared | Should -Be 'ExchangeOnline'
                 }
             }
 
@@ -250,7 +213,7 @@ Export-ModuleMember -Function Get-MSCLARestoreShared, Get-MSCLARestoreScProbe
                 return @([PSCustomObject]@{ Name = 'SomethingElse'; ExportedCommands = $otherCommands })
             }
 
-            Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source 'Test' | Should -BeFalse
+            Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source 'Test' | Should -BeFalse
 
             Should -Invoke Import-Module -Exactly 0
         }
@@ -258,15 +221,29 @@ Export-ModuleMember -Function Get-MSCLARestoreShared, Get-MSCLARestoreScProbe
 
     It 'Should report a failed import' {
         InModuleScope 'MSCloudLoginAssistant' {
+            $proxyModule = New-Module -Name 'tmpEXO_abc' -ScriptBlock { function Get-OrganizationConfig { } }
             Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
             Mock -CommandName Import-Module -MockWith { throw 'import failed' }
-            Mock -CommandName Get-Module -MockWith {
-                return New-Module -Name 'tmpEXO_abc' -ScriptBlock { function Get-AcceptedDomain { } }
-            }
+            Mock -CommandName Get-Module -MockWith { return $proxyModule }
+            Mock -CommandName Get-ConnectionInformation -MockWith { [PSCustomObject]@{ ModuleName = $proxyModule.ModuleBase } }
 
-            Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-AcceptedDomain' -Source 'Test' | Should -BeFalse
+            Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source 'Test' | Should -BeFalse
 
             Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter { $Message -like '*Failed to restore proxy module {tmpEXO_abc}*import failed*' }
+        }
+    }
+
+    It 'Should not restore a loaded proxy module whose connection is gone' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $proxyModule = New-Module -Name 'tmpEXO_stale' -ScriptBlock { function Get-OrganizationConfig { } }
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Get-Module -MockWith { return $proxyModule }
+            Mock -CommandName Get-ConnectionInformation -MockWith { return $null }
+
+            Restore-MSCloudLoginProxyModule -ProbeCommand 'Get-OrganizationConfig' -Source 'Test' | Should -BeFalse
+
+            Should -Invoke Import-Module -Exactly 0
         }
     }
 }
@@ -289,30 +266,31 @@ Describe 'Disconnect-MSCloudLoginExchangeConnection' {
             Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
             Mock -CommandName Get-ConnectionInformation -MockWith {
                 return @(
-                    [PSCustomObject]@{ ConnectionId = [guid]'11111111-1111-1111-1111-111111111111'; IsEopSession = $false }
-                    [PSCustomObject]@{ ConnectionId = [guid]'22222222-2222-2222-2222-222222222222'; IsEopSession = $true }
-                    [PSCustomObject]@{ ConnectionId = [guid]'33333333-3333-3333-3333-333333333333'; IsEopSession = $false }
+                    [PSCustomObject]@{ ConnectionId = [guid]'11111111-1111-1111-1111-111111111111'; IsEopSession = $false; ModuleName = 'C:\Temp\tmpEXO_one' }
+                    [PSCustomObject]@{ ConnectionId = [guid]'22222222-2222-2222-2222-222222222222'; IsEopSession = $true; ModuleName = 'C:\Temp\tmpEXO_two' }
+                    [PSCustomObject]@{ ConnectionId = [guid]'33333333-3333-3333-3333-333333333333'; IsEopSession = $false; ModuleName = 'C:\Temp\tmpEXO_three' }
+                    [PSCustomObject]@{ ConnectionId = [guid]'44444444-4444-4444-4444-444444444444'; IsEopSession = $false; ModuleName = 'C:\Temp\tmpEXO_otherrunspace' }
                 )
             }
-        }
-    }
-
-    It 'Should disconnect only the Exchange Online connections' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Disconnect-MSCloudLoginExchangeConnection -Source 'Test'
-
-            Should -Invoke Disconnect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                ($ConnectionId -join ',') -eq '11111111-1111-1111-1111-111111111111,33333333-3333-3333-3333-333333333333'
+            Mock -CommandName Get-Module -MockWith {
+                return @('C:\Temp\tmpEXO_one', 'C:\Temp\tmpEXO_two', 'C:\Temp\tmpEXO_three') | ForEach-Object -Process {
+                    [PSCustomObject]@{ ModuleBase = $_ }
+                }
             }
         }
     }
 
-    It 'Should disconnect only the Security & Compliance connections' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Disconnect-MSCloudLoginExchangeConnection -SecurityCompliance -Source 'Test'
+    It 'Should disconnect only the <Kind> connections of the modules loaded in this runspace' -TestCases @(
+        @{ Kind = 'Exchange Online'; SecurityCompliance = $false; ExpectedConnectionIds = '11111111-1111-1111-1111-111111111111,33333333-3333-3333-3333-333333333333' }
+        @{ Kind = 'Security & Compliance'; SecurityCompliance = $true; ExpectedConnectionIds = '22222222-2222-2222-2222-222222222222' }
+    ) {
+        param ($SecurityCompliance, $ExpectedConnectionIds)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ SecurityCompliance = $SecurityCompliance; ExpectedConnectionIds = $ExpectedConnectionIds } {
+            param ($SecurityCompliance, $ExpectedConnectionIds)
+            Disconnect-MSCloudLoginExchangeConnection -SecurityCompliance:$SecurityCompliance -Source 'Test'
 
             Should -Invoke Disconnect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                ($ConnectionId -join ',') -eq '22222222-2222-2222-2222-222222222222'
+                ($ConnectionId -join ',') -eq $ExpectedConnectionIds
             }
         }
     }
@@ -356,9 +334,102 @@ Describe 'Get-MSCloudLoginAccessTokenExpiry' {
     }
 }
 
+Describe 'Test-MSCloudLoginMFARequiredError' {
+
+    It 'Should return <Expected> for "<Message>" with the additional patterns <AdditionalPatterns>' -TestCases @(
+        @{ Message = 'AADSTS50076: Due to a configuration change made by your administrator...'; AdditionalPatterns = @(); Expected = $true }
+        @{ Message = 'you must use multi-factor authentication to access this resource'; AdditionalPatterns = @(); Expected = $true }
+        @{ Message = 'WAM Error 12345'; AdditionalPatterns = @(); Expected = $false }
+        @{ Message = 'WAM Error 12345'; AdditionalPatterns = @('*WAM Error*'); Expected = $true }
+        @{ Message = 'The sign-in name or password is incorrect'; AdditionalPatterns = @(); Expected = $false }
+    ) {
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Message = $Message; AdditionalPatterns = $AdditionalPatterns; Expected = $Expected } {
+            param ($Message, $AdditionalPatterns, $Expected)
+            $err = $null
+            try { throw $Message } catch { $err = $_ }
+            (Test-MSCloudLoginMFARequiredError -ErrorRecord $err -AdditionalPatterns $AdditionalPatterns) | Should -Be $Expected
+        }
+    }
+}
+
+Describe 'Get-MSCloudLoginSPOUrlFromTenantId' {
+
+    It 'Should derive <AdminUrl> for <TenantId> in <EnvironmentName>' -TestCases @(
+        @{ TenantId = 'contoso.onmicrosoft.com'; EnvironmentName = 'AzureCloud'; AdminUrl = 'https://contoso-admin.sharepoint.com'; ConnectionUrl = 'https://contoso.sharepoint.com' }
+        @{ TenantId = 'contoso.onmicrosoft.com'; EnvironmentName = 'AzureUSGovernment'; AdminUrl = 'https://contoso-admin.sharepoint.us'; ConnectionUrl = 'https://contoso.sharepoint.us' }
+        @{ TenantId = 'contoso.onmicrosoft.com'; EnvironmentName = 'AzureDOD'; AdminUrl = 'https://contoso-admin.sharepoint-mil.us'; ConnectionUrl = 'https://contoso.sharepoint-mil.us' }
+        @{ TenantId = 'contoso.partner.onmschina.cn'; EnvironmentName = 'AzureChinaCloud'; AdminUrl = 'https://contoso-admin.sharepoint.cn'; ConnectionUrl = 'https://contoso.sharepoint.cn' }
+        @{ TenantId = 'contoso.onms.fr'; EnvironmentName = 'AzureFranceCloud'; AdminUrl = 'https://contoso-admin.spo.fr'; ConnectionUrl = 'https://contoso.spo.fr' }
+    ) {
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ TenantId = $TenantId; EnvironmentName = $EnvironmentName; AdminUrl = $AdminUrl; ConnectionUrl = $ConnectionUrl } {
+            param ($TenantId, $EnvironmentName, $AdminUrl, $ConnectionUrl)
+            $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId $TenantId -EnvironmentName $EnvironmentName
+            $result.AdminUrl      | Should -Be $AdminUrl
+            $result.ConnectionUrl | Should -Be $ConnectionUrl
+        }
+    }
+
+    It 'Should throw for an unrecognized tenant format' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            { Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.com' -EnvironmentName 'AzureCloud' } | Should -Throw
+        }
+    }
+}
+
+Describe 'Get-MSCloudLoginAccessTokenValue' {
+
+    It 'Should return the plain value of a string, SecureString or PSCredential token' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $secure = ConvertTo-SecureString 'secure-token' -AsPlainText -Force
+            $cred = New-Object PSCredential ('token', (ConvertTo-SecureString 'cred-token' -AsPlainText -Force))
+
+            (Get-MSCloudLoginAccessTokenValue -Token 'plain-token') | Should -Be 'plain-token'
+            (Get-MSCloudLoginAccessTokenValue -Token $secure) | Should -Be 'secure-token'
+            (Get-MSCloudLoginAccessTokenValue -Token $cred) | Should -Be 'cred-token'
+        }
+    }
+}
+
+Describe 'Get-MSCloudLoginTenantDomainFromCredentials' {
+
+    It 'Should return the domain part of a UPN and throw when the user name is not a UPN' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $upn = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+            $downLevel = New-Object PSCredential ('CONTOSO\user', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+
+            (Get-MSCloudLoginTenantDomainFromCredentials -Credentials $upn) | Should -Be 'contoso.com'
+            { Get-MSCloudLoginTenantDomainFromCredentials -Credentials $downLevel } | Should -Throw
+        }
+    }
+}
+
 Describe 'Get-MSCloudLoginEndpointInfo' {
 
-    It 'Should throw when neither the environment nor a default entry is defined' {
+    It 'Should resolve <Workload>/<Environment> endpoints' -TestCases @(
+        @{ Workload = 'AdminAPI'; Environment = 'AzureCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.com' }
+        @{ Workload = 'AdminAPI'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
+        @{ Workload = 'AzureDevOPS'; Environment = 'AzureDOD'; Property = 'HostUrl'; Expected = 'https://dev.azure.us' }
+        @{ Workload = 'DefenderForEndpoint'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://api-gcc.securitycenter.microsoft.us' }
+        @{ Workload = 'Fabric'; Environment = 'AzureCloud'; Property = 'Scope'; Expected = 'https://api.fabric.microsoft.com/.default' }
+        @{ Workload = 'Fabric'; Environment = 'SomethingElse'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.com' }
+        @{ Workload = 'Licensing'; Environment = 'AzureCloud'; Property = 'HostUrl'; Expected = 'https://licensing.m365.microsoft.com' }
+        @{ Workload = 'MicrosoftGraph'; Environment = 'AzureCloud'; Property = 'ResourceUrl'; Expected = 'https://graph.microsoft.com/' }
+        @{ Workload = 'MicrosoftGraph'; Environment = 'AzureGermanyCloud'; Property = 'GraphEnvironment'; Expected = 'DelosCloud' }
+        @{ Workload = 'O365Portal'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
+        @{ Workload = 'PowerPlatformREST'; Environment = 'AzureDOD'; Property = 'BapEndpoint'; Expected = 'api.bap.appsplatform.us' }
+        @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureChinaCloud'; Property = 'ConnectionUrl'; Expected = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/' }
+        @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr/organizations' }
+        @{ Workload = 'Tasks'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://tasks.office365.us' }
+        @{ Workload = 'Tasks'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr' }
+    ) {
+        param ($Workload, $Environment, $Property, $Expected)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Workload = $Workload; Environment = $Environment; Property = $Property; Expected = $Expected } {
+            $result = Get-MSCloudLoginEndpointInfo -Workload $Workload -EnvironmentName $Environment
+            $result[$Property] | Should -Be $Expected
+        }
+    }
+
+    It 'Should throw for an unknown workload and when neither the environment nor a default entry is defined' {
         InModuleScope 'MSCloudLoginAssistant' {
             $originalEndpointData = $Script:WorkloadEndpointData
             try
@@ -366,6 +437,8 @@ Describe 'Get-MSCloudLoginEndpointInfo' {
                 $Script:WorkloadEndpointData = @{
                     TestWorkload = @{ AzureCloud = @{ HostUrl = 'https://contoso.local' } }
                 }
+                { Get-MSCloudLoginEndpointInfo -Workload 'DoesNotExist' -EnvironmentName 'AzureCloud' } |
+                    Should -Throw "No endpoint information is defined for workload 'DoesNotExist'."
                 { Get-MSCloudLoginEndpointInfo -Workload 'TestWorkload' -EnvironmentName 'AzureDOD' } |
                     Should -Throw "*'TestWorkload' in environment 'AzureDOD' and the workload has no default entry*"
             }
@@ -398,14 +471,40 @@ Describe 'Get-MSCloudLoginEndpointInfo' {
 
 Describe 'Test-MSCloudLoginConnectionReusable' {
 
-    Context 'When the token expiry is known' {
-        BeforeEach {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-            }
+    BeforeAll {
+        InModuleScope 'MSCloudLoginAssistant' {
+            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
         }
+    }
 
-        It 'Should renew a <AuthenticationType> connection whose token expires within five minutes' -TestCases @(
+    It 'Should reuse a fresh token-based connection and reject one that is not connected, has no timestamp or is expired' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $notConnected = New-Object AdminAPI
+
+            $noTimestamp = New-Object AdminAPI
+            $noTimestamp.Connected = $true
+
+            $fresh = New-Object AdminAPI
+            $fresh.AuthenticationType = 'ServicePrincipalWithSecret'
+            $fresh.CompleteConnection()
+
+            $expired = New-Object AdminAPI
+            $expired.AuthenticationType = 'ServicePrincipalWithSecret'
+            $expired.CompleteConnection()
+            $expired.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-60).ToString()
+
+            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $notConnected -Source 'Test') | Should -BeFalse
+            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $noTimestamp -Source 'Test') | Should -BeFalse
+            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $fresh -Source 'Test') | Should -BeTrue
+            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $expired -Source 'Test') | Should -BeFalse
+
+            $noTimestamp.Connected | Should -BeFalse
+            $expired.Connected | Should -BeFalse
+        }
+    }
+
+    Context 'When the token expiry is known' {
+        It 'Should renew a <AuthenticationType> connection only when its token expires within five minutes, even after 50 minutes' -TestCases @(
             @{ AuthenticationType = 'Identity' }
             @{ AuthenticationType = 'ServicePrincipalWithThumbprint' }
         ) {
@@ -422,19 +521,11 @@ Describe 'Test-MSCloudLoginConnectionReusable' {
 
                 Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -TokenBasedAuthTypes @() -Source 'Test' | Should -BeFalse
                 $workloadProfile.Connected | Should -BeFalse
-            }
-        }
 
-        It 'Should reuse a connection whose token is valid beyond the renewal window even after 50 minutes' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $workloadProfile = [PSCustomObject]@{
-                    Connected          = $true
-                    ConnectedDateTime  = [System.DateTime]::Now.AddMinutes(-70).ToString()
-                    AuthenticationType = 'Identity'
-                    TokenExpiresOn     = [System.DateTime]::Now.AddMinutes(20)
-                }
-
-                Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -Source 'Test' | Should -BeTrue
+                $workloadProfile.Connected = $true
+                $workloadProfile.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-70).ToString()
+                $workloadProfile.TokenExpiresOn = [System.DateTime]::Now.AddMinutes(20)
+                Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -TokenBasedAuthTypes @('Identity', 'ServicePrincipalWithThumbprint') -Source 'Test' | Should -BeTrue
             }
         }
 
@@ -455,13 +546,14 @@ Describe 'Test-MSCloudLoginConnectionReusable' {
         }
     }
 
-    It 'Should treat a failing probe as a lost connection' {
+    It 'Should reuse the connection while the probe returns a context and treat a failing probe as a lost connection' {
         InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-
             $workloadProfile = New-Object AdminAPI
             $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
             $workloadProfile.CompleteConnection()
+
+            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile `
+                -ProbeScript { return @{ TenantId = 'contoso' } } -Source 'Test') | Should -BeTrue
 
             $result = Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile `
                 -ProbeScript { throw 'the SDK context is gone' } -Source 'Test'
@@ -469,19 +561,6 @@ Describe 'Test-MSCloudLoginConnectionReusable' {
             $result | Should -BeFalse
             $workloadProfile.Connected | Should -BeFalse
             Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter { $Message -like 'Connection probe failed*' }
-        }
-    }
-
-    It 'Should reuse the connection when the probe returns a context' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-
-            $workloadProfile = New-Object AdminAPI
-            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
-            $workloadProfile.CompleteConnection()
-
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile `
-                -ProbeScript { return @{ TenantId = 'contoso' } } -Source 'Test') | Should -BeTrue
         }
     }
 }
@@ -492,32 +571,26 @@ Describe 'Microsoft Graph connection probe' {
         [System.AppDomain]::CurrentDomain.SetData('MSCloudLoginAssistant.ConnectionIdentity.MicrosoftGraph', $null)
     }
 
-    It 'Should reject a Graph context of another application' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-MgContext -MockWith { [PSCustomObject]@{ ClientId = 'other-app'; Account = $null } }
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; ApplicationId = 'expected-app'; Credentials = $null }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $workloadProfile)
-
-            & $Script:MSCloudLoginConnectionProbes.MicrosoftGraph $workloadProfile | Should -BeNullOrEmpty
-        }
-    }
-
-    It 'Should reject a Graph context of another account' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-MgContext -MockWith { [PSCustomObject]@{ ClientId = 'app'; Account = 'other@contoso.com' } }
-            $credential = [System.Management.Automation.PSCredential]::new('admin@contoso.com', (ConvertTo-SecureString -String 'x' -AsPlainText -Force))
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'Credentials'; ApplicationId = 'app'; Credentials = $credential }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $workloadProfile)
-
-            & $Script:MSCloudLoginConnectionProbes.MicrosoftGraph $workloadProfile | Should -BeNullOrEmpty
-        }
-    }
-
-    It 'Should reject a managed identity profile when another identity connected the process' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-MgContext -MockWith { [PSCustomObject]@{ ClientId = 'other-app'; Account = $null } }
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'Identity'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = $null; Credentials = $null }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' -Identity 'ServicePrincipalWithThumbprint|contoso.onmicrosoft.com|other-app|'
+    It 'Should reject a Graph context of <Description>' -TestCases @(
+        @{ Description = 'another application'; AuthenticationType = 'ServicePrincipalWithThumbprint'; ApplicationId = 'expected-app'; UserName = $null; ClientId = 'other-app'; Account = $null; RecordedIdentity = $null }
+        @{ Description = 'another account'; AuthenticationType = 'Credentials'; ApplicationId = 'app'; UserName = 'admin@contoso.com'; ClientId = 'app'; Account = 'other@contoso.com'; RecordedIdentity = $null }
+        @{ Description = 'another identity than the managed identity profile'; AuthenticationType = 'Identity'; ApplicationId = $null; UserName = $null; ClientId = 'other-app'; Account = $null; RecordedIdentity = 'ServicePrincipalWithThumbprint|contoso.onmicrosoft.com|other-app|' }
+    ) {
+        param ($AuthenticationType, $ApplicationId, $UserName, $ClientId, $Account, $RecordedIdentity)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthenticationType = $AuthenticationType; ApplicationId = $ApplicationId; UserName = $UserName; ClientId = $ClientId; Account = $Account; RecordedIdentity = $RecordedIdentity } {
+            param ($AuthenticationType, $ApplicationId, $UserName, $ClientId, $Account, $RecordedIdentity)
+            Mock -CommandName Get-MgContext -MockWith { [PSCustomObject]@{ ClientId = $ClientId; Account = $Account } }
+            $credential = $null
+            if ($null -ne $UserName)
+            {
+                $credential = [System.Management.Automation.PSCredential]::new($UserName, (ConvertTo-SecureString -String 'x' -AsPlainText -Force))
+            }
+            $workloadProfile = [PSCustomObject]@{ AuthenticationType = $AuthenticationType; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = $ApplicationId; Credentials = $credential }
+            if ($null -eq $RecordedIdentity)
+            {
+                $RecordedIdentity = Get-MSCloudLoginConnectionIdentity -WorkloadProfile $workloadProfile
+            }
+            Set-MSCloudLoginProcessConnectionIdentity -Workload 'MicrosoftGraph' -Identity $RecordedIdentity
 
             & $Script:MSCloudLoginConnectionProbes.MicrosoftGraph $workloadProfile | Should -BeNullOrEmpty
         }
@@ -608,56 +681,6 @@ Describe 'Get-MSCloudLoginTenantGuid' {
     }
 }
 
-Describe 'Compare-InputParametersForChange with stored access tokens' {
-
-    It 'Should ignore the token a <AuthenticationType> connection acquired itself' -TestCases @(
-        @{ AuthenticationType = 'Credentials'; Workload = 'MicrosoftGraph' }
-        @{ AuthenticationType = 'ServicePrincipalWithThumbprint'; Workload = 'MicrosoftTeams' }
-    ) {
-        param ($AuthenticationType, $Workload)
-        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthenticationType = $AuthenticationType; Workload = $Workload } {
-            param ($AuthenticationType, $Workload)
-            $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-            $profileName = if ($Workload -eq 'MicrosoftTeams') { 'Teams' } else { $Workload }
-            $workloadProfile = $Script:MSCloudLoginConnectionProfile.$profileName
-            $credential = [System.Management.Automation.PSCredential]::new('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString -String 'x' -AsPlainText -Force))
-            $parameters = @{ Workload = $Workload }
-            if ($AuthenticationType -eq 'Credentials')
-            {
-                $workloadProfile.Credentials = $credential
-                $workloadProfile.ApplicationId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
-                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-                $parameters.Credential = $credential
-            }
-            else
-            {
-                $workloadProfile.ApplicationId = 'app'
-                $workloadProfile.CertificateThumbprint = 'ABC'
-                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-                $parameters += @{ ApplicationId = 'app'; CertificateThumbprint = 'ABC'; TenantId = 'contoso.onmicrosoft.com' }
-            }
-            $workloadProfile.AuthenticationType = $AuthenticationType
-            $workloadProfile.RequestedAuthenticationType = $AuthenticationType
-            $workloadProfile.AccessTokens = @('acquired-token')
-
-            Compare-InputParametersForChange -CurrentParamSet $parameters | Should -BeFalse
-        }
-    }
-
-    It 'Should detect a different access token passed by the caller' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-            $workloadProfile = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph
-            $workloadProfile.AuthenticationType = 'AccessTokens'
-            $workloadProfile.RequestedAuthenticationType = 'AccessTokens'
-            $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-            $workloadProfile.AccessTokens = @('first-token')
-
-            Compare-InputParametersForChange -CurrentParamSet @{ Workload = 'MicrosoftGraph'; TenantId = 'contoso.onmicrosoft.com'; AccessTokens = @('second-token') } | Should -BeTrue
-        }
-    }
-}
-
 Describe 'Azure connection probe' {
 
     BeforeAll {
@@ -738,7 +761,7 @@ Describe 'Teams connection probe' {
         [System.AppDomain]::CurrentDomain.SetData('MSCloudLoginAssistant.ConnectionIdentity.Teams', $null)
     }
 
-    It 'Should not call Teams again within 3 minutes of a verification' {
+    It 'Should accept the Teams session of the profile and call Teams again only after 3 minutes' {
         InModuleScope 'MSCloudLoginAssistant' {
             Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { [PSCustomObject]@{ Identity = 'Global' } }
             $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = 'expected-app'; Credentials = $null }
@@ -747,40 +770,26 @@ Describe 'Teams connection probe' {
             & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -Not -BeNullOrEmpty
             & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -Not -BeNullOrEmpty
             Should -Invoke -CommandName Get-CsTeamsCallingPolicy -Times 1 -Exactly
-        }
-    }
 
-    It 'Should call Teams again after 3 minutes' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { [PSCustomObject]@{ Identity = 'Global' } }
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = 'expected-app'; Credentials = $null }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'Teams' -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $workloadProfile)
             $Script:MSCloudLoginTeamsVerifiedTime = [System.DateTime]::UtcNow.AddMinutes(-4)
-
             & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -Not -BeNullOrEmpty
-            Should -Invoke -CommandName Get-CsTeamsCallingPolicy -Times 1 -Exactly
-        }
-    }
-
-    It 'Should reject another identity within 3 minutes of a verification' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { [PSCustomObject]@{ Identity = 'Global' } }
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = 'expected-app'; Credentials = $null }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'Teams' -Identity 'ServicePrincipalWithThumbprint|contoso.onmicrosoft.com|other-app|'
-            $Script:MSCloudLoginTeamsVerifiedTime = [System.DateTime]::UtcNow
-
-            & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -BeNullOrEmpty
+            Should -Invoke -CommandName Get-CsTeamsCallingPolicy -Times 2 -Exactly
         }
     }
 
     It 'Should reject a Teams session that <Description>' -TestCases @(
-        @{ Description = 'another application connected'; RecordedApplicationId = 'other-app' }
-        @{ Description = 'was disconnected'; RecordedApplicationId = $null }
+        @{ Description = 'another application connected'; RecordedApplicationId = 'other-app'; VerifiedMinutesAgo = $null }
+        @{ Description = 'another application connected within 3 minutes of a verification'; RecordedApplicationId = 'other-app'; VerifiedMinutesAgo = 0 }
+        @{ Description = 'was disconnected'; RecordedApplicationId = $null; VerifiedMinutesAgo = $null }
     ) {
-        param ($RecordedApplicationId)
-        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ RecordedApplicationId = $RecordedApplicationId } {
-            param ($RecordedApplicationId)
+        param ($RecordedApplicationId, $VerifiedMinutesAgo)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ RecordedApplicationId = $RecordedApplicationId; VerifiedMinutesAgo = $VerifiedMinutesAgo } {
+            param ($RecordedApplicationId, $VerifiedMinutesAgo)
             Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { [PSCustomObject]@{ Identity = 'Global' } }
+            if ($null -ne $VerifiedMinutesAgo)
+            {
+                $Script:MSCloudLoginTeamsVerifiedTime = [System.DateTime]::UtcNow.AddMinutes(-$VerifiedMinutesAgo)
+            }
             $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = 'expected-app'; Credentials = $null }
             if ($null -ne $RecordedApplicationId)
             {
@@ -794,16 +803,6 @@ Describe 'Teams connection probe' {
 
             & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -BeNullOrEmpty
             Should -Invoke -CommandName Get-CsTeamsCallingPolicy -Times 0 -Exactly
-        }
-    }
-
-    It 'Should accept the Teams session of the profile' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Get-CsTeamsCallingPolicy -MockWith { [PSCustomObject]@{ Identity = 'Global' } }
-            $workloadProfile = [PSCustomObject]@{ AuthenticationType = 'ServicePrincipalWithThumbprint'; TenantId = 'contoso.onmicrosoft.com'; ApplicationId = 'expected-app'; Credentials = $null }
-            Set-MSCloudLoginProcessConnectionIdentity -Workload 'Teams' -Identity (Get-MSCloudLoginConnectionIdentity -WorkloadProfile $workloadProfile)
-
-            & $Script:MSCloudLoginConnectionProbes.Teams $workloadProfile | Should -Not -BeNullOrEmpty
         }
     }
 
@@ -831,34 +830,25 @@ Describe 'Teams connection probe' {
 
 Describe 'Test-MSCloudLoginParameterValueEmpty' {
 
-    It 'Should treat <Description> as empty' -TestCases @(
-        @{ Description = 'a null value'; Value = $null }
-        @{ Description = 'an empty string'; Value = '' }
-        @{ Description = 'an unset switch'; Value = [System.Management.Automation.SwitchParameter]::new($false) }
-        @{ Description = 'a false boolean'; Value = $false }
-        @{ Description = 'an empty secure string'; Value = (New-Object System.Security.SecureString) }
-        @{ Description = 'an empty hashtable'; Value = @{} }
-        @{ Description = 'an empty array'; Value = @() }
+    It 'Should treat <Description> as <State>' -TestCases @(
+        @{ Description = 'a null value'; Value = $null; State = 'empty' }
+        @{ Description = 'an empty string'; Value = ''; State = 'empty' }
+        @{ Description = 'an unset switch'; Value = [System.Management.Automation.SwitchParameter]::new($false); State = 'empty' }
+        @{ Description = 'a false boolean'; Value = $false; State = 'empty' }
+        @{ Description = 'an empty secure string'; Value = (New-Object System.Security.SecureString); State = 'empty' }
+        @{ Description = 'an empty hashtable'; Value = @{}; State = 'empty' }
+        @{ Description = 'an empty array'; Value = @(); State = 'empty' }
+        @{ Description = 'a non empty string'; Value = 'value'; State = 'populated' }
+        @{ Description = 'a set switch'; Value = [System.Management.Automation.SwitchParameter]::new($true); State = 'populated' }
+        @{ Description = 'a true boolean'; Value = $true; State = 'populated' }
+        @{ Description = 'a populated hashtable'; Value = @{ Key = 'value' }; State = 'populated' }
+        @{ Description = 'a populated array'; Value = @('value'); State = 'populated' }
+        @{ Description = 'a number'; Value = 42; State = 'populated' }
     ) {
-        param ($Description, $Value)
-        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Value = $Value } {
-            param ($Value)
-            (Test-MSCloudLoginParameterValueEmpty -Value $Value) | Should -BeTrue
-        }
-    }
-
-    It 'Should treat <Description> as populated' -TestCases @(
-        @{ Description = 'a non empty string'; Value = 'value' }
-        @{ Description = 'a set switch'; Value = [System.Management.Automation.SwitchParameter]::new($true) }
-        @{ Description = 'a true boolean'; Value = $true }
-        @{ Description = 'a populated hashtable'; Value = @{ Key = 'value' } }
-        @{ Description = 'a populated array'; Value = @('value') }
-        @{ Description = 'a number'; Value = 42 }
-    ) {
-        param ($Description, $Value)
-        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Value = $Value } {
-            param ($Value)
-            (Test-MSCloudLoginParameterValueEmpty -Value $Value) | Should -BeFalse
+        param ($Description, $Value, $State)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Value = $Value; State = $State } {
+            param ($Value, $State)
+            (Test-MSCloudLoginParameterValueEmpty -Value $Value) | Should -Be ($State -eq 'empty')
         }
     }
 }
@@ -866,7 +856,7 @@ Describe 'Test-MSCloudLoginParameterValueEmpty' {
 Describe 'Test-MSCloudLoginParameterValueEqual' {
 
     Context 'Secure strings' {
-        It 'Should compare the decrypted values' {
+        It 'Should compare the decrypted values and never equal a plain string' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $left = ConvertTo-SecureString 'same-value' -AsPlainText -Force
                 $right = ConvertTo-SecureString 'same-value' -AsPlainText -Force
@@ -874,19 +864,13 @@ Describe 'Test-MSCloudLoginParameterValueEqual' {
 
                 (Test-MSCloudLoginParameterValueEqual -KeyName 'CertificatePassword' -Left $left -Right $right) | Should -BeTrue
                 (Test-MSCloudLoginParameterValueEqual -KeyName 'CertificatePassword' -Left $left -Right $other) | Should -BeFalse
-            }
-        }
-
-        It 'Should never equal a plain string' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secure = ConvertTo-SecureString 'same-value' -AsPlainText -Force
-                (Test-MSCloudLoginParameterValueEqual -KeyName 'CertificatePassword' -Left $secure -Right 'same-value') | Should -BeFalse
+                (Test-MSCloudLoginParameterValueEqual -KeyName 'CertificatePassword' -Left $left -Right 'same-value') | Should -BeFalse
             }
         }
     }
 
     Context 'Credentials' {
-        It 'Should ignore the casing of the user name but not of the password' {
+        It 'Should ignore the casing of the user name but not of the password and never equal a plain string' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $left = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'Secret' -AsPlainText -Force))
                 $sameCredential = New-Object PSCredential ('USER@contoso.com', (ConvertTo-SecureString 'Secret' -AsPlainText -Force))
@@ -896,13 +880,7 @@ Describe 'Test-MSCloudLoginParameterValueEqual' {
                 (Test-MSCloudLoginParameterValueEqual -KeyName 'Credentials' -Left $left -Right $sameCredential) | Should -BeTrue
                 (Test-MSCloudLoginParameterValueEqual -KeyName 'Credentials' -Left $left -Right $otherPassword) | Should -BeFalse
                 (Test-MSCloudLoginParameterValueEqual -KeyName 'Credentials' -Left $left -Right $otherUser) | Should -BeFalse
-            }
-        }
-
-        It 'Should never equal a plain string' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $credential = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'Secret' -AsPlainText -Force))
-                (Test-MSCloudLoginParameterValueEqual -KeyName 'Credentials' -Left $credential -Right 'user@contoso.com') | Should -BeFalse
+                (Test-MSCloudLoginParameterValueEqual -KeyName 'Credentials' -Left $left -Right 'user@contoso.com') | Should -BeFalse
             }
         }
     }

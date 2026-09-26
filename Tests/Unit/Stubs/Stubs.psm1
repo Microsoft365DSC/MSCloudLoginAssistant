@@ -212,6 +212,12 @@ function Get-AcceptedDomain
     param ()
 }
 
+function Get-OrganizationConfig
+{
+    [CmdletBinding()]
+    param ()
+}
+
 function Get-ComplianceSearch
 {
     [CmdletBinding()]

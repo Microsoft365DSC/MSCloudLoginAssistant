@@ -36,17 +36,14 @@ AfterAll {
 Describe 'Invoke-MSCloudLoginAssistantConnectionLock' {
 
     Context 'When the connection lock is free' {
-        It 'Should invoke the passed script block' {
+        It 'Should invoke the passed script block and return its output' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $script:lockScriptRan = $false
-                Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript { $script:lockScriptRan = $true }
+                $result = Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript {
+                    $script:lockScriptRan = $true
+                    'lock-output'
+                }
                 $script:lockScriptRan | Should -BeTrue
-            }
-        }
-
-        It 'Should return the output of the script block' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Invoke-MSCloudLoginAssistantConnectionLock -ConnectScript { 'lock-output' }
                 $result | Should -Be 'lock-output'
             }
         }
@@ -72,21 +69,15 @@ Describe 'Add-MSCloudLoginAssistantEvent' {
     }
 
     Context 'When event log writing is disabled' {
-        It 'Should not throw for an Information entry' {
+        It 'Should only write a verbose message for Information and Error entries' {
             InModuleScope 'MSCloudLoginAssistant' {
-                { Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Test-Source' } | Should -Not -Throw
-            }
-        }
+                Mock -CommandName Write-Verbose -MockWith { }
 
-        It 'Should not throw for an Error entry' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                { Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Test-Source' -EntryType 'Error' } | Should -Not -Throw
-            }
-        }
+                Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Test-Source' -EventID 42
+                Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Test-Source' -EntryType 'Error'
 
-        It 'Should accept a custom event id' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                { Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source 'Test-Source' -EventID 42 } | Should -Not -Throw
+                Should -Invoke Write-Verbose -Exactly 1 -ParameterFilter { $Message -eq '[Test-Source] Log message' }
+                Should -Invoke Write-Verbose -Exactly 1 -ParameterFilter { $Message -eq 'ERROR: [Test-Source] Log message' }
             }
         }
     }
@@ -130,17 +121,6 @@ Describe 'Add-MSCloudLoginAssistantEvent' {
                 { Add-MSCloudLoginAssistantEvent -Message 'Log message' -Source ('MSCloudLoginTest.Coverage.' + [guid]::NewGuid().ToString('N')) } | Should -Not -Throw
             }
         }
-
-        It 'Should truncate a message that exceeds 32766 characters' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Write-Warning -MockWith { }
-                Mock -CommandName Write-Verbose -MockWith { }
-
-                $longMessage = 'A' * 40000
-
-                { Add-MSCloudLoginAssistantEvent -Message $longMessage -Source 'Application' } | Should -Not -Throw
-            }
-        }
     }
 }
 
@@ -149,26 +129,16 @@ Describe 'Add-MSCloudLoginAssistantEvent' {
 # ---------------------------------------------------------------------------
 Describe 'ConvertTo-Base64Url' {
 
-    It 'Should encode bytes without padding' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes('hello')
-            (ConvertTo-Base64Url -Bytes $bytes) | Should -Be 'aGVsbG8'
-        }
-    }
-
-    It 'Should replace + and / with URL-safe characters' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $bytes = [byte[]]@(0xFB, 0xEF, 0xBE)
-            $result = ConvertTo-Base64Url -Bytes $bytes
-            $result | Should -Be '----'
+    It 'Should encode bytes as unpadded URL-safe base64 <Expected>' -TestCases @(
+        @{ Bytes = [System.Text.Encoding]::UTF8.GetBytes('hello'); Expected = 'aGVsbG8' }
+        @{ Bytes = [byte[]]@(0xFB, 0xEF, 0xBE); Expected = '----' }
+        @{ Bytes = [System.Text.Encoding]::UTF8.GetBytes('f'); Expected = 'Zg' }
+    ) {
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Bytes = $Bytes; Expected = $Expected } {
+            param ($Bytes, $Expected)
+            $result = ConvertTo-Base64Url -Bytes $Bytes
+            $result | Should -Be $Expected
             $result | Should -Not -Match '[+/=]'
-        }
-    }
-
-    It 'Should trim trailing equals signs' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes('f')
-            (ConvertTo-Base64Url -Bytes $bytes) | Should -Be 'Zg'
         }
     }
 }
@@ -214,41 +184,34 @@ Describe 'Get-SPOAdminUrl' {
         }
     }
 
-    Context 'When the site root is empty' {
-        It 'Should reconnect and retry the request' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When the first request fails' {
+        It 'Should reconnect with the provided credential and retry when the first request <Scenario>' -TestCases @(
+            @{ Scenario = 'returns no site root' }
+            @{ Scenario = 'throws' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Scenario = $Scenario } {
+                param ($Scenario)
                 $script:claimCount = 0
+                $script:firstFailure = $Scenario
                 Mock -CommandName Invoke-MgGraphRequest -MockWith {
                     $script:claimCount++
                     if ($script:claimCount -eq 1)
                     {
+                        if ($script:firstFailure -eq 'throws')
+                        {
+                            throw 'network error'
+                        }
                         return @{}
                     }
                     return @{ webUrl = 'https://contoso.sharepoint.com' }
                 }
-                $result = Get-SPOAdminUrl
+                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+                $result = Get-SPOAdminUrl -Credential $cred
                 $result | Should -Be 'https://contoso-admin.sharepoint.com'
                 $script:claimCount | Should -Be 2
-                Should -Invoke Connect-M365Tenant -Exactly 1
-            }
-        }
-    }
-
-    Context 'When the first request throws' {
-        It 'Should reconnect and retry the request' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $script:claimCount = 0
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    $script:claimCount++
-                    if ($script:claimCount -eq 1)
-                    {
-                        throw 'network error'
-                    }
-                    return @{ webUrl = 'https://contoso.sharepoint.com' }
+                Should -Invoke Connect-M365Tenant -Exactly 1 -ParameterFilter {
+                    $Workload -eq 'MicrosoftGraph' -and $Credential.UserName -eq 'user@contoso.com'
                 }
-                $result = Get-SPOAdminUrl
-                $result | Should -Be 'https://contoso-admin.sharepoint.com'
-                $script:claimCount | Should -Be 2
             }
         }
     }
@@ -275,34 +238,25 @@ Describe 'Get-SPOAdminUrl' {
         }
     }
 
-    Context 'When in a non-interactive shell and access is forbidden' {
-        It 'Should throw a permission error' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When in a non-interactive shell and the retry also fails' {
+        It 'Should throw when <Scenario>' -TestCases @(
+            @{ Scenario = 'access is forbidden'; RetryError = 'Insufficient privileges to complete the operation.'; Expected = '*correct permissions to access Domains*' }
+            @{ Scenario = 'the web URL cannot be retrieved'; RetryError = 'network error'; Expected = 'Unable to retrieve SPO Admin URL*' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ RetryError = $RetryError; Expected = $Expected } {
+                param ($RetryError, $Expected)
                 Mock -CommandName Assert-IsNonInteractiveShell -MockWith { return $true }
                 $script:claimCount = 0
+                $script:retryError = $RetryError
                 Mock -CommandName Invoke-MgGraphRequest -MockWith {
                     $script:claimCount++
                     if ($script:claimCount -eq 1)
                     {
                         throw 'network error'
                     }
-                    throw 'Insufficient privileges to complete the operation.'
+                    throw $script:retryError
                 }
-                { Get-SPOAdminUrl } | Should -Throw '*correct permissions to access Domains*'
-            }
-        }
-    }
-
-    Context 'When the web URL cannot be retrieved' {
-        It 'Should throw an unable to retrieve error' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Assert-IsNonInteractiveShell -MockWith { return $true }
-                $script:claimCount = 0
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    $script:claimCount++
-                    throw 'network error'
-                }
-                { Get-SPOAdminUrl } | Should -Throw 'Unable to retrieve SPO Admin URL*'
+                { Get-SPOAdminUrl } | Should -Throw $Expected
             }
         }
     }
@@ -361,7 +315,7 @@ Describe 'Get-MSCloudLoginAccessToken' {
 # ---------------------------------------------------------------------------
 Describe 'Get-CloudEnvironmentInfo' {
 
-    Context 'When credentials are provided' {
+    Context 'When credentials or a TenantId are provided' {
         BeforeEach {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
@@ -371,32 +325,35 @@ Describe 'Get-CloudEnvironmentInfo' {
             }
         }
 
-        It 'Should derive the tenant from the credential UPN' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-                $result = Get-CloudEnvironmentInfo -Credentials $cred
-                $result.tenant_region_sub_scope | Should -Be 'USGov'
-                Should -Invoke Invoke-WebRequest -ParameterFilter {
-                    $Uri -like 'https://login.microsoftonline.com/contoso.com/v2.0/*'
-                }
+        It 'Should query the OpenID configuration on the <Scenario>' -TestCases @(
+            @{
+                Scenario    = 'commercial endpoint for the credential UPN domain'
+                Parameters  = @{ Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force)) }
+                ExpectedUri = 'https://login.microsoftonline.com/contoso.com/v2.0/*'
             }
-        }
-    }
-
-    Context 'When a TenantId is provided' {
-        BeforeEach {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "tenant_region_sub_scope": "USGov", "token_endpoint": "https://login.microsoftonline.us/t/oauth2/v2.0/token" }' }
-                }
+            @{
+                Scenario    = 'commercial endpoint for a TenantId'
+                Parameters  = @{ TenantId = 'contoso.onmicrosoft.com' }
+                ExpectedUri = 'https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0/*'
             }
-        }
-
-        It 'Should use the TenantId directly' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-CloudEnvironmentInfo -TenantId 'contoso.onmicrosoft.com'
+            @{
+                Scenario    = 'German sovereign cloud identity endpoint'
+                Parameters  = @{ TenantId = 'contoso.onsovcloud.de' }
+                ExpectedUri = 'https://login.sovcloud-identity.de/contoso.onsovcloud.de/v2.0/*'
+            }
+            @{
+                Scenario    = 'French sovereign cloud identity endpoint'
+                Parameters  = @{ TenantId = 'contoso.onsovcloud.fr' }
+                ExpectedUri = 'https://login.sovcloud-identity.fr/contoso.onsovcloud.fr/v2.0/*'
+            }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Parameters = $Parameters; ExpectedUri = $ExpectedUri } {
+                param ($Parameters, $ExpectedUri)
+                $result = Get-CloudEnvironmentInfo @Parameters
                 $result.tenant_region_sub_scope | Should -Be 'USGov'
+                Should -Invoke Invoke-WebRequest -Exactly 1 -ParameterFilter {
+                    $Uri -like $ExpectedUri
+                }
             }
         }
     }
@@ -434,9 +391,15 @@ Describe 'Get-MSCloudLoginOrganizationName' {
         }
     }
 
-    Context 'When certificate thumbprint authentication is used' {
-        It 'Should return the initial domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When the domain lookup succeeds' {
+        It 'Should connect to Microsoft Graph with <AuthParameter> and return the initial domain' -TestCases @(
+            @{ AuthParameter = 'CertificateThumbprint'; Parameters = @{ ApplicationId = 'app'; TenantId = 'tenant'; CertificateThumbprint = 'thumb' } }
+            @{ AuthParameter = 'ApplicationSecret'; Parameters = @{ ApplicationId = 'app'; TenantId = 'tenant'; ApplicationSecret = 'secret' } }
+            @{ AuthParameter = 'Identity'; Parameters = @{ Identity = $true; TenantId = 'tenant' } }
+            @{ AuthParameter = 'AccessTokens'; Parameters = @{ AccessTokens = @('token1') } }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthParameter = $AuthParameter; Parameters = $Parameters } {
+                param ($AuthParameter, $Parameters)
                 Mock -CommandName Invoke-MgGraphRequest -MockWith {
                     return @{ value = @(
                             @{ Id = 'contoso.com'; IsInitial = $true }
@@ -444,45 +407,11 @@ Describe 'Get-MSCloudLoginOrganizationName' {
                         )
                     }
                 }
-                $result = Get-MSCloudLoginOrganizationName -ApplicationId 'app' -TenantId 'tenant' -CertificateThumbprint 'thumb'
+                $result = Get-MSCloudLoginOrganizationName @Parameters
                 $result | Should -Be 'contoso.com'
-                Should -Invoke Connect-M365Tenant -ParameterFilter { $Workload -eq 'MicrosoftGraph' -and $CertificateThumbprint -eq 'thumb' }
-            }
-        }
-    }
-
-    Context 'When application secret authentication is used' {
-        It 'Should return the initial domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    return @{ value = @(@{ Id = 'contoso.com'; IsInitial = $true }) }
+                Should -Invoke Connect-M365Tenant -Exactly 1 -ParameterFilter {
+                    $Workload -eq 'MicrosoftGraph' -and $PesterBoundParameters.ContainsKey($AuthParameter)
                 }
-                $result = Get-MSCloudLoginOrganizationName -ApplicationId 'app' -TenantId 'tenant' -ApplicationSecret 'secret'
-                $result | Should -Be 'contoso.com'
-            }
-        }
-    }
-
-    Context 'When Identity is used' {
-        It 'Should return the initial domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    return @{ value = @(@{ Id = 'contoso.com'; IsInitial = $true }) }
-                }
-                $result = Get-MSCloudLoginOrganizationName -Identity -TenantId 'tenant'
-                $result | Should -Be 'contoso.com'
-            }
-        }
-    }
-
-    Context 'When AccessTokens are used' {
-        It 'Should return the initial domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    return @{ value = @(@{ Id = 'contoso.com'; IsInitial = $true }) }
-                }
-                $result = Get-MSCloudLoginOrganizationName -AccessTokens @('token1')
-                $result | Should -Be 'contoso.com'
             }
         }
     }

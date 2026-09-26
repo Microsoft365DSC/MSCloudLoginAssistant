@@ -38,122 +38,38 @@ AfterAll {
 # ---------------------------------------------------------------------------
 Describe 'Get-AuthenticationTypeFromParameters' {
 
-    Context 'When ServicePrincipalWithThumbprint parameters are provided' {
-        It 'Should return ServicePrincipalWithThumbprint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $params = @{
-                    ApplicationId        = 'app-id'
-                    TenantId             = 'tenant-id'
-                    CertificateThumbprint = 'thumb'
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'ServicePrincipalWithThumbprint'
+    It 'Should return <Expected> for the parameters <Keys>' -TestCases @(
+        @{ Keys = @('ApplicationId', 'TenantId', 'CertificateThumbprint'); Expected = 'ServicePrincipalWithThumbprint' }
+        @{ Keys = @('ApplicationId', 'TenantId', 'ApplicationSecret'); Expected = 'ServicePrincipalWithSecret' }
+        @{ Keys = @('ApplicationId', 'TenantId', 'CertificatePath', 'CertificatePassword'); Expected = 'ServicePrincipalWithPath' }
+        @{ Keys = @('Credentials', 'ApplicationId'); Expected = 'CredentialsWithApplicationId' }
+        @{ Keys = @('Credentials', 'TenantId'); Expected = 'CredentialsWithTenantId' }
+        @{ Keys = @('Credentials'); Expected = 'Credentials' }
+        @{ Keys = @('Identity'); Expected = 'Identity' }
+        @{ Keys = @('AccessTokens', 'TenantId'); Expected = 'AccessTokens' }
+        @{ Keys = @(); Expected = 'Interactive' }
+    ) {
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Keys = $Keys; Expected = $Expected } {
+            param ($Keys, $Expected)
+            $secPwd = ConvertTo-SecureString 'pass' -AsPlainText -Force
+            $values = @{
+                ApplicationId         = 'app-id'
+                TenantId              = 'tenant-id'
+                CertificateThumbprint = 'thumb'
+                ApplicationSecret     = 'secret'
+                CertificatePath       = 'C:\cert.pfx'
+                CertificatePassword   = $secPwd
+                Credentials           = New-Object PSCredential ('user@contoso.com', $secPwd)
+                Identity              = $true
+                AccessTokens          = @('token1', 'token2')
             }
-        }
-    }
-
-    Context 'When ServicePrincipalWithSecret parameters are provided' {
-        It 'Should return ServicePrincipalWithSecret' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $params = @{
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'ServicePrincipalWithSecret'
+            $params = @{}
+            foreach ($key in $Keys)
+            {
+                $params[$key] = $values[$key]
             }
-        }
-    }
-
-    Context 'When ServicePrincipalWithPath parameters are provided' {
-        It 'Should return ServicePrincipalWithPath' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secPwd = ConvertTo-SecureString 'pass' -AsPlainText -Force
-                $params = @{
-                    ApplicationId       = 'app-id'
-                    TenantId            = 'tenant-id'
-                    CertificatePath     = 'C:\cert.pfx'
-                    CertificatePassword = $secPwd
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'ServicePrincipalWithPath'
-            }
-        }
-    }
-
-    Context 'When CredentialsWithApplicationId parameters are provided' {
-        It 'Should return CredentialsWithApplicationId' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secPwd = ConvertTo-SecureString 'pass' -AsPlainText -Force
-                $cred = New-Object PSCredential ('user@contoso.com', $secPwd)
-                $params = @{
-                    Credentials   = $cred
-                    ApplicationId = 'app-id'
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'CredentialsWithApplicationId'
-            }
-        }
-    }
-
-    Context 'When CredentialsWithTenantId parameters are provided' {
-        It 'Should return CredentialsWithTenantId' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secPwd = ConvertTo-SecureString 'pass' -AsPlainText -Force
-                $cred = New-Object PSCredential ('user@contoso.com', $secPwd)
-                $params = @{
-                    Credentials = $cred
-                    TenantId    = 'tenant-id'
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'CredentialsWithTenantId'
-            }
-        }
-    }
-
-    Context 'When only Credentials are provided' {
-        It 'Should return Credentials' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secPwd = ConvertTo-SecureString 'pass' -AsPlainText -Force
-                $cred = New-Object PSCredential ('user@contoso.com', $secPwd)
-                $params = @{ Credentials = $cred }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'Credentials'
-            }
-        }
-    }
-
-    Context 'When Identity is provided' {
-        It 'Should return Identity' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $params = @{ Identity = $true }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'Identity'
-            }
-        }
-    }
-
-    Context 'When AccessTokens are provided' {
-        It 'Should return AccessTokens' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $params = @{
-                    AccessTokens = @('token1', 'token2')
-                    TenantId     = 'tenant-id'
-                }
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'AccessTokens'
-            }
-        }
-    }
-
-    Context 'When no recognised parameters are provided' {
-        It 'Should return Interactive' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $params = @{}
-                $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
-                $result | Should -Be 'Interactive'
-            }
+            $result = Get-AuthenticationTypeFromParameters -AuthenticationObject $params
+            $result | Should -Be $Expected
         }
     }
 }
@@ -164,10 +80,11 @@ Describe 'Get-AuthenticationTypeFromParameters' {
 Describe 'MSCloudLoginConnectionProfile' {
 
     Context 'Constructor defaults' {
-        It 'Should initialise all workload objects' {
+        It 'Should initialise all workload objects and set CreatedTime' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $cloudProfile = New-Object MSCloudLoginConnectionProfile
 
+                $cloudProfile.CreatedTime              | Should -Not -BeNullOrEmpty
                 $cloudProfile.AdminAPI                 | Should -Not -BeNullOrEmpty
                 $cloudProfile.Azure                    | Should -Not -BeNullOrEmpty
                 $cloudProfile.AzureDevOPS              | Should -Not -BeNullOrEmpty
@@ -187,61 +104,36 @@ Describe 'MSCloudLoginConnectionProfile' {
                 $cloudProfile.Teams                    | Should -Not -BeNullOrEmpty
             }
         }
-
-        It 'Should set CreatedTime' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $cloudProfile = New-Object MSCloudLoginConnectionProfile
-                $cloudProfile.CreatedTime | Should -Not -BeNullOrEmpty
-            }
-        }
     }
 
     Context 'Workload default ApplicationIds' {
-        It 'Should set correct default ApplicationId for AdminAPI' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $instance = New-Object AdminAPI
-                $instance.ApplicationId | Should -Be '1950a258-227b-4e31-a9cf-717495945fc2'
-            }
-        }
-
-        It 'Should set correct default ApplicationId for Fabric' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $instance = New-Object Fabric
-                $instance.ApplicationId | Should -Be '23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd'
-            }
-        }
-
-        It 'Should set correct default ApplicationId for Tasks' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $instance = New-Object Tasks
-                $instance.ApplicationId | Should -Be '9ac8c0b3-2c30-497c-b4bc-cadfe9bd6eed'
-            }
-        }
-
-        It 'Should set correct default ApplicationId for SharePointOnlineREST' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $instance = New-Object SharePointOnlineREST
-                $instance.ApplicationId | Should -Be '31359c7f-bd7e-475c-86db-fdb8c937548e'
+        It 'Should set correct default ApplicationId for <Workload>' -TestCases @(
+            @{ Workload = 'AdminAPI'; Expected = '1950a258-227b-4e31-a9cf-717495945fc2' }
+            @{ Workload = 'Fabric'; Expected = '23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd' }
+            @{ Workload = 'Tasks'; Expected = '9ac8c0b3-2c30-497c-b4bc-cadfe9bd6eed' }
+            @{ Workload = 'SharePointOnlineREST'; Expected = '31359c7f-bd7e-475c-86db-fdb8c937548e' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Workload = $Workload; Expected = $Expected } {
+                param ($Workload, $Expected)
+                $instance = New-Object $Workload
+                $instance.ApplicationId | Should -Be $Expected
             }
         }
     }
 
     Context 'Workload CompleteConnection' {
-        It 'Should mark the workload as connected' {
+        It 'Should mark the workload as connected and track MFA usage when specified' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $instance = New-Object AdminAPI
                 $instance.Connected | Should -BeFalse
                 $instance.CompleteConnection()
                 $instance.Connected | Should -BeTrue
                 $instance.ConnectedDateTime | Should -Not -BeNullOrEmpty
-            }
-        }
+                $instance.MultiFactorAuthentication | Should -BeFalse
 
-        It 'Should track MFA usage when specified' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $instance = New-Object AdminAPI
-                $instance.CompleteConnection($true)
-                $instance.MultiFactorAuthentication | Should -BeTrue
+                $mfaInstance = New-Object AdminAPI
+                $mfaInstance.CompleteConnection($true)
+                $mfaInstance.MultiFactorAuthentication | Should -BeTrue
             }
         }
     }
@@ -300,118 +192,56 @@ Describe 'Connect-M365Tenant' {
         }
     }
 
-    Context 'When connecting to AdminAPI' {
-        It 'Should invoke the AdminAPI connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When connecting to a workload' {
+        It 'Should store the authentication parameters on the <ProfileName> profile and invoke <ConnectFunction> for <Workload>' -TestCases @(
+            @{ Workload = 'AdminAPI'; ProfileName = 'AdminAPI'; ConnectFunction = 'Connect-MSCloudLoginAdminAPI'; AuthParameter = 'CertificateThumbprint'; AuthValue = 'thumb' }
+            @{ Workload = 'ExchangeOnline'; ProfileName = 'ExchangeOnline'; ConnectFunction = 'Connect-MSCloudLoginExchangeOnline'; AuthParameter = 'CertificateThumbprint'; AuthValue = 'thumb' }
+            @{ Workload = 'MicrosoftGraph'; ProfileName = 'MicrosoftGraph'; ConnectFunction = 'Connect-MSCloudLoginMicrosoftGraph'; AuthParameter = 'ApplicationSecret'; AuthValue = 'secret' }
+            @{ Workload = 'MicrosoftTeams'; ProfileName = 'Teams'; ConnectFunction = 'Connect-MSCloudLoginTeams'; AuthParameter = 'CertificateThumbprint'; AuthValue = 'thumb' }
+            @{ Workload = 'PowerPlatforms'; ProfileName = 'PowerPlatform'; ConnectFunction = 'Connect-MSCloudLoginPowerPlatform'; AuthParameter = 'CertificateThumbprint'; AuthValue = 'thumb' }
+            @{ Workload = 'SecurityComplianceCenter'; ProfileName = 'SecurityComplianceCenter'; ConnectFunction = 'Connect-MSCloudLoginSecurityCompliance'; AuthParameter = 'CertificateThumbprint'; AuthValue = 'thumb' }
+            @{ Workload = 'Tasks'; ProfileName = 'Tasks'; ConnectFunction = 'Connect-MSCloudLoginTasks'; AuthParameter = 'ApplicationSecret'; AuthValue = 'secret' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                Workload        = $Workload
+                ProfileName     = $ProfileName
+                ConnectFunction = $ConnectFunction
+                AuthParameter   = $AuthParameter
+                AuthValue       = $AuthValue
+            } {
+                param ($Workload, $ProfileName, $ConnectFunction, $AuthParameter, $AuthValue)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'AdminAPI' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-                Should -Invoke Connect-MSCloudLoginAdminAPI -Exactly 1
-            }
-        }
-    }
+                $connectParams = @{
+                    Workload      = $Workload
+                    ApplicationId = 'app-id'
+                    TenantId      = 'tenant-id'
+                    $AuthParameter = $AuthValue
+                }
+                Connect-M365Tenant @connectParams
 
-    Context 'When connecting to ExchangeOnline' {
-        It 'Should invoke the ExchangeOnline connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -CertificateThumbprint 'thumb'
-                Should -Invoke Connect-MSCloudLoginExchangeOnline -Exactly 1
-            }
-        }
-    }
-
-    Context 'When connecting to MicrosoftGraph' {
-        It 'Should invoke the MicrosoftGraph connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'MicrosoftGraph' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-                Should -Invoke Connect-MSCloudLoginMicrosoftGraph -Exactly 1
-            }
-        }
-    }
-
-    Context 'When connecting to MicrosoftTeams' {
-        It 'Should map to Teams and invoke the Teams connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'MicrosoftTeams' -ApplicationId 'app-id' -TenantId 'tenant-id' -CertificateThumbprint 'thumb'
-                Should -Invoke Connect-MSCloudLoginTeams -Exactly 1
-            }
-        }
-    }
-
-    Context 'When connecting to PowerPlatforms' {
-        It 'Should map to PowerPlatform and invoke the PowerPlatform connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'PowerPlatforms' -ApplicationId 'app-id' -TenantId 'tenant-id' -CertificateThumbprint 'thumb'
-                Should -Invoke Connect-MSCloudLoginPowerPlatform -Exactly 1
-            }
-        }
-    }
-
-    Context 'When connecting to SecurityComplianceCenter' {
-        It 'Should invoke the SecurityCompliance connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'SecurityComplianceCenter' -ApplicationId 'app-id' -TenantId 'tenant-id' -CertificateThumbprint 'thumb'
-                Should -Invoke Connect-MSCloudLoginSecurityCompliance -Exactly 1
-            }
-        }
-    }
-
-    Context 'When connecting to Tasks' {
-        It 'Should invoke the Tasks connect function' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'Tasks' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-                Should -Invoke Connect-MSCloudLoginTasks -Exactly 1
-            }
-        }
-    }
-
-    Context 'When setting authentication parameters' {
-        It 'Should set the authentication type on the workload profile' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'AdminAPI' -ApplicationId 'app-id' -TenantId 'tenant-id' -CertificateThumbprint 'thumb'
-
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId        | Should -Be 'app-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId             | Should -Be 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.CertificateThumbprint | Should -Be 'thumb'
+                Should -Invoke -CommandName $ConnectFunction -Exactly 1
+                $Script:MSCloudLoginConnectionProfile.$ProfileName.ApplicationId  | Should -Be 'app-id'
+                $Script:MSCloudLoginConnectionProfile.$ProfileName.TenantId       | Should -Be 'tenant-id'
+                $Script:MSCloudLoginConnectionProfile.$ProfileName.$AuthParameter | Should -Be $AuthValue
             }
         }
     }
 
     Context 'When connecting to Azure with a SubscriptionId' {
-        It 'Should persist the SubscriptionId on the Azure connection profile' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-A'
-            }
-        }
-
-        It 'Should keep the session valid when the same SubscriptionId is provided again' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
-                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
-                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
-                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
-                }
-
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-
-                $Script:AzureConnectedStates | Should -Be @($false, $true)
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-A'
-            }
-        }
-
-        It 'Should invalidate the session when a different SubscriptionId is provided' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should reconnect only on SubscriptionId drift when <Scenario>' -TestCases @(
+            @{ Scenario = 'the same SubscriptionId is provided again'; Sequence = @('sub-A', 'sub-A'); IdentityOnFirstCallOnly = $false; ExpectedStates = @($false, $true); ExpectedSubscriptionId = 'sub-A' }
+            @{ Scenario = 'a different SubscriptionId is provided'; Sequence = @('sub-A', 'sub-B'); IdentityOnFirstCallOnly = $false; ExpectedStates = @($false, $false); ExpectedSubscriptionId = 'sub-B' }
+            @{ Scenario = 'the SubscriptionId is omitted and the profile clears it'; Sequence = @('sub-A', $null, $null); IdentityOnFirstCallOnly = $false; ExpectedStates = @($false, $false, $true); ExpectedSubscriptionId = '' }
+            @{ Scenario = 'the SubscriptionId is set again after being omitted'; Sequence = @('sub-A', $null, 'sub-B'); IdentityOnFirstCallOnly = $false; ExpectedStates = @($false, $false, $false); ExpectedSubscriptionId = 'sub-B' }
+            @{ Scenario = 'no identity parameter is repeated'; Sequence = @('sub-A', 'sub-A', 'sub-B'); IdentityOnFirstCallOnly = $true; ExpectedStates = @($false, $true, $false); ExpectedSubscriptionId = 'sub-B' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                Sequence                = $Sequence
+                IdentityOnFirstCallOnly = $IdentityOnFirstCallOnly
+                ExpectedStates          = $ExpectedStates
+                ExpectedSubscriptionId  = $ExpectedSubscriptionId
+            } {
+                param ($Sequence, $IdentityOnFirstCallOnly, $ExpectedStates, $ExpectedSubscriptionId)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
                 Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
@@ -419,84 +249,28 @@ Describe 'Connect-M365Tenant' {
                     $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
                 }
 
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-B'
-
-                $Script:AzureConnectedStates | Should -Be @($false, $false)
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
-            }
-        }
-
-        It 'Should treat an omitted SubscriptionId as drift and clear it on the profile' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
-                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
-                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
-                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
+                for ($i = 0; $i -lt $Sequence.Count; $i++)
+                {
+                    $connectParams = @{ Workload = 'Azure' }
+                    if ($i -eq 0 -or -not $IdentityOnFirstCallOnly)
+                    {
+                        $connectParams += @{ ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                    }
+                    if ($Sequence[$i])
+                    {
+                        $connectParams.SubscriptionId = $Sequence[$i]
+                    }
+                    Connect-M365Tenant @connectParams
                 }
 
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-
-                # Only the first call that drops the SubscriptionId reconnects, afterwards the
-                # profile is back to the unset value and further calls converge again.
-                $Script:AzureConnectedStates | Should -Be @($false, $false, $true)
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -BeNullOrEmpty
-            }
-        }
-
-        It 'Should invalidate the session when the SubscriptionId is set again after being omitted' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
-                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
-                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
-                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
-                }
-
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-B'
-
-                $Script:AzureConnectedStates | Should -Be @($false, $false, $false)
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
-            }
-        }
-
-        It 'Should detect a SubscriptionId change even when no identity parameter is repeated' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:AzureConnectedStates = [System.Collections.Generic.List[bool]]::new()
-                Mock -CommandName Connect-MSCloudLoginAzure -MockWith {
-                    $Script:AzureConnectedStates.Add($Script:MSCloudLoginConnectionProfile.Azure.Connected)
-                    $Script:MSCloudLoginConnectionProfile.Azure.CompleteConnection()
-                }
-
-                Connect-M365Tenant -Workload 'Azure' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -SubscriptionId 'sub-A'
-                # Same subscription, no identity parameters: the session must be reused.
-                Connect-M365Tenant -Workload 'Azure' -SubscriptionId 'sub-A'
-                # Different subscription, still no identity parameters: this is drift.
-                Connect-M365Tenant -Workload 'Azure' -SubscriptionId 'sub-B'
-
-                $Script:AzureConnectedStates | Should -Be @($false, $true, $false)
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be 'sub-B'
+                $Script:AzureConnectedStates | Should -Be $ExpectedStates
+                [System.String]$Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId | Should -Be $ExpectedSubscriptionId
             }
         }
     }
 
     Context 'When connecting to ExchangeOnline with cmdlets to load' {
-        It 'Should map ExchangeOnlineCmdlets onto the CmdletsToLoad property' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -ExchangeOnlineCmdlets @('Get-Mailbox')
-
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad | Should -Be @('Get-Mailbox')
-            }
-        }
-
-        It 'Should treat omitted cmdlets as drift and clear them on the profile' {
+        It 'Should map ExchangeOnlineCmdlets onto CmdletsToLoad and treat omitted cmdlets as drift' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $Script:ExoConnectedStates = [System.Collections.Generic.List[bool]]::new()
@@ -506,6 +280,8 @@ Describe 'Connect-M365Tenant' {
                 }
 
                 Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret' -ExchangeOnlineCmdlets @('Get-Mailbox')
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad | Should -Be @('Get-Mailbox')
+
                 Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
                 Connect-M365Tenant -Workload 'ExchangeOnline' -ApplicationId 'app-id' -TenantId 'tenant-id' -ApplicationSecret 'secret'
 
@@ -538,260 +314,144 @@ Describe 'Compare-InputParametersForChange' {
         }
     }
 
-    Context 'When authentication type changes' {
-        It 'Should return true' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When comparing against the stored workload profile' {
+        It 'Should return <Expected> when <Scenario>' -TestCases @(
+            @{
+                Scenario      = 'the authentication type changes'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'Credentials'; RequestedAuthenticationType = 'ServicePrincipalWithThumbprint' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'app-id'; TenantId = 'tenant-id' }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'the parameters have not changed'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithThumbprint'; RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb' }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'two parameter values are swapped'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'value-A'; TenantId = 'value-B'; ApplicationSecret = 'secret' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'value-B'; TenantId = 'value-A'; ApplicationSecret = 'secret' }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'a SubscriptionId is newly provided for Azure'
+                ProfileName   = 'Azure'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Params        = @{ Workload = 'Azure'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret'; SubscriptionId = 'sub-B' }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'the SubscriptionId is omitted'
+                ProfileName   = 'Azure'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret'; SubscriptionId = 'sub-A' }
+                Params        = @{ Workload = 'Azure'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'the cmdlets to load are omitted'
+                ProfileName   = 'ExchangeOnline'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret'; CmdletsToLoad = @('Get-Mailbox') }
+                Params        = @{ Workload = 'ExchangeOnline'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Expected      = $true
+            }
+            # EnableSearchOnlySession only exists on SecurityComplianceCenter. Supplying it
+            # for another workload must not be reported as a change on every call.
+            @{
+                Scenario      = 'a session parameter that the workload does not own is supplied'
+                ProfileName   = 'MicrosoftGraph'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Params        = @{ Workload = 'MicrosoftGraph'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret'; EnableSearchOnlySession = $true }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'only the case of an identifier changes'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'Tenant-Id'; ApplicationSecret = 'secret' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'APP-ID'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'only the case of a secret changes'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'Secret' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; ApplicationSecret = 'secret' }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'an empty string on the profile meets an absent parameter'
+                ProfileName   = 'AdminAPI'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithSecret'; RequestedAuthenticationType = 'ServicePrincipalWithSecret'; ApplicationId = 'app-id'; TenantId = ''; ApplicationSecret = 'secret' }
+                Params        = @{ Workload = 'AdminAPI'; ApplicationId = 'app-id'; ApplicationSecret = 'secret' }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'the MicrosoftTeams workload is compared against the Teams profile and the token it acquired itself'
+                ProfileName   = 'Teams'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithThumbprint'; RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb'; AccessTokens = @('acquired-token') }
+                Params        = @{ Workload = 'MicrosoftTeams'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb' }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'a Graph credential connection holds the default application id, the UPN tenant and the token it acquired itself'
+                ProfileName   = 'MicrosoftGraph'
+                ProfileValues = @{ AuthenticationType = 'Credentials'; RequestedAuthenticationType = 'Credentials'; Credentials = (New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))); ApplicationId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; TenantId = 'contoso.com'; AccessTokens = @('acquired-token') }
+                Params        = @{ Workload = 'MicrosoftGraph'; Credential = (New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))) }
+                Expected      = $false
+            }
+            @{
+                Scenario      = 'the caller passes a different access token'
+                ProfileName   = 'MicrosoftGraph'
+                ProfileValues = @{ AuthenticationType = 'AccessTokens'; RequestedAuthenticationType = 'AccessTokens'; TenantId = 'contoso.onmicrosoft.com'; AccessTokens = @('first-token') }
+                Params        = @{ Workload = 'MicrosoftGraph'; TenantId = 'contoso.onmicrosoft.com'; AccessTokens = @('second-token') }
+                Expected      = $true
+            }
+            @{
+                Scenario      = 'the PowerPlatforms workload is compared against the PowerPlatform profile'
+                ProfileName   = 'PowerPlatform'
+                ProfileValues = @{ AuthenticationType = 'ServicePrincipalWithThumbprint'; RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb' }
+                Params        = @{ Workload = 'PowerPlatforms'; ApplicationId = 'app-id'; TenantId = 'tenant-id'; CertificateThumbprint = 'thumb' }
+                Expected      = $false
+            }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ProfileName = $ProfileName; ProfileValues = $ProfileValues; Params = $Params; Expected = $Expected } {
+                param ($ProfileName, $ProfileValues, $Params, $Expected)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-
-                $params = @{
-                    Workload      = 'AdminAPI'
-                    ApplicationId = 'app-id'
-                    TenantId      = 'tenant-id'
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.$ProfileName
+                foreach ($key in $ProfileValues.Keys)
+                {
+                    $workloadProfile.$key = $ProfileValues[$key]
                 }
-                $result = Compare-InputParametersForChange -CurrentParamSet $params
-                $result | Should -BeTrue
+                (Compare-InputParametersForChange -CurrentParamSet $Params) | Should -Be $Expected
             }
         }
     }
 
-    Context 'When parameters have not changed' {
-        It 'Should return false' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When the credential is compared' {
+        It 'Should return <Expected> for <Scenario> without mutating the parameter set' -TestCases @(
+            @{ Scenario = 'a changed password of the same user name'; UserName = 'user@contoso.com'; Password = 'NewPwd'; Expected = $true }
+            @{ Scenario = 'an identical credential with a differently cased user name'; UserName = 'USER@contoso.com'; Password = 'SamePwd'; Expected = $false }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ UserName = $UserName; Password = $Password; Expected = $Expected } {
+                param ($UserName, $Password, $Expected)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.CertificateThumbprint       = 'thumb'
-
-                $params = @{
-                    Workload              = 'AdminAPI'
-                    ApplicationId         = 'app-id'
-                    TenantId              = 'tenant-id'
-                    CertificateThumbprint = 'thumb'
-                }
-                $result = Compare-InputParametersForChange -CurrentParamSet $params
-                $result | Should -BeFalse
-            }
-        }
-    }
-
-    Context 'When two parameter values are swapped' {
-        It 'Should detect the change' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId               = 'value-A'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId                    = 'value-B'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationSecret           = 'secret'
-
-                $params = @{
-                    Workload          = 'AdminAPI'
-                    ApplicationId     = 'value-B'
-                    TenantId          = 'value-A'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-    }
-
-    Context 'When the credential password changes' {
-        It 'Should detect the change for the same user name' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $oldCred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'OldPwd' -AsPlainText -Force))
-                $newCred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'NewPwd' -AsPlainText -Force))
+                $storedCred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'SamePwd' -AsPlainText -Force))
+                $newCred = New-Object PSCredential ($UserName, (ConvertTo-SecureString $Password -AsPlainText -Force))
                 $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType          = 'Credentials'
                 $Script:MSCloudLoginConnectionProfile.ExchangeOnline.RequestedAuthenticationType = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials                 = $oldCred
+                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials                 = $storedCred
 
                 $params = @{
                     Workload   = 'ExchangeOnline'
                     Credential = $newCred
                 }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-
-        It 'Should report no change for an identical credential' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $cred1 = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'SamePwd' -AsPlainText -Force))
-                $cred2 = New-Object PSCredential ('USER@contoso.com', (ConvertTo-SecureString 'SamePwd' -AsPlainText -Force))
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType          = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.RequestedAuthenticationType = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials                 = $cred1
-
-                $params = @{
-                    Workload   = 'ExchangeOnline'
-                    Credential = $cred2
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-
-    Context 'When a parameter exists on only one side' {
-        It 'Should detect a newly provided SubscriptionId for Azure' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.Azure.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.Azure.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationSecret           = 'secret'
-
-                $params = @{
-                    Workload          = 'Azure'
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                    SubscriptionId    = 'sub-B'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-
-        It 'Should detect an omitted SubscriptionId as a change' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.Azure.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.Azure.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.Azure.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.Azure.ApplicationSecret           = 'secret'
-                $Script:MSCloudLoginConnectionProfile.Azure.SubscriptionId              = 'sub-A'
-
-                $params = @{
-                    Workload          = 'Azure'
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-
-        It 'Should detect omitted cmdlets to load as a change' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationSecret           = 'secret'
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CmdletsToLoad               = @('Get-Mailbox')
-
-                $params = @{
-                    Workload          = 'ExchangeOnline'
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-
-        It 'Should ignore a session parameter that the workload does not own' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationSecret           = 'secret'
-
-                # EnableSearchOnlySession only exists on SecurityComplianceCenter. Supplying it
-                # for another workload must not be reported as a change on every call.
-                $params = @{
-                    Workload                = 'MicrosoftGraph'
-                    ApplicationId           = 'app-id'
-                    TenantId                = 'tenant-id'
-                    ApplicationSecret       = 'secret'
-                    EnableSearchOnlySession = $true
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-
-    Context 'String comparison semantics' {
-        It 'Should ignore a case-only change of an identifier' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId                    = 'Tenant-Id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationSecret           = 'secret'
-
-                $params = @{
-                    Workload          = 'AdminAPI'
-                    ApplicationId     = 'APP-ID'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-
-        It 'Should detect a case-only change of a secret' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId                    = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationSecret           = 'Secret'
-
-                $params = @{
-                    Workload          = 'AdminAPI'
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'tenant-id'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-            }
-        }
-    }
-
-    Context 'Null and empty handling' {
-        It 'Should treat empty string on the profile and absent parameter as equal' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.AuthenticationType          = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationId               = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.TenantId                    = ''
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.ApplicationSecret           = 'secret'
-
-                $params = @{
-                    Workload          = 'AdminAPI'
-                    ApplicationId     = 'app-id'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-
-    Context 'Input hashtable integrity' {
-        It 'Should not mutate the provided parameter set' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-                $params = @{
-                    Workload   = 'ExchangeOnline'
-                    Credential = $cred
-                }
-                $null = Compare-InputParametersForChange -CurrentParamSet $params
+                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -Be $Expected
+                $params.Keys.Count | Should -Be 2
                 $params.ContainsKey('Credential') | Should -BeTrue
                 $params.ContainsKey('Workload') | Should -BeTrue
-                $params.ContainsKey('UserName') | Should -BeFalse
             }
         }
     }
@@ -813,265 +473,12 @@ Describe 'Compare-InputParametersForChange' {
                     ApplicationSecret = 'super-secret-new'
                 }
                 (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeTrue
-                Should -Invoke Add-MSCloudLoginAssistantEvent -ParameterFilter {
-                    $Message -notlike '*super-secret*'
+                Should -Invoke Add-MSCloudLoginAssistantEvent -Exactly 1 -ParameterFilter {
+                    $Message -like '*changed for workload {AdminAPI}: ApplicationSecret'
                 }
-            }
-        }
-    }
-
-    Context 'Microsoft Graph special cases' {
-        It 'Should not report a change for the auto-injected default Graph application id' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType          = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.RequestedAuthenticationType = 'Credentials'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.Credentials                 = $cred
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ApplicationId               = '14d82eec-204b-4c2f-b7e8-296a70dab67e'
-                $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.TenantId                    = 'contoso.com'
-
-                $params = @{
-                    Workload   = 'MicrosoftGraph'
-                    Credential = $cred
+                Should -Invoke Add-MSCloudLoginAssistantEvent -Exactly 0 -ParameterFilter {
+                    $Message -like '*super-secret*'
                 }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------------------------
-Describe 'Test-MSCloudLoginMFARequiredError' {
-
-    Context 'Known MFA error codes' {
-        It 'Should detect AADSTS50076 in the exception message' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $err = $null
-                try { throw 'AADSTS50076: Due to a configuration change made by your administrator...' } catch { $err = $_ }
-                (Test-MSCloudLoginMFARequiredError -ErrorRecord $err) | Should -BeTrue
-            }
-        }
-
-        It 'Should detect the plain multi-factor wording' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $err = $null
-                try { throw 'you must use multi-factor authentication to access this resource' } catch { $err = $_ }
-                (Test-MSCloudLoginMFARequiredError -ErrorRecord $err) | Should -BeTrue
-            }
-        }
-
-        It 'Should honor additional patterns' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $err = $null
-                try { throw 'WAM Error 12345' } catch { $err = $_ }
-                (Test-MSCloudLoginMFARequiredError -ErrorRecord $err) | Should -BeFalse
-                (Test-MSCloudLoginMFARequiredError -ErrorRecord $err -AdditionalPatterns @('*WAM Error*')) | Should -BeTrue
-            }
-        }
-
-        It 'Should not match unrelated errors' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $err = $null
-                try { throw 'The sign-in name or password is incorrect' } catch { $err = $_ }
-                (Test-MSCloudLoginMFARequiredError -ErrorRecord $err) | Should -BeFalse
-            }
-        }
-    }
-}
-
-Describe 'Get-MSCloudLoginSPOUrlFromTenantId' {
-
-    Context 'URL derivation per environment' {
-        It 'Should derive commercial URLs' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.onmicrosoft.com' -EnvironmentName 'AzureCloud'
-                $result.AdminUrl      | Should -Be 'https://contoso-admin.sharepoint.com'
-                $result.ConnectionUrl | Should -Be 'https://contoso.sharepoint.com'
-            }
-        }
-
-        It 'Should derive GCC High URLs with the .us suffix' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.onmicrosoft.com' -EnvironmentName 'AzureUSGovernment'
-                $result.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.us'
-            }
-        }
-
-        It 'Should derive DoD URLs on the sharepoint-mil domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.onmicrosoft.com' -EnvironmentName 'AzureDOD'
-                $result.AdminUrl | Should -Be 'https://contoso-admin.sharepoint-mil.us'
-            }
-        }
-
-        It 'Should derive China URLs' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.partner.onmschina.cn' -EnvironmentName 'AzureChinaCloud'
-                $result.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.cn'
-            }
-        }
-
-        It 'Should derive .onms. URLs on the .spo. domain' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.onms.fr' -EnvironmentName 'AzureFranceCloud'
-                $result.AdminUrl | Should -Be 'https://contoso-admin.spo.fr'
-            }
-        }
-
-        It 'Should throw for an unrecognized tenant format' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                { Get-MSCloudLoginSPOUrlFromTenantId -TenantId 'contoso.com' -EnvironmentName 'AzureCloud' } | Should -Throw
-            }
-        }
-    }
-}
-
-Describe 'Get-MSCloudLoginAccessTokenValue' {
-
-    Context 'Token representations' {
-        It 'Should pass through a plain string' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                (Get-MSCloudLoginAccessTokenValue -Token 'plain-token') | Should -Be 'plain-token'
-            }
-        }
-
-        It 'Should decrypt a SecureString' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $secure = ConvertTo-SecureString 'secure-token' -AsPlainText -Force
-                (Get-MSCloudLoginAccessTokenValue -Token $secure) | Should -Be 'secure-token'
-            }
-        }
-
-        It 'Should extract the password from a PSCredential' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $cred = New-Object PSCredential ('token', (ConvertTo-SecureString 'cred-token' -AsPlainText -Force))
-                (Get-MSCloudLoginAccessTokenValue -Token $cred) | Should -Be 'cred-token'
-            }
-        }
-    }
-}
-
-Describe 'Get-MSCloudLoginTenantDomainFromCredentials' {
-
-    It 'Should return the domain part of a UPN' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-            (Get-MSCloudLoginTenantDomainFromCredentials -Credentials $cred) | Should -Be 'contoso.com'
-        }
-    }
-
-    It 'Should throw when the user name is not a UPN' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $cred = New-Object PSCredential ('CONTOSO\user', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-            { Get-MSCloudLoginTenantDomainFromCredentials -Credentials $cred } | Should -Throw
-        }
-    }
-}
-
-Describe 'Test-MSCloudLoginConnectionReusable' {
-
-    BeforeAll {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-        }
-    }
-
-    It 'Should return false when not connected' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $workloadProfile = New-Object AdminAPI
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -Source 'Test') | Should -BeFalse
-        }
-    }
-
-    It 'Should reset a connection without a timestamp' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $workloadProfile = New-Object AdminAPI
-            $workloadProfile.Connected = $true
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -Source 'Test') | Should -BeFalse
-            $workloadProfile.Connected | Should -BeFalse
-        }
-    }
-
-    It 'Should reset an expired token-based connection' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $workloadProfile = New-Object AdminAPI
-            $workloadProfile.AuthenticationType = 'ServicePrincipalWithSecret'
-            $workloadProfile.CompleteConnection()
-            $workloadProfile.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-60).ToString()
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -Source 'Test') | Should -BeFalse
-            $workloadProfile.Connected | Should -BeFalse
-        }
-    }
-
-    It 'Should reuse a fresh token-based connection' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $workloadProfile = New-Object AdminAPI
-            $workloadProfile.AuthenticationType = 'ServicePrincipalWithSecret'
-            $workloadProfile.CompleteConnection()
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -Source 'Test') | Should -BeTrue
-        }
-    }
-
-    It 'Should reset the connection when the probe returns null' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $workloadProfile = New-Object AdminAPI
-            $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
-            $workloadProfile.CompleteConnection()
-            (Test-MSCloudLoginConnectionReusable -WorkloadProfile $workloadProfile -ProbeScript { $null } -Source 'Test') | Should -BeFalse
-            $workloadProfile.Connected | Should -BeFalse
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Endpoint data table
-# ---------------------------------------------------------------------------
-Describe 'Get-MSCloudLoginEndpointInfo' {
-
-    Context 'Endpoint snapshots' {
-        It 'Should resolve <Workload>/<Environment> endpoints' -TestCases @(
-            @{ Workload = 'AdminAPI'; Environment = 'AzureCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.com' }
-            @{ Workload = 'AdminAPI'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
-            @{ Workload = 'AzureDevOPS'; Environment = 'AzureDOD'; Property = 'HostUrl'; Expected = 'https://dev.azure.us' }
-            @{ Workload = 'DefenderForEndpoint'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://api-gcc.securitycenter.microsoft.us' }
-            @{ Workload = 'Fabric'; Environment = 'AzureCloud'; Property = 'Scope'; Expected = 'https://api.fabric.microsoft.com/.default' }
-            @{ Workload = 'Licensing'; Environment = 'AzureCloud'; Property = 'HostUrl'; Expected = 'https://licensing.m365.microsoft.com' }
-            @{ Workload = 'MicrosoftGraph'; Environment = 'AzureCloud'; Property = 'ResourceUrl'; Expected = 'https://graph.microsoft.com/' }
-            @{ Workload = 'MicrosoftGraph'; Environment = 'AzureGermanyCloud'; Property = 'GraphEnvironment'; Expected = 'DelosCloud' }
-            @{ Workload = 'O365Portal'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
-            @{ Workload = 'PowerPlatformREST'; Environment = 'AzureDOD'; Property = 'BapEndpoint'; Expected = 'api.bap.appsplatform.us' }
-            @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureChinaCloud'; Property = 'ConnectionUrl'; Expected = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/' }
-            @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr/organizations' }
-            @{ Workload = 'Tasks'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://tasks.office365.us' }
-            @{ Workload = 'Tasks'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr' }
-        ) {
-            param ($Workload, $Environment, $Property, $Expected)
-            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Workload = $Workload; Environment = $Environment; Property = $Property; Expected = $Expected } {
-                $result = Get-MSCloudLoginEndpointInfo -Workload $Workload -EnvironmentName $Environment
-                $result[$Property] | Should -Be $Expected
-            }
-        }
-
-        It 'Should replace placeholders' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginEndpointInfo -Workload 'AdminAPI' -EnvironmentName 'AzureCloud' -Replacements @{ Resource = 'my-resource' }
-                $result.Scope | Should -Be 'my-resource/.default'
-            }
-        }
-
-        It 'Should fall back to the default entry for unknown environments' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $result = Get-MSCloudLoginEndpointInfo -Workload 'Fabric' -EnvironmentName 'SomethingElse'
-                $result.AuthorizationUrl | Should -Be 'https://login.microsoftonline.com'
-            }
-        }
-
-        It 'Should throw for an unknown workload' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                { Get-MSCloudLoginEndpointInfo -Workload 'DoesNotExist' -EnvironmentName 'AzureCloud' } | Should -Throw
             }
         }
     }
@@ -1203,6 +610,9 @@ Describe 'Connect-MSCloudLoginSecurityCompliance' {
 
                 { Connect-MSCloudLoginSecurityCompliance } | Should -Not -Throw
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected | Should -BeTrue
+                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
+                    $Credential.UserName -eq 'admin@contoso.onmicrosoft.com'
+                }
             }
         }
     }
@@ -1215,77 +625,6 @@ Describe 'Connect-MSCloudLoginSecurityCompliance' {
 
                 { Connect-MSCloudLoginSecurityCompliance } | Should -Throw "*is not supported for workload 'SecurityComplianceCenter'*"
             }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Compare-InputParametersForChange with MicrosoftTeams / PowerPlatforms mapping
-# ---------------------------------------------------------------------------
-Describe 'Compare-InputParametersForChange workload name mapping' {
-
-    BeforeAll {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-        }
-    }
-
-    Context 'When the workload is MicrosoftTeams' {
-        It 'Should map to Teams and compare correctly' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.Teams.AuthenticationType = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.Teams.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.Teams.ApplicationId = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.Teams.TenantId = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.Teams.CertificateThumbprint = 'thumb'
-
-                $params = @{
-                    Workload              = 'MicrosoftTeams'
-                    ApplicationId         = 'app-id'
-                    TenantId              = 'tenant-id'
-                    CertificateThumbprint = 'thumb'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-
-    Context 'When the workload is PowerPlatforms' {
-        It 'Should map to PowerPlatform and compare correctly' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.AuthenticationType = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.ApplicationId = 'app-id'
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.TenantId = 'tenant-id'
-                $Script:MSCloudLoginConnectionProfile.PowerPlatform.CertificateThumbprint = 'thumb'
-
-                $params = @{
-                    Workload              = 'PowerPlatforms'
-                    ApplicationId         = 'app-id'
-                    TenantId              = 'tenant-id'
-                    CertificateThumbprint = 'thumb'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $params) | Should -BeFalse
-            }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Assert-IsNonInteractiveShell non-interactive path
-# ---------------------------------------------------------------------------
-Describe 'Assert-IsNonInteractiveShell non-interactive' {
-
-    It 'Should return $true when UserInteractive is $false' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            # Cannot directly mock [Environment]::UserInteractive, so we test the
-            # reverse: when powershell is running with -NonInteractive, the function
-            # picks it up from command-line arguments.
-            # In the Pester test runner context, this is typically interactive.
-            # We test the logic by observing that the function handles its inputs correctly.
-            (Assert-IsNonInteractiveShell) -is [System.Boolean] | Should -BeTrue
         }
     }
 }
@@ -1358,76 +697,6 @@ Describe 'Connect-M365Tenant PnP URL handling' {
 
                 # ConnectionUrl should be back to AdminUrl after context mismatch
                 $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl | Should -Be 'https://contoso-admin.sharepoint.com'
-            }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Get-CloudEnvironmentInfo sovcloud paths
-# ---------------------------------------------------------------------------
-Describe 'Get-CloudEnvironmentInfo sovcloud' {
-
-    BeforeAll {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-        }
-    }
-
-    Context 'When the tenant is in the German sovereign cloud' {
-        It 'Should resolve the sovcloud identity endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "tenant_region_sub_scope": "EU", "token_endpoint": "https://login.sovcloud-identity.de/t/oauth2/v2.0/token" }' }
-                }
-
-                $result = Get-CloudEnvironmentInfo -TenantId 'contoso.onsovcloud.de'
-                $result.tenant_region_sub_scope | Should -Be 'EU'
-                Should -Invoke Invoke-WebRequest -ParameterFilter {
-                    $Uri -like 'https://login.sovcloud-identity.de/*'
-                }
-            }
-        }
-    }
-
-    Context 'When the tenant is in the French sovereign cloud' {
-        It 'Should resolve the sovcloud identity endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-WebRequest -MockWith {
-                    return @{ Content = '{ "tenant_region_sub_scope": "EU", "token_endpoint": "https://login.sovcloud-identity.fr/t/oauth2/v2.0/token" }' }
-                }
-
-                $result = Get-CloudEnvironmentInfo -TenantId 'contoso.onsovcloud.fr'
-                $result.tenant_region_sub_scope | Should -Be 'EU'
-                Should -Invoke Invoke-WebRequest -ParameterFilter {
-                    $Uri -like 'https://login.sovcloud-identity.fr/*'
-                }
-            }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Get-SPOAdminUrl with Credential parameter
-# ---------------------------------------------------------------------------
-Describe 'Get-SPOAdminUrl with credential' {
-
-    BeforeAll {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-            Mock -CommandName Connect-M365Tenant -MockWith { }
-        }
-    }
-
-    Context 'When credentials are provided' {
-        It 'Should pass the credential through to Connect-M365Tenant' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    return @{ webUrl = 'https://contoso.sharepoint.com' }
-                }
-                $result = Get-SPOAdminUrl -Credential $cred
-                $result | Should -Be 'https://contoso-admin.sharepoint.com'
             }
         }
     }

@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.2.8'
+    ModuleVersion          = '1.2.9'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,17 +112,11 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Fixed an issue when Graph was connected using multiple runspaces.
-* Fixed an issue with a memory leak using the `Cert:` drive.
-* Fixed an issue with restoring proxy module command precedence.
-* Fixed an issue with Security & Compliance connections using Identity and AccessTokens.
-* Fixed an issue with connection renewal based on the token expiry.
-* Fixed an issue when Azure, Microsoft Graph or Teams was connected with different applications or accounts using multiple runspaces.
-* Fixed an issue where Microsoft Graph and Teams reconnected on every call after storing their own access tokens.
-* Fixed an issue where Azure connections were saved to the Azure context file of the user.
-* Fixed an issue where a failed Teams connection was reported as connected.
-* Fixed an issue where connecting to Teams would fail when using Managed Identity under Windows PowerShell.
-* Changed the Teams connection check to run at most every 3 minutes per runspace.'
+            ReleaseNotes = '* Fixed an issue where Exchange Online connections failed for applications without permissions for `Get-AcceptedDomain`.
+* Fixed an issue where an Exchange Online session of another application or a disconnected session was reused.
+* Fixed an issue where a failed import of an existing Exchange Online session aborted the connection instead of reconnecting.
+* Fixed an issue where Exchange Online connections of other runspaces were disconnected.
+* Fixed an issue where connecting to Teams would fail when using Managed Identity under Windows PowerShell.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

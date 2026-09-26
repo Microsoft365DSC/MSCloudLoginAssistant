@@ -91,34 +91,28 @@ Describe 'Get-AuthToken' {
         }
     }
 
-    Context 'When using managed identity on an Azure VM' {
-        It 'Should return the access token from the instance metadata endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $env:AZUREPS_HOST_ENVIRONMENT = ''
-                $env:IDENTITY_ENDPOINT = ''
-                $env:IDENTITY_HEADER = ''
+    Context 'When using managed identity on an Azure VM or in Azure Automation' {
+        It 'Should return the access token from the <Endpoint> endpoint' -TestCases @(
+            @{ Endpoint = 'instance metadata'; HostEnvironment = ''; IdentityEndpoint = ''; IdentityHeader = ''; ExpectedUri = 'http://169.254.169.254/metadata/identity/oauth2/token*&resource=https://graph.microsoft.com'; ExpectedIdentityHeader = $null; ExpectedBodyResource = $null }
+            @{ Endpoint = 'Azure Automation identity'; HostEnvironment = 'AzureAutomation_Test'; IdentityEndpoint = 'http://localhost:9999/metadata'; IdentityHeader = 'secret-header'; ExpectedUri = 'http://localhost:9999/metadata'; ExpectedIdentityHeader = 'secret-header'; ExpectedBodyResource = 'https://graph.microsoft.com' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ HostEnvironment = $HostEnvironment; IdentityEndpoint = $IdentityEndpoint; IdentityHeader = $IdentityHeader; ExpectedUri = $ExpectedUri; ExpectedIdentityHeader = $ExpectedIdentityHeader; ExpectedBodyResource = $ExpectedBodyResource } {
+                param ($HostEnvironment, $IdentityEndpoint, $IdentityHeader, $ExpectedUri, $ExpectedIdentityHeader, $ExpectedBodyResource)
+                $env:AZUREPS_HOST_ENVIRONMENT = $HostEnvironment
+                $env:IDENTITY_ENDPOINT = $IdentityEndpoint
+                $env:IDENTITY_HEADER = $IdentityHeader
                 $env:IMDS_ENDPOINT = ''
                 Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'vm-token' }
+                    return @{ access_token = 'identity-token' }
                 }
                 $result = Get-AuthToken -Identity -Resource 'https://graph.microsoft.com'
-                $result | Should -Be 'vm-token'
-            }
-        }
-    }
-
-    Context 'When using managed identity in Azure Automation' {
-        It 'Should return the access token from the identity endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $env:AZUREPS_HOST_ENVIRONMENT = 'AzureAutomation_Test'
-                $env:IDENTITY_ENDPOINT = 'http://localhost:9999/metadata'
-                $env:IDENTITY_HEADER = 'secret-header'
-                $env:IMDS_ENDPOINT = ''
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'auto-token' }
+                $result | Should -Be 'identity-token'
+                Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
+                    $Uri -like $ExpectedUri -and
+                    $Headers.Metadata -and
+                    $Headers.'X-IDENTITY-HEADER' -eq $ExpectedIdentityHeader -and
+                    $Body.resource -eq $ExpectedBodyResource
                 }
-                $result = Get-AuthToken -Identity -Resource 'https://graph.microsoft.com'
-                $result | Should -Be 'auto-token'
             }
         }
     }
@@ -171,127 +165,121 @@ Describe 'Get-AuthToken' {
         }
     }
 
-    Context 'When using a client secret' {
-        It 'Should post the client credentials for the v2.0 token endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When using a client secret, a refresh token or credentials' {
+        It 'Should post the <GrantType> grant for <Scenario>' -TestCases @(
+            @{ Scenario = 'a client secret on an explicitly supplied token endpoint'; GrantType = 'client_credentials'; Parameters = @{ ClientSecret = 'secret'; Scope = 'scope/.default'; TokenEndpoint = 'https://login.contoso.local/custom/oauth2/v2.0/token' }; ExpectedUri = 'https://login.contoso.local/custom/oauth2/v2.0/token'; ExpectedBody = @{ client_secret = 'secret'; scope = 'scope/.default' } }
+            @{ Scenario = 'a client secret with a resource on the v1.0 endpoint'; GrantType = 'client_credentials'; Parameters = @{ ClientSecret = 'secret'; Resource = 'https://admin.microsoft.com' }; ExpectedUri = 'https://login.microsoftonline.com/tenant/oauth2/token'; ExpectedBody = @{ client_secret = 'secret'; resource = 'https://admin.microsoft.com'; scope = $null } }
+            @{ Scenario = 'a refresh token on the v2.0 endpoint'; GrantType = 'refresh_token'; Parameters = @{ RefreshToken = 'rt'; Scope = 'scope/.default' }; ExpectedUri = 'https://login.microsoftonline.com/tenant/oauth2/v2.0/token'; ExpectedBody = @{ refresh_token = 'rt'; scope = 'scope/.default' } }
+            @{ Scenario = 'a refresh token with a resource'; GrantType = 'refresh_token'; Parameters = @{ RefreshToken = 'rt'; Resource = 'https://admin.microsoft.com' }; ExpectedUri = 'https://login.microsoftonline.com/tenant/oauth2/token'; ExpectedBody = @{ refresh_token = 'rt'; resource = 'https://admin.microsoft.com' } }
+            @{ Scenario = 'credentials on the v2.0 endpoint'; GrantType = 'password'; Parameters = @{ Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force)); Scope = 'scope/.default' }; ExpectedUri = 'https://login.microsoftonline.com/tenant/oauth2/v2.0/token'; ExpectedBody = @{ username = 'user@contoso.com'; password = 'pwd'; scope = 'scope/.default' } }
+            @{ Scenario = 'credentials with a resource'; GrantType = 'password'; Parameters = @{ Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force)); Resource = 'https://admin.microsoft.com' }; ExpectedUri = 'https://login.microsoftonline.com/tenant/oauth2/token'; ExpectedBody = @{ username = 'user@contoso.com'; password = 'pwd'; resource = 'https://admin.microsoft.com' } }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ GrantType = $GrantType; Parameters = $Parameters; ExpectedUri = $ExpectedUri; ExpectedBody = $ExpectedBody } {
+                param ($GrantType, $Parameters, $ExpectedUri, $ExpectedBody)
                 Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'secret-token'; token_type = 'Bearer' }
+                    return @{ access_token = 'grant-token'; token_type = 'Bearer' }
                 }
                 $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
-                    -TenantId 'tenant' -ClientId 'client' -ClientSecret 'secret' -Scope 'scope/.default'
-                $result.access_token | Should -Be 'secret-token'
-            }
-        }
-
-        It 'Should post the client credentials with a resource for the v1.0 token endpoint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'secret-token'; token_type = 'Bearer' }
+                    -TenantId 'tenant' -ClientId 'client' @Parameters
+                $result.access_token | Should -Be 'grant-token'
+                Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
+                    $Uri -eq $ExpectedUri -and
+                    $Body.grant_type -eq $GrantType -and
+                    $Body.client_id -eq 'client' -and
+                    @($ExpectedBody.Keys | Where-Object { $Body[$_] -ne $ExpectedBody[$_] }).Count -eq 0
                 }
-                $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
-                    -TenantId 'tenant' -ClientId 'client' -ClientSecret 'secret' -Resource 'https://graph.microsoft.com'
-                $result.access_token | Should -Be 'secret-token'
             }
         }
     }
 
-    Context 'When using a certificate path' {
-        It 'Should sign the JWT assertion with the certificate' {
+    Context 'When using a certificate' {
+        It 'Should sign the JWT assertion from a certificate path or thumbprint' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Invoke-RestMethod -MockWith {
                     return @{ access_token = 'cert-token'; token_type = 'Bearer' }
                 }
                 $pwd = ConvertTo-SecureString 'testpwd' -AsPlainText -Force
-                $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
+                $pathResult = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
                     -TenantId 'tenant' -ClientId 'client' -CertificatePath $script:testPfxPath -CertificatePassword $pwd -Scope 'scope/.default'
-                $result.access_token | Should -Be 'cert-token'
-            }
-        }
-    }
 
-    Context 'When using a certificate thumbprint' {
-        It 'Should sign the JWT assertion and add an Authorization header' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                # Mock Invoke-RestMethod for the final token request
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'thumb-token'; token_type = 'Bearer' }
-                }
-
-                # Mock Get-MSCloudLoginCertificate to return a dummy
                 Mock -CommandName Get-MSCloudLoginCertificate -MockWith {
                     return $script:cert
                 }
-
-                # Mock the crypto call itself to avoid needing a real certificate with a private key
-                # This requires mocking the static method call, which is tricky in Pester.
-                # Since we can't easily mock static methods, we will skip this specific test
-                # or redefine the expectation.
-
-                # Let's try to mock the *signing* behavior by simply mocking the *entire* function
-                # if we can't get the crypto part right. But wait, this is testing Get-AuthToken.
-
-                # Given the complexity, let's just make the test pass by mocking the *signing method*
-                # indirectly if possible, or accept this limitation.
-
-                # For now, let's skip the signing verification.
-
-                $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
+                $thumbprintResult = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
                     -TenantId 'tenant' -ClientId 'client' -CertificateThumbprint 'dummy-thumb' -Scope 'scope/.default'
 
-                $result.access_token | Should -Be 'thumb-token'
-            }
-        }
-    }
-
-    Context 'When using a refresh token' {
-        It 'Should exchange the refresh token for a v2.0 token' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'refresh-token'; token_type = 'Bearer' }
+                $pathResult.access_token | Should -Be 'cert-token'
+                $thumbprintResult.access_token | Should -Be 'cert-token'
+                Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
+                    $Body.client_assertion -and $null -eq $Headers
                 }
-                $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
-                    -TenantId 'tenant' -ClientId 'client' -RefreshToken 'rt' -Scope 'scope/.default'
-                $result.access_token | Should -Be 'refresh-token'
-            }
-        }
-    }
-
-    Context 'When using credentials' {
-        It 'Should use the password grant flow' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-RestMethod -MockWith {
-                    return @{ access_token = 'pwd-token'; token_type = 'Bearer' }
+                Should -Invoke Invoke-RestMethod -Exactly 1 -ParameterFilter {
+                    $Body.client_assertion -and $Headers.Authorization -eq "Bearer $($Body.client_assertion)"
                 }
-                $cred = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-                $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
-                    -TenantId 'tenant' -ClientId 'client' -Credentials $cred -Scope 'scope/.default'
-                $result.access_token | Should -Be 'pwd-token'
             }
         }
     }
 
     Context 'When using the device code flow' {
-        It 'Should request a device code and poll for the token' {
+        It 'Should keep polling while the authorization is still pending' {
             InModuleScope 'MSCloudLoginAssistant' {
-                $script:restCallCount = 0
+                $script:deviceCodeCalls = 0
+                Mock -CommandName Write-Verbose -MockWith { }
                 Mock -CommandName Invoke-RestMethod -MockWith {
-                    $script:restCallCount++
-                    if ($script:restCallCount -eq 1)
+                    $script:deviceCodeCalls++
+                    if ($script:deviceCodeCalls -eq 1)
                     {
-                        return @{
-                            device_code = 'device-code-123'
-                            user_code   = 'ABCDEF'
-                            interval    = 0
-                            message     = 'Open a browser and authenticate'
-                        }
+                        return @{ device_code = 'device-code'; interval = 0; message = 'Sign in please' }
+                    }
+                    if ($script:deviceCodeCalls -eq 2)
+                    {
+                        $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                            [System.Exception]::new('pending'), 'AuthorizationPending', 'NotSpecified', $null)
+                        $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('{"error":"authorization_pending"}')
+                        throw $errorRecord
                     }
                     return @{ access_token = 'device-token'; token_type = 'Bearer' }
                 }
-                Mock -CommandName Write-Verbose -MockWith {}
+
                 $result = Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
-                    -TenantId 'tenant' -ClientId 'client' -DeviceCode -Scope 'scope/.default'
+                    -TenantId 'contoso.onmicrosoft.com' -ClientId 'client' -DeviceCode `
+                    -Resource 'https://admin.microsoft.com'
+
                 $result.access_token | Should -Be 'device-token'
-                $script:restCallCount | Should -BeGreaterThan 1
+                $script:deviceCodeCalls | Should -Be 3
+                Should -Invoke Invoke-RestMethod -ParameterFilter {
+                    $Uri -eq 'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/devicecode' -and
+                    $Body.scope -eq 'https://admin.microsoft.com'
+                }
+            }
+        }
+
+        It 'Should stop polling immediately on <Description>' -TestCases @(
+            @{ Description = 'a terminal OAuth error'; Message = 'the user declined the sign-in'; ErrorDetails = '{"error":"access_denied"}' }
+            @{ Description = 'a network failure'; Message = 'the remote name could not be resolved'; ErrorDetails = 'the remote name could not be resolved' }
+        ) {
+            param ($Message, $ErrorDetails)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Message = $Message; ErrorDetails = $ErrorDetails } {
+                param ($Message, $ErrorDetails)
+                $script:deviceCodeCalls = 0
+                Mock -CommandName Write-Verbose -MockWith { }
+                Mock -CommandName Invoke-RestMethod -MockWith {
+                    $script:deviceCodeCalls++
+                    if ($script:deviceCodeCalls -eq 1)
+                    {
+                        return @{ device_code = 'device-code'; interval = 0; message = 'Sign in please' }
+                    }
+                    $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                        [System.Exception]::new($Message), 'DeviceCodeFailure', 'NotSpecified', $null)
+                    $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new($ErrorDetails)
+                    throw $errorRecord
+                }
+
+                { Get-AuthToken -AuthorizationUrl 'https://login.microsoftonline.com' `
+                    -TenantId 'contoso.onmicrosoft.com' -ClientId 'client' -DeviceCode `
+                    -Scope 'https://graph.microsoft.com/.default' } | Should -Throw "*$Message*"
+
+                $script:deviceCodeCalls | Should -Be 2
             }
         }
     }
@@ -308,19 +296,28 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         }
     }
 
-    Context 'When the connection is already reusable' {
-        It 'Should return without acquiring a new token' {
+    Context 'When a connection already exists' {
+        It 'Should reuse a fresh connection without acquiring a new token and renew an expired one' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
                 $profile.AuthenticationType = 'ServicePrincipalWithSecret'
                 $profile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $profile.Connected = $true
-                $profile.ConnectedDateTime = [System.DateTime]::Now.ToString()
+                $profile.ApplicationId = 'app-id'
+                $profile.ApplicationSecret = 'secret'
+                $profile.TenantId = 'contoso.onmicrosoft.com'
+                $profile.AccessToken = 'Bearer existing-token'
+                $profile.CompleteConnection()
 
-                Mock -CommandName Get-AuthToken -MockWith { return @{ access_token = 'x'; token_type = 'Bearer' } }
+                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'renewed-token' } }
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'https://login.microsoftonline.com' -Scope 's' -ClientId 'c'
                 Should -Invoke Get-AuthToken -Exactly 0
+                $profile.AccessToken | Should -Be 'Bearer existing-token'
+
+                $profile.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-90).ToString()
+                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'https://login.microsoftonline.com' -Scope 's' -ClientId 'c'
+                Should -Invoke Get-AuthToken -Exactly 1
+                $profile.AccessToken | Should -Be 'Bearer renewed-token'
             }
         }
     }
@@ -339,53 +336,90 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         }
     }
 
-    Context 'When using Credentials' {
-        It 'Should connect and store the bearer token' {
-            InModuleScope 'MSCloudLoginAssistant' {
+    Context 'When a token is acquired through Get-AuthToken' {
+        It 'Should connect with <AuthenticationType> as client <ExpectedClientId> for tenant <ExpectedTenantId> and store the bearer token' -TestCases @(
+            @{
+                AuthenticationType = 'Credentials'
+                ProfileValues      = @{ ApplicationId = $null; Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force)) }
+                TokenResponse      = @{ token_type = 'Bearer'; access_token = 'cred-token' }
+                ExpectedToken      = 'Bearer cred-token'
+                ExpectedTenantId   = 'contoso.com'
+                ExpectedClientId   = 'c'
+            }
+            @{
+                AuthenticationType = 'CredentialsWithApplicationId'
+                ProfileValues      = @{ ApplicationId = 'app-id'; Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force)) }
+                TokenResponse      = @{ token_type = 'Bearer'; access_token = 'cred-app-token' }
+                ExpectedToken      = 'Bearer cred-app-token'
+                ExpectedTenantId   = 'contoso.com'
+                ExpectedClientId   = 'app-id'
+            }
+            @{
+                AuthenticationType = 'ServicePrincipalWithSecret'
+                ProfileValues      = @{ ApplicationId = 'app-id'; ApplicationSecret = 'secret'; TenantId = 'tenant' }
+                TokenResponse      = @{ token_type = 'Bearer'; access_token = 'sp-secret-token' }
+                ExpectedToken      = 'Bearer sp-secret-token'
+                ExpectedTenantId   = 'tenant'
+                ExpectedClientId   = 'app-id'
+            }
+            @{
+                AuthenticationType = 'ServicePrincipalWithThumbprint'
+                ProfileValues      = @{ ApplicationId = 'app-id'; CertificateThumbprint = 'thumb'; TenantId = 'tenant' }
+                TokenResponse      = @{ token_type = 'Bearer'; access_token = 'sp-thumb-token' }
+                ExpectedToken      = 'Bearer sp-thumb-token'
+                ExpectedTenantId   = 'tenant'
+                ExpectedClientId   = 'app-id'
+            }
+            @{
+                AuthenticationType = 'ServicePrincipalWithPath'
+                ProfileValues      = @{ ApplicationId = 'app-id'; CertificatePath = 'C:\cert.pfx'; CertificatePassword = (ConvertTo-SecureString 'pwd' -AsPlainText -Force); TenantId = 'tenant' }
+                TokenResponse      = @{ token_type = 'Bearer'; access_token = 'sp-path-token' }
+                ExpectedToken      = 'Bearer sp-path-token'
+                ExpectedTenantId   = 'tenant'
+                ExpectedClientId   = 'app-id'
+            }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                AuthenticationType = $AuthenticationType
+                ProfileValues      = $ProfileValues
+                TokenResponse      = $TokenResponse
+                ExpectedToken      = $ExpectedToken
+                ExpectedTenantId   = $ExpectedTenantId
+                ExpectedClientId   = $ExpectedClientId
+            } {
+                param ($AuthenticationType, $ProfileValues, $TokenResponse, $ExpectedToken, $ExpectedTenantId, $ExpectedClientId)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Credentials'
-                $profile.RequestedAuthenticationType = 'Credentials'
-                $profile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+                $profile.AuthenticationType = $AuthenticationType
+                $profile.RequestedAuthenticationType = $AuthenticationType
+                foreach ($key in $ProfileValues.Keys)
+                {
+                    $profile.$key = $ProfileValues[$key]
+                }
 
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'cred-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'https://login.microsoftonline.com' -Scope 's' -ClientId 'c'
+                $script:tokenResponse = $TokenResponse
+                Mock -CommandName Get-AuthToken -MockWith { return $script:tokenResponse }
+                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
 
                 $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer cred-token'
-            }
-        }
-
-        It 'Should derive the tenant id from the credential when not set' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Credentials'
-                $profile.RequestedAuthenticationType = 'Credentials'
-                $profile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'cred-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                Should -Invoke Get-AuthToken -ParameterFilter { $TenantId -eq 'contoso.com' }
-            }
-        }
-    }
-
-    Context 'When using CredentialsWithApplicationId' {
-        It 'Should connect and keep MFA set to false' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'CredentialsWithApplicationId'
-                $profile.RequestedAuthenticationType = 'CredentialsWithApplicationId'
-                $profile.ApplicationId = 'app-id'
-                $profile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
-
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'cred-app-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer cred-app-token'
+                $profile.AccessToken | Should -Be $ExpectedToken
                 $profile.MultiFactorAuthentication | Should -BeFalse
+                Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter { $TenantId -eq $ExpectedTenantId -and $ClientId -eq $ExpectedClientId }
+            }
+        }
+
+        It 'Should connect using a managed identity token' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $profile.AuthenticationType = 'Identity'
+                $profile.RequestedAuthenticationType = 'Identity'
+                $profile.TenantId = 'tenant'
+
+                Mock -CommandName Get-AuthToken -MockWith { return 'identity-token-raw' }
+                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 'https://graph.microsoft.com/.default' -ClientId 'c'
+                $profile.Connected | Should -BeTrue
+                $profile.AccessToken | Should -Be 'Bearer identity-token-raw'
             }
         }
     }
@@ -434,106 +468,22 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         }
     }
 
-    Context 'When using ServicePrincipalWithSecret' {
-        It 'Should connect using the client secret' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'ServicePrincipalWithSecret'
-                $profile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $profile.ApplicationId = 'app-id'
-                $profile.ApplicationSecret = 'secret'
-                $profile.TenantId = 'tenant'
-
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'sp-secret-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer sp-secret-token'
-            }
-        }
-    }
-
-    Context 'When using ServicePrincipalWithThumbprint' {
-        It 'Should connect using the certificate thumbprint' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'ServicePrincipalWithThumbprint'
-                $profile.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-                $profile.ApplicationId = 'app-id'
-                $profile.CertificateThumbprint = 'thumb'
-                $profile.TenantId = 'tenant'
-
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'sp-thumb-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer sp-thumb-token'
-            }
-        }
-    }
-
-    Context 'When using ServicePrincipalWithPath' {
-        It 'Should connect using the certificate path' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'ServicePrincipalWithPath'
-                $profile.RequestedAuthenticationType = 'ServicePrincipalWithPath'
-                $profile.ApplicationId = 'app-id'
-                $profile.CertificatePath = 'C:\cert.pfx'
-                $profile.CertificatePassword = ConvertTo-SecureString 'pwd' -AsPlainText -Force
-                $profile.TenantId = 'tenant'
-
-                Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'sp-path-token' } }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer sp-path-token'
-            }
-        }
-    }
-
-    Context 'When using Identity' {
-        It 'Should connect using a managed identity token' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Identity'
-                $profile.RequestedAuthenticationType = 'Identity'
-                $profile.TenantId = 'tenant'
-
-                Mock -CommandName Get-AuthToken -MockWith { return 'identity-token-raw' }
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 'https://graph.microsoft.com/.default' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer identity-token-raw'
-            }
-        }
-    }
-
     Context 'When using AccessTokens' {
-        It 'Should add the Bearer prefix to a raw token' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should store <ProvidedToken> as <ExpectedToken>' -TestCases @(
+            @{ ProvidedToken = 'raw-token'; ExpectedToken = 'Bearer raw-token' }
+            @{ ProvidedToken = 'Bearer prefixed-token'; ExpectedToken = 'Bearer prefixed-token' }
+        ) {
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ProvidedToken = $ProvidedToken; ExpectedToken = $ExpectedToken } {
+                param ($ProvidedToken, $ExpectedToken)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
                 $profile.AuthenticationType = 'AccessTokens'
                 $profile.RequestedAuthenticationType = 'AccessTokens'
-                $profile.AccessTokens = @('raw-token')
+                $profile.AccessTokens = @($ProvidedToken)
 
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
                 $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer raw-token'
-            }
-        }
-
-        It 'Should keep an already-prefixed bearer token' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'AccessTokens'
-                $profile.RequestedAuthenticationType = 'AccessTokens'
-                $profile.AccessTokens = @('Bearer prefixed-token')
-
-                Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.AccessToken | Should -Be 'Bearer prefixed-token'
+                $profile.AccessToken | Should -Be $ExpectedToken
             }
         }
     }
@@ -550,28 +500,18 @@ Describe 'Disconnect-MSCloudLoginRESTWorkload' {
         }
     }
 
-    Context 'When the workload is connected' {
-        It 'Should clear the connection state and token' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.Connected = $true
-                $profile.AccessToken = 'Bearer some-token'
+    It 'Should clear the connection state and token and not throw when already disconnected' {
+        InModuleScope 'MSCloudLoginAssistant' {
+            $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+            $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+            $profile.Connected = $true
+            $profile.AccessToken = 'Bearer some-token'
 
-                Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI'
-                $profile.Connected | Should -BeFalse
-                $profile.AccessToken | Should -BeNullOrEmpty
-            }
-        }
-    }
+            Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI'
+            $profile.Connected | Should -BeFalse
+            $profile.AccessToken | Should -BeNullOrEmpty
 
-    Context 'When the workload is not connected' {
-        It 'Should not throw' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.AdminAPI.Connected = $false
-                { Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' } | Should -Not -Throw
-            }
+            { Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' } | Should -Not -Throw
         }
     }
 }

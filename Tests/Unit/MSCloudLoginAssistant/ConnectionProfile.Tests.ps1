@@ -32,8 +32,10 @@ AfterAll {
 
 Describe 'PnP constructor validation' {
 
-    It 'Should refuse a certificate thumbprint combined with a certificate path' {
+    It 'Should only refuse a certificate thumbprint that is combined with a certificate path' {
         InModuleScope 'MSCloudLoginAssistant' {
+            { [PnP]::new() } | Should -Not -Throw
+
             # Property initializers run before the base constructor body, which lets us
             # instantiate the class with both certificate options already populated.
             # The class keyword resolves base types at parse time, so the derived class
@@ -49,12 +51,6 @@ class PnPWithConflictingCertificate : PnP
 
             { [PnPWithConflictingCertificate]::new() } |
                 Should -Throw '*Cannot specify both a Certificate Thumbprint and Certificate Path and Password*'
-        }
-    }
-
-    It 'Should allow an instance without conflicting certificate settings' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            { [PnP]::new() } | Should -Not -Throw
         }
     }
 }
@@ -176,38 +172,28 @@ Describe 'SharePointOnlineREST connection logic' {
         }
     }
 
-    It 'Should adopt the admin URL that was discovered through the tenant id' {
-        InModuleScope 'MSCloudLoginAssistant' {
+    It 'Should adopt the discovered admin URL and derive the scope from the host URL in the <ExpectedEnvironmentName> environment' -TestCases @(
+        @{ CustomEnvironment = $false; ExpectedEnvironmentName = 'AzureCloud'; ExpectedHostUrl = 'https://contoso-admin.sharepoint.com' }
+        @{ CustomEnvironment = $true; ExpectedEnvironmentName = 'Custom'; ExpectedHostUrl = 'https://customdomain.sharepoint.com' }
+    ) {
+        param ($CustomEnvironment, $ExpectedEnvironmentName, $ExpectedHostUrl)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CustomEnvironment = $CustomEnvironment; ExpectedEnvironmentName = $ExpectedEnvironmentName; ExpectedHostUrl = $ExpectedHostUrl } {
+            param ($CustomEnvironment, $ExpectedEnvironmentName, $ExpectedHostUrl)
+
+            $Script:CustomEnvConfig.CustomEnvironment = $CustomEnvironment
             Mock -CommandName Connect-MSCloudLoginSharePointOnlineREST -MockWith { }
 
             $workload = [SharePointOnlineREST]::new()
             $workload.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
             $workload.Connect()
 
+            $workload.EnvironmentName | Should -Be $ExpectedEnvironmentName
             $workload.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.com'
-            $workload.HostUrl | Should -Be 'https://contoso-admin.sharepoint.com'
-            $workload.Scope | Should -Be 'https://contoso-admin.sharepoint.com/.default'
-            $workload.AuthorizationUrl | Should -Be 'https://login.microsoftonline.com'
-            Should -Invoke Connect-MSCloudLoginSharePointOnlineREST -Exactly 1
-        }
-    }
-
-    It 'Should derive the scope from the custom host URL' {
-        InModuleScope 'MSCloudLoginAssistant' {
-            $Script:CustomEnvConfig.CustomEnvironment = $true
-            Mock -CommandName Connect-MSCloudLoginSharePointOnlineREST -MockWith { }
-
-            $workload = [SharePointOnlineREST]::new()
-            $workload.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-            $workload.Connect()
-
-            $workload.EnvironmentName | Should -Be 'Custom'
-            $workload.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.com'
-            $workload.HostUrl | Should -Be 'https://customdomain.sharepoint.com'
+            $workload.HostUrl | Should -Be $ExpectedHostUrl
             $workload.AuthorizationUrl | Should -Be 'https://login.microsoftonline.com'
             # The custom configuration defines no dedicated scope key, so the class
             # derives the scope from the resolved host URL.
-            $workload.Scope | Should -Be 'https://customdomain.sharepoint.com/.default'
+            $workload.Scope | Should -Be "$ExpectedHostUrl/.default"
             Should -Invoke Connect-MSCloudLoginSharePointOnlineREST -Exactly 1
         }
     }

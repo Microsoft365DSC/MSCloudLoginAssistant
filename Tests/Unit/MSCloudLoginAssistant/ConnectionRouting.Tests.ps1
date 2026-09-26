@@ -41,11 +41,24 @@ Describe 'Connect-M365Tenant URL routing' {
     }
 
     Context 'When PnP is asked for the URL it is already configured for' {
-        It 'Should reconnect when the live PnP context points somewhere else' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should connect <ExpectedConnections> time(s) when the live PnP context <Description>' -TestCases @(
+            @{ Description = 'points somewhere else'; ContextUrl = 'https://contoso.sharepoint.com/sites/marketing'; ExpectedConnections = 2 }
+            @{ Description = 'matches'; ContextUrl = 'https://contoso-admin.sharepoint.com'; ExpectedConnections = 1 }
+            @{ Description = 'cannot be read'; ContextUrl = $null; ExpectedConnections = 1 }
+        ) {
+            param ($ContextUrl, $ExpectedConnections)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ContextUrl = $ContextUrl; ExpectedConnections = $ExpectedConnections } {
+                param ($ContextUrl, $ExpectedConnections)
+
                 Mock -CommandName Import-Module -MockWith { }
                 Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { return @{ Url = 'https://contoso.sharepoint.com/sites/marketing' } }
+                Mock -CommandName Get-PnPContext -MockWith {
+                    if ($null -eq $ContextUrl)
+                    {
+                        throw 'no context available'
+                    }
+                    return @{ Url = $ContextUrl }
+                }.GetNewClosure()
 
                 $parameters = @{
                     Workload              = 'PnP'
@@ -57,48 +70,8 @@ Describe 'Connect-M365Tenant URL routing' {
                 Connect-M365Tenant @parameters
                 Connect-M365Tenant @parameters
 
-                Should -Invoke Connect-PnPOnline -Exactly 2
+                Should -Invoke Connect-PnPOnline -Exactly $ExpectedConnections
                 (Get-MSCloudLoginConnectionProfile -Workload 'PnP').ConnectionUrl | Should -Be 'https://contoso-admin.sharepoint.com'
-            }
-        }
-
-        It 'Should keep the session when the live PnP context matches' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { return @{ Url = 'https://contoso-admin.sharepoint.com' } }
-
-                $parameters = @{
-                    Workload              = 'PnP'
-                    Url                   = 'https://contoso-admin.sharepoint.com'
-                    ApplicationId         = '11111111-1111-1111-1111-111111111111'
-                    TenantId              = 'contoso.onmicrosoft.com'
-                    CertificateThumbprint = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
-                }
-                Connect-M365Tenant @parameters
-                Connect-M365Tenant @parameters
-
-                Should -Invoke Connect-PnPOnline -Exactly 1
-            }
-        }
-
-        It 'Should keep the session when the PnP context cannot be read' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { throw 'no context available' }
-
-                $parameters = @{
-                    Workload              = 'PnP'
-                    Url                   = 'https://contoso-admin.sharepoint.com'
-                    ApplicationId         = '11111111-1111-1111-1111-111111111111'
-                    TenantId              = 'contoso.onmicrosoft.com'
-                    CertificateThumbprint = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
-                }
-                Connect-M365Tenant @parameters
-                Connect-M365Tenant @parameters
-
-                Should -Invoke Connect-PnPOnline -Exactly 1
             }
         }
     }
@@ -178,7 +151,7 @@ Describe 'Compare-InputParametersForChange session parameters' {
     }
 
     Context 'Exchange Online cmdlets' {
-        It 'Should report no change when the same cmdlets are requested again' {
+        It 'Should report a change only when another set of cmdlets is requested' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $workloadProfile = $Script:MSCloudLoginConnectionProfile.ExchangeOnline
@@ -197,27 +170,8 @@ Describe 'Compare-InputParametersForChange session parameters' {
                     ExchangeOnlineCmdlets = @('Set-Mailbox', 'Get-Mailbox')
                 }
                 (Compare-InputParametersForChange -CurrentParamSet $parameters) | Should -BeFalse
-            }
-        }
 
-        It 'Should report a change when another cmdlet is requested' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $workloadProfile = $Script:MSCloudLoginConnectionProfile.ExchangeOnline
-                $workloadProfile.AuthenticationType = 'ServicePrincipalWithSecret'
-                $workloadProfile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $workloadProfile.ApplicationId = 'app-id'
-                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-                $workloadProfile.ApplicationSecret = 'secret'
-                $workloadProfile.CmdletsToLoad = @('Get-Mailbox')
-
-                $parameters = @{
-                    Workload              = 'ExchangeOnline'
-                    ApplicationId         = 'app-id'
-                    TenantId              = 'contoso.onmicrosoft.com'
-                    ApplicationSecret     = 'secret'
-                    ExchangeOnlineCmdlets = @('Get-User')
-                }
+                $parameters['ExchangeOnlineCmdlets'] = @('Get-Mailbox', 'Get-User')
                 (Compare-InputParametersForChange -CurrentParamSet $parameters) | Should -BeTrue
             }
         }
@@ -274,7 +228,7 @@ Describe 'Compare-InputParametersForChange session parameters' {
     }
 
     Context 'Search only sessions' {
-        It 'Should detect that the search only session was turned on' {
+        It 'Should report a change only when the search only session was turned on' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
@@ -293,34 +247,15 @@ Describe 'Compare-InputParametersForChange session parameters' {
                     EnableSearchOnlySession = $true
                 }
                 (Compare-InputParametersForChange -CurrentParamSet $parameters) | Should -BeTrue
-            }
-        }
 
-        It 'Should report no change when the search only session stays on' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
-                $workloadProfile.AuthenticationType = 'ServicePrincipalWithThumbprint'
-                $workloadProfile.RequestedAuthenticationType = 'ServicePrincipalWithThumbprint'
-                $workloadProfile.ApplicationId = 'app-id'
-                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-                $workloadProfile.CertificateThumbprint = 'thumbprint'
                 $workloadProfile.EnableSearchOnlySession = $true
-
-                $parameters = @{
-                    Workload                = 'SecurityComplianceCenter'
-                    ApplicationId           = 'app-id'
-                    TenantId                = 'contoso.onmicrosoft.com'
-                    CertificateThumbprint   = 'thumbprint'
-                    EnableSearchOnlySession = $true
-                }
                 (Compare-InputParametersForChange -CurrentParamSet $parameters) | Should -BeFalse
             }
         }
     }
 
     Context 'Microsoft Graph tenant inference' {
-        It 'Should ignore the tenant that was inferred from the credential UPN' {
+        It 'Should ignore only the tenant that was inferred from the credential UPN' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 $credential = New-Object PSCredential ('admin@contoso.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))
@@ -331,55 +266,18 @@ Describe 'Compare-InputParametersForChange session parameters' {
                 $workloadProfile.TenantId = 'contoso.com'
 
                 (Compare-InputParametersForChange -CurrentParamSet @{ Workload = 'MicrosoftGraph'; Credential = $credential }) | Should -BeFalse
-            }
-        }
 
-        It 'Should detect a tenant that does not come from the credential UPN' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $credential = New-Object PSCredential ('admin@contoso.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))
-                $workloadProfile = $Script:MSCloudLoginConnectionProfile.MicrosoftGraph
-                $workloadProfile.AuthenticationType = 'Credentials'
-                $workloadProfile.RequestedAuthenticationType = 'Credentials'
-                $workloadProfile.Credentials = $credential
                 $workloadProfile.TenantId = 'fabrikam.com'
-
                 (Compare-InputParametersForChange -CurrentParamSet @{ Workload = 'MicrosoftGraph'; Credential = $credential }) | Should -BeTrue
             }
         }
     }
 
-    Context 'Workload name aliases' {
-        It 'Should resolve the PowerPlatforms alias to the PowerPlatform profile' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $workloadProfile = $Script:MSCloudLoginConnectionProfile.PowerPlatform
-                $workloadProfile.AuthenticationType = 'ServicePrincipalWithSecret'
-                $workloadProfile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $workloadProfile.ApplicationId = 'app-id'
-                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
-                $workloadProfile.ApplicationSecret = 'secret'
-
-                $parameters = @{
-                    Workload          = 'PowerPlatforms'
-                    ApplicationId     = 'app-id'
-                    TenantId          = 'contoso.onmicrosoft.com'
-                    ApplicationSecret = 'secret'
-                }
-                (Compare-InputParametersForChange -CurrentParamSet $parameters) | Should -BeFalse
-            }
-        }
-
-        It 'Should report a change when the workload is unknown' {
+    Context 'Unknown workloads' {
+        It 'Should report a change when the workload is unknown or no parameter set is supplied at all' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 (Compare-InputParametersForChange -CurrentParamSet @{ Workload = 'DoesNotExist' }) | Should -BeTrue
-            }
-        }
-
-        It 'Should report a change when no parameter set is supplied at all' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
                 (Compare-InputParametersForChange) | Should -BeTrue
             }
         }

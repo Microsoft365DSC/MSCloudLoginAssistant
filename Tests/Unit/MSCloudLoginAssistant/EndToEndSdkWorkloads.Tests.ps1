@@ -41,21 +41,34 @@ Describe 'Connect-M365Tenant end-to-end for PnP' {
     }
 
     Context 'When connecting with a service principal' {
-        It 'Should hand the certificate thumbprint and the production Azure environment to Connect-PnPOnline' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should hand the <Description> and the production Azure environment to Connect-PnPOnline and disconnect on reset' -TestCases @(
+            @{ Description = 'certificate thumbprint'; SecretParameters = @{ CertificateThumbprint = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' }; ExpectedAuthenticationType = 'ServicePrincipalWithThumbprint'; ExpectedSecret = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'; ExpectedTenant = 'contoso.onmicrosoft.com' }
+            @{ Description = 'application secret'; SecretParameters = @{ ApplicationSecret = 'super-secret' }; ExpectedAuthenticationType = 'ServicePrincipalWithSecret'; ExpectedSecret = 'super-secret'; ExpectedTenant = '' }
+            @{ Description = 'certificate path and password'; SecretParameters = @{ CertificatePath = 'C:\certificates\contoso.pfx'; CertificatePassword = (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force) }; ExpectedAuthenticationType = 'ServicePrincipalWithPath'; ExpectedSecret = 'C:\certificates\contoso.pfx'; ExpectedTenant = 'contoso.onmicrosoft.com' }
+        ) {
+            param ($SecretParameters, $ExpectedAuthenticationType, $ExpectedSecret, $ExpectedTenant)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                SecretParameters           = $SecretParameters
+                ExpectedAuthenticationType = $ExpectedAuthenticationType
+                ExpectedSecret             = $ExpectedSecret
+                ExpectedTenant             = $ExpectedTenant
+            } {
+                param ($SecretParameters, $ExpectedAuthenticationType, $ExpectedSecret, $ExpectedTenant)
                 Mock -CommandName Import-Module -MockWith { }
                 Mock -CommandName Connect-PnPOnline -MockWith { }
+                Mock -CommandName Disconnect-PnPOnline -MockWith { }
                 Mock -CommandName Get-PnPContext -MockWith { return @{ Url = 'https://contoso-admin.sharepoint.com' } }
 
                 Connect-M365Tenant -Workload 'PnP' `
                     -Url 'https://contoso-admin.sharepoint.com' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
                     -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+                    @SecretParameters
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'PnP'
 
                 $connection.Connected | Should -BeTrue
+                $connection.AuthenticationType | Should -Be $ExpectedAuthenticationType
                 $connection.ConnectionUrl | Should -Be 'https://contoso-admin.sharepoint.com'
                 $connection.AdminUrl | Should -Be 'https://contoso-admin.sharepoint.com'
                 $connection.PnPAzureEnvironment | Should -Be 'Production'
@@ -63,49 +76,16 @@ Describe 'Connect-M365Tenant end-to-end for PnP' {
                 Should -Invoke Connect-PnPOnline -Exactly 1 -ParameterFilter {
                     $Url -eq 'https://contoso-admin.sharepoint.com' -and
                     $ClientId -eq '11111111-1111-1111-1111-111111111111' -and
-                    $Tenant -eq 'contoso.onmicrosoft.com' -and
-                    $Thumbprint -eq 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' -and
+                    "$Tenant" -eq $ExpectedTenant -and
+                    @($Thumbprint, $ClientSecret, $CertificatePath) -contains $ExpectedSecret -and
                     $AzureEnvironment -eq 'Production'
                 }
-            }
-        }
 
-        It 'Should hand the application secret to Connect-PnPOnline' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { return @{ Url = 'https://contoso-admin.sharepoint.com' } }
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'PnP'
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'PnP'
 
-                Connect-M365Tenant -Workload 'PnP' `
-                    -Url 'https://contoso-admin.sharepoint.com' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -ApplicationSecret 'super-secret'
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'PnP').Connected | Should -BeTrue
-                Should -Invoke Connect-PnPOnline -Exactly 1 -ParameterFilter {
-                    $ClientSecret -eq 'super-secret' -and $AzureEnvironment -eq 'Production'
-                }
-            }
-        }
-
-        It 'Should hand the certificate path and password to Connect-PnPOnline' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { return @{ Url = 'https://contoso-admin.sharepoint.com' } }
-
-                Connect-M365Tenant -Workload 'PnP' `
-                    -Url 'https://contoso-admin.sharepoint.com' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificatePath 'C:\certificates\contoso.pfx' `
-                    -CertificatePassword (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force)
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'PnP').AuthenticationType | Should -Be 'ServicePrincipalWithPath'
-                Should -Invoke Connect-PnPOnline -Exactly 1 -ParameterFilter {
-                    $CertificatePath -eq 'C:\certificates\contoso.pfx'
-                }
+                Should -Invoke Disconnect-PnPOnline -Exactly 1
+                (Get-MSCloudLoginConnectionProfile -Workload 'PnP').Connected | Should -BeFalse
             }
         }
     }
@@ -325,27 +305,6 @@ Describe 'Connect-M365Tenant end-to-end for PnP' {
         }
     }
 
-    Context 'When PnP is reset' {
-        It 'Should disconnect the PnP session and clear the connection state' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Import-Module -MockWith { }
-                Mock -CommandName Connect-PnPOnline -MockWith { }
-                Mock -CommandName Disconnect-PnPOnline -MockWith { }
-                Mock -CommandName Get-PnPContext -MockWith { throw 'no context yet' }
-
-                Connect-M365Tenant -Workload 'PnP' `
-                    -Url 'https://contoso-admin.sharepoint.com' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
-
-                Reset-MSCloudLoginConnectionProfileContext -Workload 'PnP'
-
-                Should -Invoke Disconnect-PnPOnline -Exactly 1
-                (Get-MSCloudLoginConnectionProfile -Workload 'PnP').Connected | Should -BeFalse
-            }
-        }
-    }
 }
 
 Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
@@ -359,8 +318,13 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
     }
 
     Context 'When connecting with a service principal' {
-        It 'Should pass the certificate to Connect-MgGraph and expose the Global environment' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should pass the certificate of the <Description> to Connect-MgGraph and expose the Global environment' -TestCases @(
+            @{ Description = 'thumbprint'; CertificateParameters = @{ CertificateThumbprint = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' }; ExpectedCertificate = 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD' }
+            @{ Description = 'certificate path'; CertificateParameters = @{ CertificatePath = 'C:\certificates\contoso.pfx'; CertificatePassword = (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force) }; ExpectedCertificate = 'C:\certificates\contoso.pfx' }
+        ) {
+            param ($CertificateParameters, $ExpectedCertificate)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ CertificateParameters = $CertificateParameters; ExpectedCertificate = $ExpectedCertificate } {
+                param ($CertificateParameters, $ExpectedCertificate)
                 Mock -CommandName Connect-MgGraph -MockWith { }
                 Mock -CommandName Get-MgContext -MockWith { return $null }
                 Mock -CommandName Get-MSCloudLoginCertificate -MockWith {
@@ -370,7 +334,7 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
                 Connect-M365Tenant -Workload 'MicrosoftGraph' `
                     -ApplicationId '11111111-1111-1111-1111-111111111111' `
                     -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificateThumbprint 'AA11BB22CC33DD44EE55FF6677889900AABBCCDD'
+                    @CertificateParameters
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftGraph'
 
@@ -379,6 +343,9 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
                 $connection.ResourceUrl | Should -Be 'https://graph.microsoft.com/'
                 $connection.TokenUrl | Should -Be 'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token'
 
+                Should -Invoke Get-MSCloudLoginCertificate -Exactly 1 -ParameterFilter {
+                    @($CertificateThumbprint, $CertificatePath) -contains $ExpectedCertificate
+                }
                 Should -Invoke Connect-MgGraph -Exactly 1 -ParameterFilter {
                     $ClientId -eq '11111111-1111-1111-1111-111111111111' -and
                     $TenantId -eq 'contoso.onmicrosoft.com' -and
@@ -388,9 +355,10 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
             }
         }
 
-        It 'Should build a client secret credential for Connect-MgGraph' {
+        It 'Should build a client secret credential for Connect-MgGraph and disconnect on reset' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Connect-MgGraph -MockWith { }
+                Mock -CommandName Disconnect-MgGraph -MockWith { }
                 Mock -CommandName Get-MgContext -MockWith { return $null }
 
                 Connect-M365Tenant -Workload 'MicrosoftGraph' `
@@ -403,27 +371,12 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
                     $ClientSecretCredential.UserName -eq '11111111-1111-1111-1111-111111111111' -and
                     $ClientSecretCredential.GetNetworkCredential().Password -eq 'super-secret'
                 }
-            }
-        }
 
-        It 'Should load the certificate from disk for a certificate path connection' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Connect-MgGraph -MockWith { }
-                Mock -CommandName Get-MgContext -MockWith { return $null }
-                Mock -CommandName Get-MSCloudLoginCertificate -MockWith {
-                    return New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-                }
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'MicrosoftGraph'
+                Reset-MSCloudLoginConnectionProfileContext -Workload 'MicrosoftGraph'
 
-                Connect-M365Tenant -Workload 'MicrosoftGraph' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -CertificatePath 'C:\certificates\contoso.pfx' `
-                    -CertificatePassword (ConvertTo-SecureString 'certificate-password' -AsPlainText -Force)
-
-                (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftGraph').Connected | Should -BeTrue
-                Should -Invoke Get-MSCloudLoginCertificate -Exactly 1 -ParameterFilter {
-                    $CertificatePath -eq 'C:\certificates\contoso.pfx'
-                }
+                Should -Invoke Disconnect-MgGraph -Exactly 1
+                (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftGraph').Connected | Should -BeFalse
             }
         }
     }
@@ -495,23 +448,32 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
                 Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter {
                     $Resource -eq 'https://graph.microsoft.com' -and $Identity.IsPresent
                 }
+                Should -Invoke Connect-MgGraph -Exactly 1 -ParameterFilter {
+                    $AccessToken -is [System.Security.SecureString] -and $Environment -eq 'Global'
+                }
             }
         }
     }
 
     Context 'When connecting with user credentials' {
-        It 'Should acquire a delegated token and connect with the default Graph PowerShell application id' {
-            InModuleScope 'MSCloudLoginAssistant' {
+        It 'Should acquire a delegated token <Description> and connect with the default Graph PowerShell application id' -TestCases @(
+            @{ Description = 'without a tenant id'; TenantParameters = @{}; ExpectedAuthenticationType = 'Credentials' }
+            @{ Description = 'with a tenant id'; TenantParameters = @{ TenantId = 'contoso.onmicrosoft.com' }; ExpectedAuthenticationType = 'CredentialsWithTenantId' }
+        ) {
+            param ($TenantParameters, $ExpectedAuthenticationType)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ TenantParameters = $TenantParameters; ExpectedAuthenticationType = $ExpectedAuthenticationType } {
+                param ($TenantParameters, $ExpectedAuthenticationType)
                 Mock -CommandName Connect-MgGraph -MockWith { }
                 Mock -CommandName Disconnect-MgGraph -MockWith { }
                 Mock -CommandName Get-MgContext -MockWith { return $null }
                 Mock -CommandName Get-AuthToken -MockWith { return @{ access_token = 'delegated-token' } }
 
-                Connect-M365Tenant -Workload 'MicrosoftGraph' `
+                Connect-M365Tenant -Workload 'MicrosoftGraph' @TenantParameters `
                     -Credential (New-Object PSCredential ('admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force)))
 
                 $connection = Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftGraph'
                 $connection.Connected | Should -BeTrue
+                $connection.AuthenticationType | Should -Be $ExpectedAuthenticationType
                 $connection.ApplicationId | Should -Be '14d82eec-204b-4c2f-b7e8-296a70dab67e'
                 $connection.AccessTokens | Should -Be @('delegated-token')
                 Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter {
@@ -560,26 +522,6 @@ Describe 'Connect-M365Tenant end-to-end for Microsoft Graph' {
                 Connect-M365Tenant @parameters
 
                 Should -Invoke Connect-MgGraph -Exactly 1
-            }
-        }
-    }
-
-    Context 'When Microsoft Graph is reset' {
-        It 'Should disconnect the Graph session and clear the connection state' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Connect-MgGraph -MockWith { }
-                Mock -CommandName Disconnect-MgGraph -MockWith { }
-                Mock -CommandName Get-MgContext -MockWith { return $null }
-
-                Connect-M365Tenant -Workload 'MicrosoftGraph' `
-                    -ApplicationId '11111111-1111-1111-1111-111111111111' `
-                    -TenantId 'contoso.onmicrosoft.com' `
-                    -ApplicationSecret 'super-secret'
-
-                Reset-MSCloudLoginConnectionProfileContext -Workload 'MicrosoftGraph'
-
-                Should -Invoke Disconnect-MgGraph -Exactly 1
-                (Get-MSCloudLoginConnectionProfile -Workload 'MicrosoftGraph').Connected | Should -BeFalse
             }
         }
     }

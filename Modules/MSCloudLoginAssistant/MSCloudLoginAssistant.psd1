@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.2.9'
+    ModuleVersion          = '1.2.10'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,11 +112,7 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Fixed an issue where Exchange Online connections failed for applications without permissions for `Get-AcceptedDomain`.
-* Fixed an issue where an Exchange Online session of another application or a disconnected session was reused.
-* Fixed an issue where a failed import of an existing Exchange Online session aborted the connection instead of reconnecting.
-* Fixed an issue where Exchange Online connections of other runspaces were disconnected.
-* Fixed an issue where connecting to Teams would fail when using Managed Identity under Windows PowerShell.'
+            ReleaseNotes = '* Fixed an issue where PnP and Graph ignored the access token audience.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

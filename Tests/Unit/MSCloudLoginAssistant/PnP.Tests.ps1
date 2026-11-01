@@ -149,6 +149,20 @@ Describe 'Connect-MSCloudLoginPnP' {
             }
         }
 
+        It 'Should connect with the SharePoint token when a Microsoft Graph token comes first' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                $graphToken = 'eyJhbGciOiJub25lIn0.' + [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('{"aud":"https://graph.microsoft.com"}')).TrimEnd('=') + '.signature'
+                $sharePointToken = 'eyJhbGciOiJub25lIn0.' + [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('{"aud":"https://contoso-admin.sharepoint.com"}')).TrimEnd('=') + '.signature'
+                $Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType = 'AccessTokens'
+                $Script:MSCloudLoginConnectionProfile.PnP.AccessTokens = @($graphToken, $sharePointToken)
+                $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl = 'https://contoso-admin.sharepoint.com'
+
+                { Connect-MSCloudLoginPnP } | Should -Not -Throw
+
+                Should -Invoke Connect-PnPOnline -Exactly 1 -ParameterFilter { $AccessToken -eq $sharePointToken }
+            }
+        }
+
         It 'Should fail with a clear message when the admin URL cannot be resolved' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Get-SPOAdminUrl -MockWith { return '' }

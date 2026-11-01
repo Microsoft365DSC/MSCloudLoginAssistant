@@ -107,7 +107,10 @@ function Connect-MSCloudLoginMicrosoftGraph
             elseif ($Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AuthenticationType -eq 'AccessTokens')
             {
                 Add-MSCloudLoginAssistantEvent -Message 'Connecting to Microsoft Graph with AccessToken' -Source $source
-                $secStringAccessToken = ConvertTo-SecureString -String (Get-MSCloudLoginAccessTokenValue -Token $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens[0]) -AsPlainText -Force
+                $graphToken = Select-MSCloudLoginAccessToken -AccessTokens $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.AccessTokens `
+                    -ResourceUrl $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.ResourceUrl `
+                    -ResourceId '00000003-0000-0000-c000-000000000000'
+                $secStringAccessToken = ConvertTo-SecureString -String $graphToken -AsPlainText -Force
                 Connect-MgGraph -Environment $Script:MSCloudLoginConnectionProfile.MicrosoftGraph.GraphEnvironment `
                     -AccessToken $secStringAccessToken `
                     -NoWelcome

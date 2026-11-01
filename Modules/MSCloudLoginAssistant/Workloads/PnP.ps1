@@ -310,7 +310,17 @@ function Connect-MSCloudLoginPnP
             }
             elseif ($Script:MSCloudLoginConnectionProfile.PnP.AuthenticationType -eq 'AccessTokens')
             {
-                $AccessTokenValue = Get-MSCloudLoginAccessTokenValue -Token $Script:MSCloudLoginConnectionProfile.PnP.AccessTokens[0]
+                $pnpUrl = if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
+                {
+                    $Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl
+                }
+                else
+                {
+                    $Script:MSCloudLoginConnectionProfile.PnP.AdminUrl
+                }
+                $AccessTokenValue = Select-MSCloudLoginAccessToken -AccessTokens $Script:MSCloudLoginConnectionProfile.PnP.AccessTokens `
+                    -ResourceUrl $pnpUrl `
+                    -ResourceId '00000003-0000-0ff1-ce00-000000000000'
                 if ($Script:MSCloudLoginConnectionProfile.PnP.ConnectionUrl -or $ForceRefreshConnection)
                 {
                     Add-MSCloudLoginAssistantEvent -Message 'Connecting with AccessToken' -Source $source

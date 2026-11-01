@@ -133,6 +133,72 @@ function Get-MSCloudLoginAccessTokenClaims
 
 <#
 .SYNOPSIS
+    Selects the access token issued for a resource.
+
+.DESCRIPTION
+    Compares the aud claim of each token with the resource host or the resource application id.
+    Returns the first token when no token matches.
+
+.PARAMETER AccessTokens
+    The access tokens supplied for the workload.
+
+.PARAMETER ResourceUrl
+    The resource URL, for example https://graph.microsoft.com.
+
+.PARAMETER ResourceId
+    The application id of the resource, for an aud claim that contains a GUID.
+
+.OUTPUTS
+    System.String. The plain text token value.
+#>
+function Select-MSCloudLoginAccessToken
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Object[]]
+        $AccessTokens,
+
+        [Parameter()]
+        [System.String]
+        $ResourceUrl,
+
+        [Parameter()]
+        [System.String]
+        $ResourceId
+    )
+
+    $values = @($AccessTokens | ForEach-Object -Process { Get-MSCloudLoginAccessTokenValue -Token $_ })
+    $resourceUri = $null
+    $hasResourceUri = -not [System.String]::IsNullOrEmpty($ResourceUrl) -and [System.Uri]::TryCreate($ResourceUrl, [System.UriKind]::Absolute, [ref]$resourceUri)
+
+    foreach ($value in $values)
+    {
+        $claims = Get-MSCloudLoginAccessTokenClaims -Token $value
+        if ($null -eq $claims -or $claims.PSObject.Properties.Name -notcontains 'aud')
+        {
+            continue
+        }
+
+        if (-not [System.String]::IsNullOrEmpty($ResourceId) -and $claims.aud -eq $ResourceId)
+        {
+            return $value
+        }
+
+        $audienceUri = $null
+        if ($hasResourceUri -and [System.Uri]::TryCreate([System.String]$claims.aud, [System.UriKind]::Absolute, [ref]$audienceUri) -and $audienceUri.Host -eq $resourceUri.Host)
+        {
+            return $value
+        }
+    }
+
+    return $values[0]
+}
+
+<#
+.SYNOPSIS
     Reads the expiry time from the exp claim of a JSON Web Token.
 
 .PARAMETER Token

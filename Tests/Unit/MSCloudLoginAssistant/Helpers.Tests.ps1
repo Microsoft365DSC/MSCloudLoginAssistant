@@ -334,6 +334,26 @@ Describe 'Get-MSCloudLoginAccessTokenExpiry' {
     }
 }
 
+Describe 'Select-MSCloudLoginAccessToken' {
+
+    It 'Should return the token whose aud claim is <Audience> for <ResourceUrl>, else the first token' -TestCases @(
+        @{ Audience = 'https://graph.microsoft.com'; ResourceUrl = 'https://graph.microsoft.com/'; ResourceId = ''; Expected = 'second' }
+        @{ Audience = '00000003-0000-0000-c000-000000000000'; ResourceUrl = 'https://graph.microsoft.com/'; ResourceId = '00000003-0000-0000-c000-000000000000'; Expected = 'second' }
+        @{ Audience = 'https://contoso-admin.sharepoint.com'; ResourceUrl = 'https://contoso-admin.sharepoint.com'; ResourceId = ''; Expected = 'second' }
+        @{ Audience = 'https://outlook.office365.com'; ResourceUrl = 'https://graph.microsoft.com/'; ResourceId = ''; Expected = 'first' }
+    ) {
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ Audience = $Audience; ResourceUrl = $ResourceUrl; ResourceId = $ResourceId; Expected = $Expected } {
+            param ($Audience, $ResourceUrl, $ResourceId, $Expected)
+            $first = 'opaque-token'
+            $second = 'eyJhbGciOiJub25lIn0.' + [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("{`"aud`":`"$Audience`"}")).TrimEnd('=').Replace('+', '-').Replace('/', '_') + '.signature'
+            $tokens = @{ first = $first; second = $second }
+
+            Select-MSCloudLoginAccessToken -AccessTokens @($first, (ConvertTo-SecureString $second -AsPlainText -Force)) -ResourceUrl $ResourceUrl -ResourceId $ResourceId |
+                Should -Be $tokens[$Expected]
+        }
+    }
+}
+
 Describe 'Test-MSCloudLoginMFARequiredError' {
 
     It 'Should return <Expected> for "<Message>" with the additional patterns <AdditionalPatterns>' -TestCases @(

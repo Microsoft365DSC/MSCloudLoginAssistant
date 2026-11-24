@@ -358,6 +358,43 @@ Describe 'Get-CloudEnvironmentInfo' {
         }
     }
 
+    Context 'When the commercial endpoint does not know the tenant' {
+        BeforeEach {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
+            }
+        }
+
+        It 'Should fall back to the sovereign identity endpoints' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Invoke-WebRequest -MockWith {
+                    if ($Uri -notlike 'https://login.sovcloud-identity.de/*')
+                    {
+                        throw 'AADSTS90002: Tenant not found.'
+                    }
+                    return @{ Content = '{ "tenant_region_scope": "GG2", "token_endpoint": "https://login.sovcloud-identity.de/22222222-2222-2222-2222-222222222222/oauth2/v2.0/token" }' }
+                }
+
+                $credential = New-Object PSCredential ('admin@contoso.de', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+                $result = Get-CloudEnvironmentInfo -Credentials $credential
+
+                $result.tenant_region_scope | Should -Be 'GG2'
+                Should -Invoke Invoke-WebRequest -Exactly 2
+                Should -Invoke Invoke-WebRequest -Exactly 1 -ParameterFilter { $Uri -like 'https://login.microsoftonline.com/contoso.de/*' }
+                $Script:MSCloudLoginTenantGuidCache['contoso.de'] | Should -Be '22222222-2222-2222-2222-222222222222'
+            }
+        }
+
+        It 'Should rethrow the error of the last endpoint when no endpoint knows the tenant' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Invoke-WebRequest -MockWith { throw "AADSTS90002: Tenant not found at $Uri" }
+
+                { Get-CloudEnvironmentInfo -TenantId 'unknown.example' } | Should -Throw '*login.sovcloud-identity.fr*'
+                Should -Invoke Invoke-WebRequest -Exactly 3
+            }
+        }
+    }
+
     Context 'When Identity is provided without TenantId' {
         It 'Should return $null' {
             InModuleScope 'MSCloudLoginAssistant' {
@@ -374,61 +411,6 @@ Describe 'Get-CloudEnvironmentInfo' {
             InModuleScope 'MSCloudLoginAssistant' {
                 Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
                 { Get-CloudEnvironmentInfo } | Should -Throw 'TenantId or Credentials must be provided'
-            }
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Get-MSCloudLoginOrganizationName
-# ---------------------------------------------------------------------------
-Describe 'Get-MSCloudLoginOrganizationName' {
-
-    BeforeAll {
-        InModuleScope 'MSCloudLoginAssistant' {
-            Mock -CommandName Add-MSCloudLoginAssistantEvent -MockWith { }
-            Mock -CommandName Connect-M365Tenant -MockWith { }
-        }
-    }
-
-    Context 'When the domain lookup succeeds' {
-        It 'Should connect to Microsoft Graph with <AuthParameter> and return the initial domain' -TestCases @(
-            @{ AuthParameter = 'CertificateThumbprint'; Parameters = @{ ApplicationId = 'app'; TenantId = 'tenant'; CertificateThumbprint = 'thumb' } }
-            @{ AuthParameter = 'ApplicationSecret'; Parameters = @{ ApplicationId = 'app'; TenantId = 'tenant'; ApplicationSecret = 'secret' } }
-            @{ AuthParameter = 'Identity'; Parameters = @{ Identity = $true; TenantId = 'tenant' } }
-            @{ AuthParameter = 'AccessTokens'; Parameters = @{ AccessTokens = @('token1') } }
-        ) {
-            InModuleScope 'MSCloudLoginAssistant' -Parameters @{ AuthParameter = $AuthParameter; Parameters = $Parameters } {
-                param ($AuthParameter, $Parameters)
-                Mock -CommandName Invoke-MgGraphRequest -MockWith {
-                    return @{ value = @(
-                            @{ Id = 'contoso.com'; IsInitial = $true }
-                            @{ Id = 'contoso.onmicrosoft.com'; IsInitial = $false }
-                        )
-                    }
-                }
-                $result = Get-MSCloudLoginOrganizationName @Parameters
-                $result | Should -Be 'contoso.com'
-                Should -Invoke Connect-M365Tenant -Exactly 1 -ParameterFilter {
-                    $Workload -eq 'MicrosoftGraph' -and $PesterBoundParameters.ContainsKey($AuthParameter)
-                }
-            }
-        }
-    }
-
-    Context 'When the domain lookup fails' {
-        It 'Should fall back to the TenantId when provided' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-MgGraphRequest -MockWith { throw 'graph error' }
-                $result = Get-MSCloudLoginOrganizationName -ApplicationId 'app' -TenantId 'tenant-contoso' -ApplicationSecret 'secret'
-                $result | Should -Be 'tenant-contoso'
-            }
-        }
-
-        It 'Should re-throw when no TenantId is available' {
-            InModuleScope 'MSCloudLoginAssistant' {
-                Mock -CommandName Invoke-MgGraphRequest -MockWith { throw 'graph error' }
-                { Get-MSCloudLoginOrganizationName -AccessTokens @('token1') } | Should -Throw 'graph error'
             }
         }
     }

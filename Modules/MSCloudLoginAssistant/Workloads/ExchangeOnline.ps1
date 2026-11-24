@@ -171,236 +171,132 @@ function Connect-MSCloudLoginExchangeOnline
         Add-MSCloudLoginAssistantEvent -Message "Commands to load: $($CommandName.CommandName -join ',')" -Source $source
     }
 
-    if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'ServicePrincipalWithThumbprint')
-    {
-        Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)}" -Source $source
-        try
-        {
-            if ($PSVersionTable.PSVersion -gt [Version]'6.0' -and $PSVersionTable.Platform -ne 'Win32NT')
-            {
-                throw 'Certificate Thumbprint authentication is only supported on the Windows platform.'
-            }
-
-            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
-                $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
-            {
-                <#
-                $Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName `
-                    -ApplicationId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
-                    -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
-                    -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint
-                #>
-                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
-            }
-
-            if (($Script:CustomEnvConfig.CustomEnvironment -or $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName -eq 'Custom') -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri -and `
-                $null -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri)
-            {
-                Add-MSCloudLoginAssistantEvent -Message 'Connecting by endpoints URI' -Source $source
-                Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
-                    -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
-                    -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint `
-                    -ShowBanner:$false `
-                    -ShowProgress:$false `
-                    -ConnectionUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ConnectionUri `
-                    -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AzureADAuthorizationEndpointUri `
-                    -Verbose:$false `
-                    -SkipLoadingCmdletHelp `
-                    @CommandName | Out-Null
-            }
-            else
-            {
-                Add-MSCloudLoginAssistantEvent -Message 'Connecting by environment name' -Source $source
-                Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
-                    -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
-                    -CertificateThumbprint $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificateThumbprint `
-                    -ShowBanner:$false `
-                    -ShowProgress:$false `
-                    -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                    -Verbose:$false `
-                    -SkipLoadingCmdletHelp `
-                    @CommandName | Out-Null
-            }
-
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
-            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)}" -Source $source
-        }
-        catch
-        {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-            throw
-        }
+    $workloadProfile = $Script:MSCloudLoginConnectionProfile.ExchangeOnline
+    $authenticationType = $workloadProfile.AuthenticationType
+    $authenticationDescriptions = @{
+        ServicePrincipalWithThumbprint = 'Certificate Thumbprint'
+        ServicePrincipalWithPath       = 'Certificate Path'
+        Credentials                    = 'Credentials'
+        CredentialsWithApplicationId   = 'Credentials and ApplicationId'
+        CredentialsWithTenantId        = 'Credentials and TenantId'
+        Identity                       = 'Managed Identity'
+        AccessTokens                   = 'Access Token'
+        Interactive                    = 'Interactive sign-in'
     }
-    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'ServicePrincipalWithPath')
-    {
-        Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)} with Certificate Path" -Source $source
-        try
-        {
-            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName -or `
-                $Script:MSCloudLoginConnectionProfile.OrganizationName -ne $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId)
-            {
-                # Because we are using Certificate Path, an authentication to Graph is not possible here
-                if ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId -notlike '*.onmicrosoft.com')
-                {
-                    throw 'TenantId must be specified as the primary domain in the format <domain>.onmicrosoft.com when using Certificate Path authentication.'
-                }
-                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
-            }
 
-            if (($IsWindows -or $PSVersionTable.PSVersion.Major -eq 5) -and `
-                -not (Get-MSCloudLoginWindowsPrincipal).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
-            {
-                throw 'Certificate Path authentication on Windows requires the command to be run as Administrator.'
-            }
-
-            Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
-                -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
-                -CertificateFilePath $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificatePath `
-                -CertificatePassword $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CertificatePassword `
-                -ShowBanner:$false `
-                -ShowProgress:$false `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
-            Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online using AAD App {$($Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId)} with Certificate Path" -Source $source
-        }
-        catch
-        {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with Certificate Path: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-            throw
-        }
-    }
-    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'Credentials')
-    {
-        try
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Exchange Online using Credentials without MFA' -Source $source
-
-            Connect-ExchangeOnline -Credential $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials `
-                -ShowProgress:$false `
-                -ShowBanner:$false `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -ErrorAction Stop `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Credentials without MFA' -Source $source
-        }
-        catch
-        {
-            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_ -AdditionalPatterns @('*WAM Error*')) -and -not (Assert-IsNonInteractiveShell))
-            {
-                Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials -CommandName $CommandName
-            }
-            else
-            {
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with Credentials: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-                throw
-            }
-        }
-    }
-    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'CredentialsWithTenantId')
-    {
-        try
-        {
-            Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Exchange Online using Credentials without MFA' -Source $source
-
-            Connect-ExchangeOnline -Credential $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials `
-                -ShowProgress:$false `
-                -ShowBanner:$false `
-                -DelegatedOrganization $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -ErrorAction Stop `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Credentials & TenantId without MFA' -Source $source
-        }
-        catch
-        {
-            if ((Test-MSCloudLoginMFARequiredError -ErrorRecord $_ -AdditionalPatterns @('*WAM Error*')) -and -not (Assert-IsNonInteractiveShell))
-            {
-                Connect-MSCloudLoginExchangeOnlineMFA -Credentials $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials `
-                    -TenantId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
-                    -CommandName $CommandName
-            }
-            else
-            {
-                $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-                Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with Credentials and TenantId: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-                throw
-            }
-        }
-    }
-    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'Identity')
-    {
-        Add-MSCloudLoginAssistantEvent -Message 'Attempting to connect to Exchange Online using Managed Identity' -Source $source
-        try
-        {
-            if ($null -eq $Script:MSCloudLoginConnectionProfile.OrganizationName)
-            {
-                #$Script:MSCloudLoginConnectionProfile.OrganizationName = Get-MSCloudLoginOrganizationName -Identity
-                $Script:MSCloudLoginConnectionProfile.OrganizationName = $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId
-            }
-
-            Connect-ExchangeOnline -AppId $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ApplicationId `
-                -Organization $Script:MSCloudLoginConnectionProfile.OrganizationName `
-                -ManagedIdentity `
-                -ShowBanner:$false `
-                -ShowProgress:$false `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($true)
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Managed Identity' -Source $source
-        }
-        catch
-        {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with Managed Identity: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-            throw
-        }
-    }
-    elseif ($Script:MSCloudLoginConnectionProfile.ExchangeOnline.AuthenticationType -eq 'AccessTokens')
-    {
-        Add-MSCloudLoginAssistantEvent -Message 'Connecting to EXO with AccessTokens' -Source $source
-        try
-        {
-            $AccessTokenValue = Get-MSCloudLoginAccessTokenValue -Token $Script:MSCloudLoginConnectionProfile.ExchangeOnline.AccessTokens[0]
-            Connect-ExchangeOnline -AccessToken $AccessTokenValue `
-                -Organization $Script:MSCloudLoginConnectionProfile.ExchangeOnline.TenantId `
-                -ShowBanner:$false `
-                -ShowProgress:$false `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection()
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using Access Token' -Source $source
-        }
-        catch
-        {
-            $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Connected = $false
-            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with Access Token: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-            throw
-        }
-    }
-    else
+    if ([System.String]::IsNullOrEmpty($authenticationType) -or -not $authenticationDescriptions.ContainsKey($authenticationType))
     {
         Add-MSCloudLoginAssistantEvent -Message 'No valid authentication type found' -Source $source
         throw 'No valid authentication type found'
+    }
+    $authenticationDescription = $authenticationDescriptions[$authenticationType]
+
+    $authenticationParameters = @{}
+    $connectionParameters = @{}
+    $mfaUsed = $false
+    try
+    {
+        $connectionParameters = Get-MSCloudLoginExchangeOnlineConnectionParameters -WorkloadProfile $workloadProfile -CommandName $CommandName
+        $organization = Resolve-MSCloudLoginWorkloadTenant -WorkloadProfile $workloadProfile
+
+        switch ($authenticationType)
+        {
+            'ServicePrincipalWithThumbprint'
+            {
+                if ($PSVersionTable.PSVersion -gt [Version]'6.0' -and $PSVersionTable.Platform -ne 'Win32NT')
+                {
+                    throw 'Certificate Thumbprint authentication is only supported on the Windows platform.'
+                }
+                $authenticationParameters.AppId                 = $workloadProfile.ApplicationId
+                $authenticationParameters.Organization          = $organization
+                $authenticationParameters.CertificateThumbprint = $workloadProfile.CertificateThumbprint
+            }
+            'ServicePrincipalWithPath'
+            {
+                if ($organization -notmatch '\.(onmicrosoft|onsovcloud|onmschina)\.')
+                {
+                    throw 'TenantId must be specified as the primary domain in the format <domain>.onmicrosoft.com when using Certificate Path authentication.'
+                }
+                if (($IsWindows -or $PSVersionTable.PSVersion.Major -eq 5) -and `
+                    -not (Get-MSCloudLoginWindowsPrincipal).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+                {
+                    throw 'Certificate Path authentication on Windows requires the command to be run as Administrator.'
+                }
+                $authenticationParameters.AppId               = $workloadProfile.ApplicationId
+                $authenticationParameters.Organization        = $organization
+                $authenticationParameters.CertificateFilePath = $workloadProfile.CertificatePath
+                $authenticationParameters.CertificatePassword = $workloadProfile.CertificatePassword
+            }
+            'Credentials'
+            {
+                $authenticationParameters.Credential = $workloadProfile.Credentials
+            }
+            'CredentialsWithApplicationId'
+            {
+                $authenticationParameters.Credential = $workloadProfile.Credentials
+                $authenticationParameters.AppId      = $workloadProfile.ApplicationId
+            }
+            'CredentialsWithTenantId'
+            {
+                $authenticationParameters.Credential            = $workloadProfile.Credentials
+                $authenticationParameters.DelegatedOrganization = $workloadProfile.TenantId
+            }
+            'Identity'
+            {
+                $authenticationParameters.ManagedIdentity = $true
+                $authenticationParameters.Organization    = $organization
+                if (-not [System.String]::IsNullOrEmpty($workloadProfile.ApplicationId))
+                {
+                    $authenticationParameters.AppId = $workloadProfile.ApplicationId
+                }
+                $mfaUsed = $true
+            }
+            'AccessTokens'
+            {
+                $authenticationParameters.AccessToken  = Get-MSCloudLoginAccessTokenValue -Token $workloadProfile.AccessTokens[0]
+                $authenticationParameters.Organization = $organization
+            }
+            'Interactive'
+            {
+                if (Assert-IsNonInteractiveShell)
+                {
+                    throw 'Interactive authentication to Exchange Online requires an interactive shell.'
+                }
+                $mfaUsed = $true
+            }
+        }
+
+        Add-MSCloudLoginAssistantEvent -Message "Attempting to connect to Exchange Online with $authenticationDescription" -Source $source
+        Connect-ExchangeOnline @authenticationParameters @connectionParameters | Out-Null
+        $workloadProfile.CompleteConnection($mfaUsed)
+        Add-MSCloudLoginAssistantEvent -Message "Successfully connected to Exchange Online with $authenticationDescription" -Source $source
+    }
+    catch
+    {
+        if ($authenticationType -in @('Credentials', 'CredentialsWithApplicationId', 'CredentialsWithTenantId') -and
+            (Test-MSCloudLoginMFARequiredError -ErrorRecord $_ -AdditionalPatterns @('*WAM Error*')) -and
+            -not (Assert-IsNonInteractiveShell))
+        {
+            $mfaParameters = @{
+                Credentials          = $workloadProfile.Credentials
+                ConnectionParameters = $connectionParameters
+            }
+            if ($authenticationType -eq 'CredentialsWithTenantId')
+            {
+                $mfaParameters.TenantId = $workloadProfile.TenantId
+            }
+            elseif ($authenticationType -eq 'CredentialsWithApplicationId')
+            {
+                $mfaParameters.ApplicationId = $workloadProfile.ApplicationId
+            }
+            Connect-MSCloudLoginExchangeOnlineMFA @mfaParameters
+        }
+        else
+        {
+            $workloadProfile.Connected = $false
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Exchange Online with ${authenticationDescription}: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
     }
     $Script:MSCloudLoginCurrentLoadedModule = 'EXO'
 
@@ -412,6 +308,69 @@ function Connect-MSCloudLoginExchangeOnline
     {
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline.LoadedAllCmdlets = $true
     }
+}
+
+<#
+.SYNOPSIS
+    Returns the parameters that every Connect-ExchangeOnline call shares.
+
+.DESCRIPTION
+    Selects the endpoint of the workload profile. A profile with a ConnectionUri connects by
+    ConnectionUri and AzureADAuthorizationEndpointUri, all others by ExchangeEnvironmentName.
+    The 'Custom' marker is not passed along because Connect-ExchangeOnline does not accept it.
+
+.PARAMETER WorkloadProfile
+    The Exchange Online workload profile.
+
+.PARAMETER CommandName
+    Optional hashtable with a 'CommandName' entry that limits the imported cmdlets.
+#>
+function Get-MSCloudLoginExchangeOnlineConnectionParameters
+{
+    [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Object]
+        $WorkloadProfile,
+
+        [Parameter()]
+        [System.Collections.Hashtable]
+        $CommandName = @{}
+    )
+
+    $parameters = @{
+        ShowBanner            = $false
+        ShowProgress          = $false
+        Verbose               = $false
+        ErrorAction           = 'Stop'
+        SkipLoadingCmdletHelp = $true
+    }
+
+    if (-not [System.String]::IsNullOrEmpty($WorkloadProfile.ConnectionUri))
+    {
+        $parameters.ConnectionUri = $WorkloadProfile.ConnectionUri
+        if (-not [System.String]::IsNullOrEmpty($WorkloadProfile.AzureADAuthorizationEndpointUri))
+        {
+            $parameters.AzureADAuthorizationEndpointUri = $WorkloadProfile.AzureADAuthorizationEndpointUri
+        }
+    }
+    elseif ($WorkloadProfile.ExchangeEnvironmentName -eq 'Custom')
+    {
+        throw "No Exchange Online ConnectionUri is defined for environment '$($WorkloadProfile.EnvironmentName)'. Set CustomEXOConnectionUri in the custom environment configuration."
+    }
+    else
+    {
+        $parameters.ExchangeEnvironmentName = $WorkloadProfile.ExchangeEnvironmentName
+    }
+
+    if ($null -ne $CommandName -and $CommandName.ContainsKey('CommandName'))
+    {
+        $parameters.CommandName = $CommandName.CommandName
+    }
+
+    return $parameters
 }
 
 function Connect-MSCloudLoginExchangeOnlineMFA
@@ -427,8 +386,12 @@ function Connect-MSCloudLoginExchangeOnlineMFA
         $TenantId,
 
         [Parameter()]
+        [System.String]
+        $ApplicationId,
+
+        [Parameter()]
         [System.Collections.Hashtable]
-        $CommandName
+        $ConnectionParameters
     )
 
     $ProgressPreference = 'SilentlyContinue'
@@ -436,31 +399,25 @@ function Connect-MSCloudLoginExchangeOnlineMFA
 
     try
     {
-        if ([System.String]::IsNullOrEmpty($TenantId))
+        if ($null -eq $ConnectionParameters -or $ConnectionParameters.Count -eq 0)
         {
-            Add-MSCloudLoginAssistantEvent -Message 'Creating a new ExchangeOnline Session using MFA' -Source $source
-            Connect-ExchangeOnline -UserPrincipalName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName `
-                -ShowBanner:$false `
-                -ShowProgress:$false `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using credentials with MFA' -Source $source
+            $ConnectionParameters = Get-MSCloudLoginExchangeOnlineConnectionParameters -WorkloadProfile $Script:MSCloudLoginConnectionProfile.ExchangeOnline
         }
-        else
+
+        $parameters = $ConnectionParameters.Clone()
+        $parameters.UserPrincipalName = $Credentials.UserName
+        if (-not [System.String]::IsNullOrEmpty($TenantId))
         {
-            Add-MSCloudLoginAssistantEvent -Message 'Creating a new ExchangeOnline Session using MFA with Credentials and TenantId' -Source $source
-            Connect-ExchangeOnline -UserPrincipalName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.Credentials.UserName `
-                -ShowBanner:$false `
-                -ShowProgress:$false `
-                -DelegatedOrganization $TenantId `
-                -ExchangeEnvironmentName $Script:MSCloudLoginConnectionProfile.ExchangeOnline.ExchangeEnvironmentName `
-                -Verbose:$false `
-                -SkipLoadingCmdletHelp `
-                @CommandName | Out-Null
-            Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using credentials and tenantId with MFA' -Source $source
+            $parameters.DelegatedOrganization = $TenantId
         }
+        if (-not [System.String]::IsNullOrEmpty($ApplicationId))
+        {
+            $parameters.AppId = $ApplicationId
+        }
+
+        Add-MSCloudLoginAssistantEvent -Message 'Creating a new Exchange Online session using MFA' -Source $source
+        Connect-ExchangeOnline @parameters | Out-Null
+        Add-MSCloudLoginAssistantEvent -Message 'Successfully connected to Exchange Online using MFA' -Source $source
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline.CompleteConnection($true)
     }
     catch

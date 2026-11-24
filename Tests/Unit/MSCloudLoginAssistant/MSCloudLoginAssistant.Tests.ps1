@@ -601,12 +601,12 @@ Describe 'Connect-MSCloudLoginSecurityCompliance' {
                 param($AuthenticationType)
 
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
-                $profile.AuthenticationType = $AuthenticationType
-                $profile.Credentials = [System.Management.Automation.PSCredential]::new(
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = $AuthenticationType
+                $workloadProfile.Credentials = [System.Management.Automation.PSCredential]::new(
                     'admin@contoso.onmicrosoft.com', (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force))
-                $profile.ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
-                $profile.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.com/organizations'
+                $workloadProfile.ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'
+                $workloadProfile.AzureADAuthorizationEndpointUri = 'https://login.microsoftonline.com/organizations'
 
                 { Connect-MSCloudLoginSecurityCompliance } | Should -Not -Throw
                 $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected | Should -BeTrue
@@ -617,11 +617,47 @@ Describe 'Connect-MSCloudLoginSecurityCompliance' {
         }
     }
 
+    Context 'When the authentication type is Interactive' {
+        It 'Should connect through the endpoint of the workload and flag the session as multi-factor authenticated' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Assert-IsNonInteractiveShell -MockWith { return $false }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter
+                $workloadProfile.AuthenticationType = 'Interactive'
+                $workloadProfile.ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.de/PowerShell-LiveID'
+                $workloadProfile.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.de/contoso.onsovcloud.de'
+
+                Connect-MSCloudLoginSecurityCompliance
+
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.MultiFactorAuthentication | Should -BeTrue
+                Should -Invoke Connect-IPPSSession -Exactly 1 -ParameterFilter {
+                    $null -eq $Credential -and
+                    $ConnectionUri -eq 'https://ps.compliance.protection.svc.sovcloud.de/PowerShell-LiveID' -and
+                    $AzureADAuthorizationEndpointUri -eq 'https://login.sovcloud-identity.de/contoso.onsovcloud.de'
+                }
+            }
+        }
+
+        It 'Should refuse to sign in from a non-interactive shell' {
+            InModuleScope 'MSCloudLoginAssistant' {
+                Mock -CommandName Assert-IsNonInteractiveShell -MockWith { return $true }
+
+                $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType = 'Interactive'
+
+                { Connect-MSCloudLoginSecurityCompliance } | Should -Throw '*requires an interactive shell*'
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected | Should -BeFalse
+            }
+        }
+    }
+
     Context 'When the authentication type is not supported' {
         It 'Should throw' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType = 'Interactive'
+                $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType = 'ServicePrincipalWithSecret'
 
                 { Connect-MSCloudLoginSecurityCompliance } | Should -Throw "*is not supported for workload 'SecurityComplianceCenter'*"
             }

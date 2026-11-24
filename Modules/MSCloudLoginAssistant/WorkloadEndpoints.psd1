@@ -51,6 +51,17 @@
         default           = @{ ClientId = ''; Scope = 'https://engagehub.microsoft.com/.default'; AuthorizationUrl = 'https://login.microsoftonline.com'; APIUrl = 'https://api.engagecenter.microsoft.com' }
     }
 
+    ExchangeOnline        = @{
+        AzureCloud        = @{ ExchangeEnvironmentName = 'O365Default' }
+        AzureUSGovernment = @{ ExchangeEnvironmentName = 'O365USGovGCCHigh' }
+        AzureDOD          = @{ ExchangeEnvironmentName = 'O365USGovDoD' }
+        AzureChinaCloud   = @{ ExchangeEnvironmentName = 'O365China' }
+        AzureFranceCloud  = @{ ConnectionUri = 'https://outlook.sovcloud.fr/powershell-liveid'; AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.fr/{TenantId}' }
+        AzureGermanyCloud = @{ ConnectionUri = 'https://outlook.sovcloud.de/powershell-liveid'; AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.de/{TenantId}' }
+        Custom            = @{ ConnectionUri = 'CustomEXOConnectionUri'; AzureADAuthorizationEndpointUri = 'CustomEXOAzureADAuthorizationEndpointUri' }
+        default           = @{ ExchangeEnvironmentName = 'O365Default' }
+    }
+
     Fabric                = @{
         AzureDOD          = @{ HostUrl = 'https://api.fabric.microsoft.us'; Scope = 'https://api.fabric.microsoft.us/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }
         AzureUSGovernment = @{ HostUrl = 'https://api.fabric.microsoft.us'; Scope = 'https://api.fabric.microsoft.us/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }
@@ -102,8 +113,8 @@
         AzureUSGovernment = @{ ConnectionUrl = 'https://ps.compliance.protection.office365.us/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.us/organizations'; ResourceUrl = 'https://ps.compliance.protection.office365.us' }
         AzureDOD          = @{ ConnectionUrl = 'https://l5.ps.compliance.protection.office365.us/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.us/organizations'; ResourceUrl = 'https://l5.ps.compliance.protection.office365.us' }
         AzureChinaCloud   = @{ ConnectionUrl = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/'; AuthorizationUrl = 'https://login.chinacloudapi.cn/organizations'; ResourceUrl = 'https://ps.compliance.protection.partner.outlook.cn' }
-        AzureFranceCloud  = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.fr/PowerShell-LiveID'; AuthorizationUrl = 'https://login.sovcloud-identity.fr/organizations'; ResourceUrl = 'https://ps.compliance.protection.svc.sovcloud.fr' }
-        AzureGermanyCloud = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.de/PowerShell-LiveID'; AuthorizationUrl = 'https://login.sovcloud-identity.de/organizations'; ResourceUrl = 'https://ps.compliance.protection.svc.sovcloud.de' }
+        AzureFranceCloud  = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.fr/powershell-liveid'; AuthorizationUrl = 'https://login.sovcloud-identity.fr/{TenantId}'; ResourceUrl = 'https://ps.compliance.protection.svc.sovcloud.fr' }
+        AzureGermanyCloud = @{ ConnectionUrl = 'https://ps.compliance.protection.svc.sovcloud.de/powershell-liveid'; AuthorizationUrl = 'https://login.sovcloud-identity.de/{TenantId}'; ResourceUrl = 'https://ps.compliance.protection.svc.sovcloud.de' }
         Custom            = @{ ConnectionUrl = 'CustomSCCConnectionUrl'; AuthorizationUrl = 'CustomSCCAzureADAuthorizationEndpointUri'; ResourceUrl = 'CustomSCCResourceUrl' }
         default           = @{ ConnectionUrl = 'https://ps.compliance.protection.outlook.com/powershell-liveid/'; AuthorizationUrl = 'https://login.microsoftonline.com/organizations'; ResourceUrl = 'https://ps.compliance.protection.outlook.com' }
     }
@@ -113,7 +124,6 @@
         AzureUSGovernment = @{ HostUrl = '{AdminUrl}'; Scope = '{AdminUrl}/.default'; AuthorizationUrl = 'https://login.microsoftonline.us' }
         AzureFranceCloud  = @{ HostUrl = '{AdminUrl}'; Scope = '{AdminUrl}/.default'; AuthorizationUrl = 'https://login.sovcloud-identity.fr' }
         AzureGermanyCloud = @{ HostUrl = '{AdminUrl}'; Scope = '{AdminUrl}/.default'; AuthorizationUrl = 'https://login.sovcloud-identity.de' }
-        # Custom has no dedicated Scope key: the class derives Scope from HostUrl + '/.default'.
         Custom            = @{ HostUrl = 'CustomSharePointOnlineRESTHostUrl'; AuthorizationUrl = 'CustomSharePointOnlineRESTAuthorizationUrl' }
         default           = @{ HostUrl = '{AdminUrl}'; Scope = '{AdminUrl}/.default'; AuthorizationUrl = 'https://login.microsoftonline.com' }
     }

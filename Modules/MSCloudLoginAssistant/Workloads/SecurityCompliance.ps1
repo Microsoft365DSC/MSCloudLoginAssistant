@@ -201,6 +201,30 @@ function Connect-MSCloudLoginSecurityCompliance
             }
         }
     }
+    elseif ($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType -eq 'Interactive')
+    {
+        try
+        {
+            if (Assert-IsNonInteractiveShell)
+            {
+                throw 'Interactive authentication to Security & Compliance requires an interactive shell.'
+            }
+
+            Add-MSCloudLoginAssistantEvent -Message 'Connecting to Security & Compliance with an interactive sign-in' -Source $source
+            Connect-IPPSSession -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
+                -AzureADAuthorizationEndpointUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri `
+                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
+                -ShowBanner:$false `
+                -ErrorAction Stop | Out-Null
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection($true)
+        }
+        catch
+        {
+            $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Connected = $false
+            Add-MSCloudLoginAssistantEvent -Message "Failed to connect to Security & Compliance with an interactive sign-in: $($_.Exception.Message)" -Source $source -EntryType 'Error'
+            throw
+        }
+    }
     else
     {
         throw "Authentication type '$($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AuthenticationType)' is not supported for workload 'SecurityComplianceCenter'."
@@ -271,25 +295,24 @@ function Connect-MSCloudLoginSecurityComplianceMFA
     try
     {
         Add-MSCloudLoginAssistantEvent -Message 'Creating a new Security and Compliance Session using MFA' -Source $source
-        if ([System.String]::IsNullOrEmpty($TenantId))
-        {
-            Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
-                -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
-                -ErrorAction Stop `
-                -Verbose:$false  `
-                -ShowBanner:$false | Out-Null
+        $parameters = @{
+            UserPrincipalName       = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName
+            ConnectionUri           = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl
+            EnableSearchOnlySession = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession
+            ErrorAction             = 'Stop'
+            Verbose                 = $false
+            ShowBanner              = $false
         }
-        else
+
+        if (-not [System.String]::IsNullOrEmpty($Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri))
         {
-            Connect-IPPSSession -UserPrincipalName $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.Credentials.UserName `
-                -ConnectionUri $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.ConnectionUrl `
-                -EnableSearchOnlySession:$Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.EnableSearchOnlySession `
-                -ErrorAction Stop `
-                -Verbose:$false `
-                -DelegatedOrganization $TenantId `
-                -ShowBanner:$false | Out-Null
+            $parameters.AzureADAuthorizationEndpointUri = $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.AzureADAuthorizationEndpointUri
         }
+        if (-not [System.String]::IsNullOrEmpty($TenantId))
+        {
+            $parameters.DelegatedOrganization = $TenantId
+        }
+        Connect-IPPSSession @parameters | Out-Null
         Add-MSCloudLoginAssistantEvent -Message 'New Session with MFA created successfully' -Source $source
         $Script:MSCloudLoginConnectionProfile.SecurityComplianceCenter.CompleteConnection($true)
     }

@@ -12,9 +12,6 @@ class MSCloudLoginConnectionProfile
     [string]
     $CreatedTime
 
-    [string]
-    $OrganizationName
-
     [AdminAPI]
     $AdminAPI
 
@@ -190,7 +187,7 @@ class Workload : ICloneable
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -Identity -TenantId $this.TenantId
             }
-            elseif ($this.AccessTokens)
+            elseif ($this.AccessTokens -or -not [System.String]::IsNullOrEmpty($this.TenantId))
             {
                 $Script:CloudEnvironmentInfo = Get-CloudEnvironmentInfo -TenantId $this.TenantId
             }
@@ -470,7 +467,7 @@ class EngageHub:Workload
 class ExchangeOnline:Workload
 {
     [string]
-    [ValidateSet('O365Default', 'O365GermanyCloud', 'O365China', 'O365USGovGCCHigh', 'O365USGovDod', 'Custom')]
+    [ValidateSet('O365Default', 'O365GermanyCloud', 'O365China', 'O365USGovGCCHigh', 'O365USGovDoD', 'Custom')]
     $ExchangeEnvironmentName = 'O365Default'
 
     [string]
@@ -496,46 +493,19 @@ class ExchangeOnline:Workload
     {
         ([Workload]$this).Setup()
 
-        switch ($this.EnvironmentName)
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'ExchangeOnline' -EnvironmentName $this.EnvironmentName `
+            -Replacements @{ TenantId = (Resolve-MSCloudLoginWorkloadTenant -WorkloadProfile $this -Default 'organizations') }
+        if ($endpointInfo.ContainsKey('ExchangeEnvironmentName'))
         {
-            'AzureCloud'
-            {
-                $this.ExchangeEnvironmentName = 'O365Default'
-            }
-            'AzureGermanyCloud'
-            {
-                $this.ExchangeEnvironmentName = 'O365GermanyCloud'
-            }
-            'AzureDOD'
-            {
-                $this.ExchangeEnvironmentName = 'O365USGovDoD'
-            }
-            'AzureUSGovernment'
-            {
-                $this.ExchangeEnvironmentName = 'O365USGovGCCHigh'
-            }
-            'AzureChinaCloud'
-            {
-                $this.ExchangeEnvironmentName = 'O365China'
-            }
-            'AzureFranceCloud'
-            {
-                $this.ConnectionUri                   = 'https://outlook.sovcloud.fr/PowerShell-LiveID'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.fr/' + $Script:MSCloudLoginConnectionProfile.OrganizationName
-                $this.ExchangeEnvironmentName         = "Custom"
-            }
-            'AzureGermanyCloud'
-            {
-                $this.ConnectionUri                   = 'https://outlook.sovcloud.de/PowerShell-LiveID'
-                $this.AzureADAuthorizationEndpointUri = 'https://login.sovcloud-identity.de/' + $Script:MSCloudLoginConnectionProfile.OrganizationName
-                $this.ExchangeEnvironmentName         = "Custom"
-            }
-            'Custom'
-            {
-                $this.ExchangeEnvironmentName         = "Custom"
-                $this.ConnectionUri                   = $Script:CustomEnvConfig.CustomEXOConnectionUri
-                $this.AzureADAuthorizationEndpointUri = $Script:CustomEnvConfig.CustomEXOAzureADAuthorizationEndpointUri
-            }
+            $this.ExchangeEnvironmentName         = $endpointInfo.ExchangeEnvironmentName
+            $this.ConnectionUri                   = $null
+            $this.AzureADAuthorizationEndpointUri = $null
+        }
+        else
+        {
+            $this.ExchangeEnvironmentName         = 'Custom'
+            $this.ConnectionUri                   = $endpointInfo.ConnectionUri
+            $this.AzureADAuthorizationEndpointUri = $endpointInfo.AzureADAuthorizationEndpointUri
         }
         $Script:MSCloudLoginConnectionProfile.ExchangeOnline = $this
         Connect-MSCloudLoginExchangeOnline
@@ -908,7 +878,8 @@ class SecurityComplianceCenter:Workload
     {
         ([Workload]$this).Setup()
 
-        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'SecurityComplianceCenter' -EnvironmentName $this.EnvironmentName
+        $endpointInfo = Get-MSCloudLoginEndpointInfo -Workload 'SecurityComplianceCenter' -EnvironmentName $this.EnvironmentName `
+            -Replacements @{ TenantId = (Resolve-MSCloudLoginWorkloadTenant -WorkloadProfile $this -Default 'organizations') }
         $this.ConnectionUrl    = $endpointInfo.ConnectionUrl
         $this.AuthorizationUrl = $endpointInfo.AuthorizationUrl
         $this.ResourceUrl      = $endpointInfo.ResourceUrl

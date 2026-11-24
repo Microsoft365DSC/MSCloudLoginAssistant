@@ -766,7 +766,7 @@ function Reset-MSCloudLoginConnectionProfileContext
     $fullReset = $false
     if ($Workload.Count -eq 0)
     {
-        $workloads = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'OrganizationName', 'Teams') }
+        $workloads = $Script:MSCloudLoginConnectionProfile.PSObject.Properties.Name | Where-Object { $_ -notin @('CreatedTime', 'Teams') }
         $workloads += 'MicrosoftTeams'
         $Workload = $workloads
         $fullReset = $true
@@ -1289,20 +1289,37 @@ function Get-CloudEnvironmentInfo
     {
         { $_ -like '*.onsovcloud.de*' }
         {
-            $loginEndpoint = 'login.sovcloud-identity.de'
+            $loginEndpoints = @('login.sovcloud-identity.de')
             break
         }
         { $_ -like '*.onsovcloud.fr*' }
         {
-            $loginEndpoint = 'login.sovcloud-identity.fr'
+            $loginEndpoints = @('login.sovcloud-identity.fr')
             break
         }
         default
         {
-            $loginEndpoint = "login.microsoftonline.com"
+            $loginEndpoints = @('login.microsoftonline.com', 'login.sovcloud-identity.de', 'login.sovcloud-identity.fr')
         }
     }
-    $response = Invoke-WebRequest -Uri "https://$loginEndpoint/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing
+
+    $response = $null
+    for ($i = 0; $i -lt $loginEndpoints.Count; $i++)
+    {
+        try
+        {
+            $response = Invoke-WebRequest -Uri "https://$($loginEndpoints[$i])/$tenantName/v2.0/.well-known/openid-configuration" -Method Get -UseBasicParsing -ErrorAction Stop
+            break
+        }
+        catch
+        {
+            if ($i -eq $loginEndpoints.Count - 1)
+            {
+                throw
+            }
+            Add-MSCloudLoginAssistantEvent -Message "Tenant {$tenantName} is unknown to {$($loginEndpoints[$i])}: $($_.Exception.Message)" -Source $source
+        }
+    }
 
     $content = $response.Content
     $result = ConvertFrom-Json $content
@@ -1314,72 +1331,6 @@ function Get-CloudEnvironmentInfo
         $Script:MSCloudLoginTenantGuidCache[$tenantName] = $tenantGuid.ToString()
     }
     return $result
-}
-
-function Get-MSCloudLoginOrganizationName
-{
-    param(
-        [Parameter()]
-        [System.String]
-        $ApplicationId,
-
-        [Parameter()]
-        [System.String]
-        $TenantId,
-
-        [Parameter()]
-        [System.String]
-        $CertificateThumbprint,
-
-        [Parameter()]
-        [System.String]
-        $ApplicationSecret,
-
-        [Parameter()]
-        [switch]
-        $Identity,
-
-        [Parameter()]
-        [System.String[]]
-        $AccessTokens
-    )
-
-    $source = 'Get-MSCloudLoginOrganizationName'
-    try
-    {
-        if (-not [string]::IsNullOrEmpty($ApplicationId) -and -not [System.String]::IsNullOrEmpty($CertificateThumbprint))
-        {
-            Connect-M365Tenant -Workload MicrosoftGraph -ApplicationId $ApplicationId -TenantId $TenantId -CertificateThumbprint $CertificateThumbprint
-        }
-        elseif (-not [string]::IsNullOrEmpty($ApplicationId) -and -not [System.String]::IsNullOrEmpty($ApplicationSecret))
-        {
-            Connect-M365Tenant -Workload MicrosoftGraph -ApplicationId $ApplicationId -TenantId $TenantId -ApplicationSecret $ApplicationSecret
-        }
-        elseif ($Identity.IsPresent)
-        {
-            Connect-M365Tenant -Workload MicrosoftGraph -Identity -TenantId $TenantId
-        }
-        elseif ($null -ne $AccessTokens)
-        {
-            Connect-M365Tenant -Workload MicrosoftGraph -AccessTokens $AccessTokens
-        }
-        $domain = (Invoke-MgGraphRequest -Method GET -Uri "/v1.0/domains" -ErrorAction Stop).value | Where-Object { $_.IsInitial -eq $True }
-
-        if ($null -ne $domain)
-        {
-            return $domain.Id
-        }
-    }
-    catch
-    {
-        if ([System.String]::IsNullOrEmpty($TenantId))
-        {
-            Add-MSCloudLoginAssistantEvent -Message "Couldn't get domain and no TenantId was provided as fallback: $($_.Exception.Message)" -Source $source -EntryType 'Error'
-            throw
-        }
-        Add-MSCloudLoginAssistantEvent -Message "Couldn't get domain ($($_.Exception.Message)). Using TenantId instead" -Source $source
-        return $TenantId
-    }
 }
 
 function Assert-IsNonInteractiveShell

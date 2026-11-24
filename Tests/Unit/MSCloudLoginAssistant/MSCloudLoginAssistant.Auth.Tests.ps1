@@ -300,24 +300,24 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         It 'Should reuse a fresh connection without acquiring a new token and renew an expired one' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'ServicePrincipalWithSecret'
-                $profile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
-                $profile.ApplicationId = 'app-id'
-                $profile.ApplicationSecret = 'secret'
-                $profile.TenantId = 'contoso.onmicrosoft.com'
-                $profile.AccessToken = 'Bearer existing-token'
-                $profile.CompleteConnection()
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'ServicePrincipalWithSecret'
+                $workloadProfile.RequestedAuthenticationType = 'ServicePrincipalWithSecret'
+                $workloadProfile.ApplicationId = 'app-id'
+                $workloadProfile.ApplicationSecret = 'secret'
+                $workloadProfile.TenantId = 'contoso.onmicrosoft.com'
+                $workloadProfile.AccessToken = 'Bearer existing-token'
+                $workloadProfile.CompleteConnection()
 
                 Mock -CommandName Get-AuthToken -MockWith { return @{ token_type = 'Bearer'; access_token = 'renewed-token' } }
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'https://login.microsoftonline.com' -Scope 's' -ClientId 'c'
                 Should -Invoke Get-AuthToken -Exactly 0
-                $profile.AccessToken | Should -Be 'Bearer existing-token'
+                $workloadProfile.AccessToken | Should -Be 'Bearer existing-token'
 
-                $profile.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-90).ToString()
+                $workloadProfile.ConnectedDateTime = [System.DateTime]::Now.AddMinutes(-90).ToString()
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'https://login.microsoftonline.com' -Scope 's' -ClientId 'c'
                 Should -Invoke Get-AuthToken -Exactly 1
-                $profile.AccessToken | Should -Be 'Bearer renewed-token'
+                $workloadProfile.AccessToken | Should -Be 'Bearer renewed-token'
             }
         }
     }
@@ -326,9 +326,9 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         It 'Should throw' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Interactive'
-                $profile.RequestedAuthenticationType = 'Interactive'
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'Interactive'
+                $workloadProfile.RequestedAuthenticationType = 'Interactive'
 
                 { Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c' } |
                     Should -Throw "*is not supported for workload 'AdminAPI'*"
@@ -389,21 +389,21 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
             } {
                 param ($AuthenticationType, $ProfileValues, $TokenResponse, $ExpectedToken, $ExpectedTenantId, $ExpectedClientId)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = $AuthenticationType
-                $profile.RequestedAuthenticationType = $AuthenticationType
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = $AuthenticationType
+                $workloadProfile.RequestedAuthenticationType = $AuthenticationType
                 foreach ($key in $ProfileValues.Keys)
                 {
-                    $profile.$key = $ProfileValues[$key]
+                    $workloadProfile.$key = $ProfileValues[$key]
                 }
 
                 $script:tokenResponse = $TokenResponse
                 Mock -CommandName Get-AuthToken -MockWith { return $script:tokenResponse }
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
 
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be $ExpectedToken
-                $profile.MultiFactorAuthentication | Should -BeFalse
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.AccessToken | Should -Be $ExpectedToken
+                $workloadProfile.MultiFactorAuthentication | Should -BeFalse
                 Should -Invoke Get-AuthToken -Exactly 1 -ParameterFilter { $TenantId -eq $ExpectedTenantId -and $ClientId -eq $ExpectedClientId }
             }
         }
@@ -411,15 +411,15 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         It 'Should connect using a managed identity token' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Identity'
-                $profile.RequestedAuthenticationType = 'Identity'
-                $profile.TenantId = 'tenant'
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'Identity'
+                $workloadProfile.RequestedAuthenticationType = 'Identity'
+                $workloadProfile.TenantId = 'tenant'
 
                 Mock -CommandName Get-AuthToken -MockWith { return 'identity-token-raw' }
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 'https://graph.microsoft.com/.default' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer identity-token-raw'
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.AccessToken | Should -Be 'Bearer identity-token-raw'
             }
         }
     }
@@ -428,10 +428,10 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         It 'Should retry with the device code flow and mark the connection as MFA' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Credentials'
-                $profile.RequestedAuthenticationType = 'Credentials'
-                $profile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'Credentials'
+                $workloadProfile.RequestedAuthenticationType = 'Credentials'
+                $workloadProfile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
 
                 $script:authCallCount = 0
                 Mock -CommandName Get-AuthToken -MockWith {
@@ -443,9 +443,9 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
                     return @{ token_type = 'Bearer'; access_token = 'mfa-token' }
                 }
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.MultiFactorAuthentication | Should -BeTrue
-                $profile.AccessToken | Should -Be 'Bearer mfa-token'
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.MultiFactorAuthentication | Should -BeTrue
+                $workloadProfile.AccessToken | Should -Be 'Bearer mfa-token'
                 $script:authCallCount | Should -Be 2
             }
         }
@@ -455,15 +455,15 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
         It 'Should rethrow and mark the workload as disconnected' {
             InModuleScope 'MSCloudLoginAssistant' {
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'Credentials'
-                $profile.RequestedAuthenticationType = 'Credentials'
-                $profile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'Credentials'
+                $workloadProfile.RequestedAuthenticationType = 'Credentials'
+                $workloadProfile.Credentials = New-Object PSCredential ('user@contoso.com', (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
 
                 Mock -CommandName Get-AuthToken -MockWith { throw 'access denied' }
                 { Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c' } |
                     Should -Throw 'access denied'
-                $profile.Connected | Should -BeFalse
+                $workloadProfile.Connected | Should -BeFalse
             }
         }
     }
@@ -476,14 +476,14 @@ Describe 'Connect-MSCloudLoginRESTWorkload' {
             InModuleScope 'MSCloudLoginAssistant' -Parameters @{ ProvidedToken = $ProvidedToken; ExpectedToken = $ExpectedToken } {
                 param ($ProvidedToken, $ExpectedToken)
                 $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-                $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-                $profile.AuthenticationType = 'AccessTokens'
-                $profile.RequestedAuthenticationType = 'AccessTokens'
-                $profile.AccessTokens = @($ProvidedToken)
+                $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+                $workloadProfile.AuthenticationType = 'AccessTokens'
+                $workloadProfile.RequestedAuthenticationType = 'AccessTokens'
+                $workloadProfile.AccessTokens = @($ProvidedToken)
 
                 Connect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' -AuthorizationUrl 'u' -Scope 's' -ClientId 'c'
-                $profile.Connected | Should -BeTrue
-                $profile.AccessToken | Should -Be $ExpectedToken
+                $workloadProfile.Connected | Should -BeTrue
+                $workloadProfile.AccessToken | Should -Be $ExpectedToken
             }
         }
     }
@@ -503,13 +503,13 @@ Describe 'Disconnect-MSCloudLoginRESTWorkload' {
     It 'Should clear the connection state and token and not throw when already disconnected' {
         InModuleScope 'MSCloudLoginAssistant' {
             $Script:MSCloudLoginConnectionProfile = New-Object MSCloudLoginConnectionProfile
-            $profile = $Script:MSCloudLoginConnectionProfile.AdminAPI
-            $profile.Connected = $true
-            $profile.AccessToken = 'Bearer some-token'
+            $workloadProfile = $Script:MSCloudLoginConnectionProfile.AdminAPI
+            $workloadProfile.Connected = $true
+            $workloadProfile.AccessToken = 'Bearer some-token'
 
             Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI'
-            $profile.Connected | Should -BeFalse
-            $profile.AccessToken | Should -BeNullOrEmpty
+            $workloadProfile.Connected | Should -BeFalse
+            $workloadProfile.AccessToken | Should -BeNullOrEmpty
 
             { Disconnect-MSCloudLoginRESTWorkload -WorkloadName 'AdminAPI' } | Should -Not -Throw
         }

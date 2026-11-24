@@ -423,6 +423,30 @@ Describe 'Get-MSCloudLoginTenantDomainFromCredentials' {
     }
 }
 
+Describe 'Resolve-MSCloudLoginWorkloadTenant' {
+
+    It 'Should return <Expected> for <Scenario>' -TestCases @(
+        @{ Scenario = 'a TenantId'; TenantId = 'contoso.onsovcloud.de'; UserName = 'admin@fabrikam.onsovcloud.de'; Expected = 'contoso.onsovcloud.de' }
+        @{ Scenario = 'a credential UPN without TenantId'; TenantId = $null; UserName = 'admin@contoso.onsovcloud.de'; Expected = 'contoso.onsovcloud.de' }
+        @{ Scenario = 'a down-level credential without TenantId'; TenantId = $null; UserName = 'CONTOSO\admin'; Expected = 'organizations' }
+        @{ Scenario = 'neither a TenantId nor a credential'; TenantId = $null; UserName = $null; Expected = 'organizations' }
+    ) {
+        param ($Scenario, $TenantId, $UserName, $Expected)
+        InModuleScope 'MSCloudLoginAssistant' -Parameters @{ TenantId = $TenantId; UserName = $UserName; Expected = $Expected } {
+            param ($TenantId, $UserName, $Expected)
+
+            $workloadProfile = New-Object ExchangeOnline
+            $workloadProfile.TenantId = $TenantId
+            if ($UserName)
+            {
+                $workloadProfile.Credentials = New-Object PSCredential ($UserName, (ConvertTo-SecureString 'pwd' -AsPlainText -Force))
+            }
+
+            Resolve-MSCloudLoginWorkloadTenant -WorkloadProfile $workloadProfile -Default 'organizations' | Should -Be $Expected
+        }
+    }
+}
+
 Describe 'Get-MSCloudLoginEndpointInfo' {
 
     It 'Should resolve <Workload>/<Environment> endpoints' -TestCases @(
@@ -438,7 +462,11 @@ Describe 'Get-MSCloudLoginEndpointInfo' {
         @{ Workload = 'O365Portal'; Environment = 'AzureDOD'; Property = 'AuthorizationUrl'; Expected = 'https://login.microsoftonline.us' }
         @{ Workload = 'PowerPlatformREST'; Environment = 'AzureDOD'; Property = 'BapEndpoint'; Expected = 'api.bap.appsplatform.us' }
         @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureChinaCloud'; Property = 'ConnectionUrl'; Expected = 'https://ps.compliance.protection.partner.outlook.cn/powershell-liveid/' }
-        @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr/organizations' }
+        @{ Workload = 'SecurityComplianceCenter'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr/{TenantId}' }
+        @{ Workload = 'ExchangeOnline'; Environment = 'AzureCloud'; Property = 'ExchangeEnvironmentName'; Expected = 'O365Default' }
+        @{ Workload = 'ExchangeOnline'; Environment = 'AzureDOD'; Property = 'ExchangeEnvironmentName'; Expected = 'O365USGovDoD' }
+        @{ Workload = 'ExchangeOnline'; Environment = 'AzureGermanyCloud'; Property = 'ConnectionUri'; Expected = 'https://outlook.sovcloud.de/PowerShell-LiveID' }
+        @{ Workload = 'ExchangeOnline'; Environment = 'AzureGermanyCloud'; Property = 'AzureADAuthorizationEndpointUri'; Expected = 'https://login.sovcloud-identity.de/{TenantId}' }
         @{ Workload = 'Tasks'; Environment = 'AzureUSGovernment'; Property = 'HostUrl'; Expected = 'https://tasks.office365.us' }
         @{ Workload = 'Tasks'; Environment = 'AzureFranceCloud'; Property = 'AuthorizationUrl'; Expected = 'https://login.sovcloud-identity.fr' }
     ) {

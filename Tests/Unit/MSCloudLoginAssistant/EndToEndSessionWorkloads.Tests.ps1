@@ -150,7 +150,41 @@ Describe 'Connect-M365Tenant end-to-end for Exchange Online' {
                 $connection.ConnectionUri | Should -Be $ExpectedConnectionUri
 
                 Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
-                    $ConnectionUri -eq $ExpectedConnectionUri
+                    $ConnectionUri -eq $ExpectedConnectionUri -and
+                    $AzureADAuthorizationEndpointUri -like "https://login.sovcloud-identity.*/$TenantId" -and
+                    $Organization -eq $TenantId -and
+                    -not $PesterBoundParameters.ContainsKey('ExchangeEnvironmentName')
+                }
+            }
+        }
+
+        It 'Should build the <EnvironmentName> authority from the credential domain when no tenant id is given' -TestCases @(
+            @{ EnvironmentName = 'AzureGermanyCloud'; UserName = 'admin@contoso.onsovcloud.de'; ExpectedAuthority = 'https://login.sovcloud-identity.de/contoso.onsovcloud.de'; Discovery = '{ "tenant_region_scope": "GG2", "token_endpoint": "https://login.sovcloud-identity.de/t/oauth2/v2.0/token" }' }
+            @{ EnvironmentName = 'AzureFranceCloud'; UserName = 'admin@contoso.onsovcloud.fr'; ExpectedAuthority = 'https://login.sovcloud-identity.fr/contoso.onsovcloud.fr'; Discovery = '{ "tenant_region_scope": "FG", "token_endpoint": "https://login.sovcloud-identity.fr/t/oauth2/v2.0/token" }' }
+        ) {
+            param ($EnvironmentName, $UserName, $ExpectedAuthority, $Discovery)
+            InModuleScope 'MSCloudLoginAssistant' -Parameters @{
+                UserName          = $UserName
+                ExpectedAuthority = $ExpectedAuthority
+                Discovery         = $Discovery
+            } {
+                param ($UserName, $ExpectedAuthority, $Discovery)
+
+                Mock -CommandName Remove-MSCloudLoginProxyModule -MockWith { }
+                Mock -CommandName Get-ConnectionInformation -MockWith { return @() }
+                Mock -CommandName Disconnect-ExchangeOnline -MockWith { }
+                Mock -CommandName Connect-ExchangeOnline -MockWith { }
+
+                $Script:CloudEnvironmentInfo = ConvertFrom-Json $Discovery
+
+                Connect-M365Tenant -Workload 'ExchangeOnline' `
+                    -Credential (New-Object PSCredential ($UserName, (ConvertTo-SecureString 'p@ssw0rd' -AsPlainText -Force)))
+
+                (Get-MSCloudLoginConnectionProfile -Workload 'ExchangeOnline').AzureADAuthorizationEndpointUri | Should -Be $ExpectedAuthority
+                Should -Invoke Connect-ExchangeOnline -Exactly 1 -ParameterFilter {
+                    $Credential.UserName -eq $UserName -and
+                    $AzureADAuthorizationEndpointUri -eq $ExpectedAuthority -and
+                    -not $PesterBoundParameters.ContainsKey('ExchangeEnvironmentName')
                 }
             }
         }

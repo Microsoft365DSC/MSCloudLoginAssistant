@@ -12,7 +12,7 @@
     RootModule             = 'MSCloudLoginAssistant.psm1'
 
     # Version number of this module.
-    ModuleVersion          = '1.2.10'
+    ModuleVersion          = '1.2.11'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -112,7 +112,7 @@
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '* Fixed an issue where PnP and Graph ignored the access token audience.'
+            ReleaseNotes = '* Fixed an issue when authenticating against sovereign cloud environments using EXO and SC.'
 
             # Prerelease string of this module
             # Prerelease = '-pre'

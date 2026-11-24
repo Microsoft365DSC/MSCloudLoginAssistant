@@ -262,6 +262,51 @@ function Get-MSCloudLoginTenantDomainFromCredentials
 
 <#
 .SYNOPSIS
+    Resolves the tenant of a workload profile.
+
+.DESCRIPTION
+    Returns the TenantId of the workload profile. Without a TenantId, returns the domain
+    of the credential UPN. Without either, returns the value of the Default parameter.
+
+.PARAMETER WorkloadProfile
+    The workload profile to evaluate.
+
+.PARAMETER Default
+    The value to return when no tenant can be resolved.
+
+.OUTPUTS
+    System.String. The tenant, or the value of Default.
+#>
+function Resolve-MSCloudLoginWorkloadTenant
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Object]
+        $WorkloadProfile,
+
+        [Parameter()]
+        [System.String]
+        $Default
+    )
+
+    if (-not [System.String]::IsNullOrEmpty($WorkloadProfile.TenantId))
+    {
+        return $WorkloadProfile.TenantId
+    }
+
+    if ($null -ne $WorkloadProfile.Credentials -and $WorkloadProfile.Credentials.UserName -match '@')
+    {
+        return Get-MSCloudLoginTenantDomainFromCredentials -Credentials $WorkloadProfile.Credentials
+    }
+
+    return $Default
+}
+
+<#
+.SYNOPSIS
     Resolves the tenant GUID.
 
 .DESCRIPTION
